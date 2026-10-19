@@ -1,0 +1,59 @@
+export type Mood =
+  | "listening"
+  | "resting"
+  | "thinking"
+  | "talking"
+  | "pointing"
+  | "happy"
+  | "sleepy";
+export type Trail = "comet" | "string" | "none";
+export interface FaceState {
+  mood: Mood;
+  gazeX: number;
+  gazeY: number;
+  talk: number;
+}
+export interface Message {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+}
+export interface Conversation {
+  id: string;
+  title: string;
+  messages: Message[];
+  updated: number;
+}
+export interface Settings {
+  endpoint: string;
+  token: string;
+  model: string;
+  provider: "ollama" | "openai";
+  modelUrl: string;
+  voice: boolean;
+  trail: Trail;
+  cursorSize: number;
+  glow: boolean;
+}
+export type Packet = { type: string; [key: string]: unknown };
+export interface Bridge {
+  connection: () => Promise<{ endpoint: string; token: string }>;
+  window: (
+    action:
+      | "minimize"
+      | "maximize"
+      | "close"
+      | "overlay"
+      | "stop"
+      | "approval"
+      | "yield",
+  ) => void;
+  chooseFolder: () => Promise<string | null>;
+  onPointer: (cb: (p: { x: number; y: number }) => void) => () => void;
+  interactive: (value: boolean) => void;
+}
+declare global {
+  interface Window {
+    bluey?: Bridge;
+  }
+}

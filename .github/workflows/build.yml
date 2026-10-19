@@ -1,0 +1,115 @@
+name: Test and build Bluey
+on:
+  push:
+    branches: [main, "arena/**"]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm run build && npm test
+      - run: pip install -r backend/requirements-dev.txt
+      - run: python -m pytest backend/tests -q
+  android-apk:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm run android:sync
+      - run: chmod +x android/gradlew && cd android && ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bluey-Android-debug-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+  windows-installer:
+    timeout-minutes: 25
+    runs-on: windows-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run package:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Verify executables and generate checksums
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem release/Bluey-*-Windows-x64-*.exe)
+          if ($files.Count -ne 2) { throw "Expected both installer and portable executables" }
+          $hashes = foreach ($file in $files) {
+            if ($file.Length -lt 1000000) { throw "Executable is unexpectedly small: $($file.Name)" }
+            $stream = [System.IO.File]::OpenRead($file.FullName)
+            try {
+              if ($stream.ReadByte() -ne 77 -or $stream.ReadByte() -ne 90) { throw "Missing PE executable header" }
+            } finally { $stream.Dispose() }
+            $hash = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($file.Name)"
+          }
+          $hashes | Set-Content release/SHA256SUMS.txt -Encoding ascii
+          Copy-Item docs/RELEASE_NOTES.md release/Windows-Setup-Instructions.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bluey-Windows-executables
+          path: |
+            release/Bluey-*-Windows-x64-*.exe
+            release/SHA256SUMS.txt
+            release/Windows-Setup-Instructions.md
+          if-no-files-found: error
+  publish-windows-preview:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/e89e17b4-bluey' && contains(github.event.head_commit.message, '[release-windows]')
+    needs: windows-installer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bluey-Windows-executables
+          path: release
+      - name: Publish Windows preview downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="v0.1.0-preview.1"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release/* --clobber
+          else
+            gh release create "$tag" release/* \
+              --target "$GITHUB_SHA" \
+              --title "Bluey 0.1.0 — Windows preview" \
+              --prerelease \
+              --notes-file docs/RELEASE_NOTES.md
+          fi
