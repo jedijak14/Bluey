@@ -63,3 +63,30 @@ def test_postgres_translation_and_row_compatibility():
     assert postgres_sql('INSERT OR IGNORE INTO events VALUES(?)') == 'INSERT INTO events VALUES(%s) ON CONFLICT DO NOTHING'
     assert Row({'sum':15})[0] == 15
     assert dict(Row({'sum':15})) == {'sum':15}
+
+
+def test_existing_https_host_mode_keeps_server_secret_private(monkeypatch):
+    import httpx
+    original = httpx.AsyncClient
+    seen = []
+    def upstream(request):
+        seen.append(request)
+        assert request.url == 'https://family.example/api/family/kid'
+        assert request.headers['x-bluey-gateway'] == 'server-only-test-secret'
+        assert request.headers['authorization'] == 'Bearer kid-token'
+        return httpx.Response(200,json={'protected':False})
+    monkeypatch.setattr(httpx,'AsyncClient',lambda **kwargs:original(**kwargs,transport=httpx.MockTransport(upstream)))
+    api = TestClient(FamilyAPI({'BLUEY_FAMILY_SERVICE_URL':'https://family.example','BLUEY_FAMILY_GATEWAY_TOKEN':'server-only-test-secret'}))
+    response = api.get('/api/family/kid',headers={'Authorization':'Bearer kid-token','X-Bluey-Gateway':'forged'})
+    assert response.json() == {'protected':False}
+    assert 'server-only-test-secret' not in response.text
+    assert len(seen) == 1
+
+
+def test_existing_host_redirects_and_invalid_configuration_fail_closed(monkeypatch):
+    import httpx
+    original = httpx.AsyncClient
+    monkeypatch.setattr(httpx,'AsyncClient',lambda **kwargs:original(**kwargs,transport=httpx.MockTransport(lambda request:httpx.Response(302,headers={'Location':'https://evil.example'},json={}))))
+    for url in ['https://family.example', 'https://[bad', 'http://insecure.example', 'https://user:pass@family.example']:
+        api=TestClient(FamilyAPI({'BLUEY_FAMILY_SERVICE_URL':url,'BLUEY_FAMILY_GATEWAY_TOKEN':'test'}))
+        assert api.get('/api/family/status').status_code == 503

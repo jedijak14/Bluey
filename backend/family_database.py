@@ -91,7 +91,7 @@ class Database:
             parsed = urlsplit(self.location)
             # Enforce encrypted connections for hosted databases. Tests may
             # explicitly use an unencrypted, disposable loopback database.
-            options = {'connect_timeout': 5, 'row_factory': dict_row}
+            options = {'connect_timeout': 5, 'row_factory': dict_row, 'prepare_threshold': None}
             if parsed.hostname not in {'localhost', '127.0.0.1', '::1'}:
                 from psycopg.conninfo import conninfo_to_dict
                 mode = conninfo_to_dict(self.location).get('sslmode', 'require')
