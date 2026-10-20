@@ -7,6 +7,7 @@ const {
   dialog,
   session,
   shell,
+  desktopCapturer,
 } = require("electron");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
@@ -241,6 +242,31 @@ ipcMain.on("overlay-interactive", (event, value) => {
     overlay.setIgnoreMouseEvents(yieldingOverlay || !value, { forward: true });
 });
 app.whenReady().then(() => {
+  session.defaultSession.setDisplayMediaRequestHandler(
+    async (request, callback) => {
+      if (!main || request.frame !== main.webContents.mainFrame) {
+        callback({});
+        return;
+      }
+      try {
+        const sources = await desktopCapturer.getSources({ types: ["screen"] });
+        const choice = await dialog.showMessageBox(main, {
+          type: "question",
+          title: "Share a screen with Bluey",
+          message:
+            "Bluey will keep recent screen frames in memory and send them with questions to your configured model. No screen audio or video file is recorded.",
+          buttons: ["Cancel", ...sources.map((s) => s.name)],
+          defaultId: 0,
+          cancelId: 0,
+        });
+        callback(
+          choice.response ? { video: sources[choice.response - 1] } : {},
+        );
+      } catch {
+        callback({});
+      }
+    },
+  );
   session.defaultSession.setPermissionRequestHandler(
     (contents, permission, callback) =>
       callback(permission === "media" && contents === main?.webContents),

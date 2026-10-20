@@ -76,6 +76,7 @@ class DesktopAction(BaseModel):
 class Automation:
     def __init__(self):
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="bluey-uia")
+        self.permission_check = lambda action: None
         self.desktop = None
         self.on_event = None
         self._feedback = lambda packet: None
@@ -87,9 +88,11 @@ class Automation:
         loop = asyncio.get_running_loop()
         if self.on_event is not None:
             self._feedback = lambda packet: loop.call_soon_threadsafe(lambda: asyncio.create_task(self.on_event(packet)))
-        return await loop.run_in_executor(self.executor, self._execute, action)
+        return await loop.run_in_executor(self.executor, self._execute, action, self.permission_check)
 
-    def _execute(self, action: DesktopAction):
+    def _execute(self, action: DesktopAction, permission_check=None):
+        check = permission_check or self.permission_check
+        check(action.action)
         if self.stopped.is_set():
             raise RuntimeError("Action cancelled.")
         if action.action == "point":
@@ -130,6 +133,7 @@ class Automation:
             round((action.x or 0) / 1000 * (size.width - 1)),
             round((action.y or 0) / 1000 * (size.height - 1)),
         )
+        check(action.action)
         if action.action == "screenshot":
             image = d.get_screenshot()
             left = -ctypes.windll.user32.GetSystemMetrics(76)
@@ -174,6 +178,7 @@ class Automation:
             if not control or control.IsPassword:
                 raise RuntimeError("Password or uninspectable control: action blocked.")
         if action.action == "shortcut":
+            check(action.action)
             if not control.SetFocus():
                 raise RuntimeError(
                     "The approved target cannot receive keyboard focus. No keys were sent."
@@ -183,6 +188,7 @@ class Automation:
                 raise RuntimeError("Keyboard focus changed or is protected. No keys were sent.")
         original = d.get_cursor_location()
         try:
+            check(action.action)
             if self.stopped.is_set():
                 raise RuntimeError("Action cancelled.")
             if action.action == "click":
@@ -193,6 +199,7 @@ class Automation:
                 import psutil
                 if psutil.Process(control.ProcessId).name().lower() in {"cmd.exe", "powershell.exe", "pwsh.exe", "windowsterminal.exe"}:
                     raise RuntimeError("Typing commands into shells is not supported.")
+                check(action.action)
                 d.click(loc, clicks=1)
                 self._feedback({"type": "click_feedback", "x": action.x, "y": action.y, "typing": True})
                 focused = uia.GetFocusedControl()
@@ -200,6 +207,7 @@ class Automation:
                     raise RuntimeError("The approved textbox did not receive focus. No text was sent.")
                 target_id = focused.GetRuntimeId()
                 for index in range(0, len(action.text), 6):
+                    check(action.action)
                     current = uia.GetFocusedControl()
                     if self.stopped.is_set() or current is None or current.IsPassword or current.GetRuntimeId() != target_id:
                         raise RuntimeError("Typing stopped because focus changed or Stop was pressed. Some text may already be entered.")
@@ -212,4 +220,6 @@ class Automation:
                 d.switch_app(action.window)
             return {"completed": action.action}
         finally:
-            uia.SetCursorPos(*original)
+            try: check(action.action)
+            except RuntimeError: pass  # Do not move the cursor after consent is revoked.
+            else: uia.SetCursorPos(*original)

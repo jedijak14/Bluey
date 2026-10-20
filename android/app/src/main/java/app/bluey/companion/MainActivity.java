@@ -8,9 +8,10 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        registerPlugin(DeviceSpeechPlugin.class);
+        if (getPackageName().equals("app.bluey.companion")) registerPlugin(DeviceSpeechPlugin.class);
+        if (getPackageName().equals("app.bluey.kids")) registerPlugin(FamilyVaultPlugin.class);
         super.onCreate(savedInstanceState);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (getPackageName().equals("app.bluey.companion")) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         // Only bundled UI is loaded. Paired replies may arrive after the hold gesture ends.
         getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
     }

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { Capacitor } from "@capacitor/core";
 import App from "./App";
+import { HomeApp } from "./components/Family/HomeApp";
+import { KidsApp } from "./components/Family/KidsApp";
 import { Overlay } from "./components/FloatingWidget/Overlay";
 import { GemmaPreview } from "./components/GemmaPreview";
 import { DesktopWelcome } from "./components/DesktopWelcome";
@@ -25,6 +27,11 @@ function Root() {
   useEffect(() => {
     document.documentElement.classList.toggle("overlay-document", overlay);
   }, [overlay]);
+  const variant = import.meta.env.VITE_BLUEY_VARIANT;
+  if (variant === "home") return <HomeApp />;
+  if (variant === "kids") return <KidsApp />;
+  if (hash === "#home") return <HomeApp />;
+  if (hash === "#kids") return <KidsApp />;
   const content = ["#gemma", "#starter"].includes(hash) ? (
     <GemmaPreview standalone />
   ) : hash === "#phone" ? (
@@ -56,3 +63,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <Root />
   </React.StrictMode>,
 );
+
+import "./components/Family/family.css";

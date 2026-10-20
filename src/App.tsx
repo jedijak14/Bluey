@@ -34,6 +34,8 @@ import {
 } from "lucide-react";
 import { useQuietSession } from "./hooks/useQuietSession";
 import { QuietSessionPanel } from "./components/QuietSessionPanel";
+import { useScreenContext, type ScreenContext } from "./hooks/useScreenContext";
+import { PrivacyControls } from "./components/PrivacyControls";
 import { ListeningEdge } from "./components/ListeningEdge";
 import { Avatar } from "./components/FloatingWidget/Avatar";
 import { Playground } from "./components/Playground";
@@ -118,7 +120,13 @@ export default function App() {
   const [status, setStatus] = useState<"offline" | "connecting" | "connected">(
     "offline",
   );
-  const quiet = useQuietSession(client, false, status === "connected");
+  const screenContext = useScreenContext(status === "connected");
+  const quiet = useQuietSession(
+    client,
+    false,
+    status === "connected",
+    settings.microphoneId,
+  );
   useEffect(() => {
     if (quiet.consentOpen || quiet.drafts.length)
       window.bluey?.window("workspace");
@@ -766,6 +774,12 @@ export default function App() {
   return (
     <div className={`app-shell ${!sidebar ? "sidebar-hidden" : ""}`}>
       <ListeningEdge active={recording || quiet.listening} level={level} />
+      {screenContext.sharing && (
+        <div className="screen-sharing-banner" role="status">
+          Screen visible to Bluey · recent frames, not a saved recording{" "}
+          <button onClick={screenContext.stop}>Stop sharing</button>
+        </div>
+      )}
       {sidebar && (
         <button
           className="sidebar-backdrop"
@@ -845,6 +859,14 @@ export default function App() {
           >
             <FlaskConical size={17} />
             Test AI
+          </button>
+          <button
+            onClick={() => {
+              location.hash = "home";
+            }}
+          >
+            <ShieldCheck size={17} />
+            Bluey Home
           </button>
         </nav>
         <div className="recent-title">
@@ -1161,6 +1183,7 @@ export default function App() {
       )}
       {settingsOpen && (
         <SettingsDialog
+          privacy={screenContext}
           settings={settings}
           status={status}
           onClose={() => setSettingsOpen(false)}
@@ -1273,12 +1296,14 @@ export default function App() {
 }
 
 function SettingsDialog({
+  privacy,
   settings,
   status,
   onClose,
   onConnect,
   onClear,
 }: {
+  privacy: ScreenContext;
   settings: Settings;
   status: string;
   onClose: () => void;
@@ -1488,6 +1513,7 @@ function SettingsDialog({
           </form>
         ) : (
           <div className="privacy-settings">
+            <PrivacyControls control={privacy} />
             <h3>Local by default. Honest by design.</h3>
             <p>
               Conversation history lives in this app’s local storage. API keys
