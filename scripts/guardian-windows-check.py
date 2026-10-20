@@ -54,7 +54,7 @@ name='BlueyGuardianCI';created=False;profile=None;token=None;installed=False
 try:
     password='Aa1!'+secrets.token_hex(20)
     win32net.NetUserAdd(None,1,{'name':name,'password':password,'priv':win32netcon.USER_PRIV_USER,
-        'home_dir':'','comment':'Disposable Bluey CI account','flags':win32netcon.UF_SCRIPT|win32netcon.UF_DONT_EXPIRE_PASS,'script_path':''})
+        'home_dir':'','comment':'Disposable Bluey CI account','flags':win32netcon.UF_SCRIPT,'script_path':''})
     created=True
     group,_,_=win32security.LookupAccountSid(None,win32security.ConvertStringSidToSid('S-1-5-32-545'))
     sid,_,_=win32security.LookupAccountName(None,name)
