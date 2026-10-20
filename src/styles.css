@@ -2448,11 +2448,11 @@ label > input::placeholder {
     width: 235px;
     min-width: 235px;
     box-shadow: 10px 0 45px #0008;
-    transform: translateX(-100%);
+    transform: translateX(0);
   }
   .sidebar-hidden .sidebar {
     margin-left: 0;
-    transform: translateX(0);
+    transform: translateX(-100%);
   }
   .main-window {
     width: 100%;
@@ -2843,4 +2843,134 @@ label > input::placeholder {
 }
 .phone-face:has(.phone-options) {
   touch-action: pan-y;
+}
+
+/* Drawer state means the same thing at every viewport width. */
+.sidebar-backdrop {
+  display: none;
+}
+.sidebar-close {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+}
+.sidebar {
+  position: relative;
+}
+.sidebar-hidden .sidebar {
+  visibility: hidden;
+}
+.pair-shortcut {
+  margin-left: auto;
+  order: 1;
+  white-space: nowrap;
+}
+.pair-entry-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 22px;
+  border: 1px solid #7770a555;
+  border-radius: 16px;
+  background: #282532;
+  margin-bottom: 24px;
+}
+.pair-entry-card h2 {
+  font-size: 17px;
+  margin: 0 0 7px;
+}
+.pair-entry-card p {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0;
+}
+.pair-entry-card .card-icon {
+  margin: 0;
+  flex-shrink: 0;
+}
+.pair-entry-card .primary-button {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.pair-live-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #b6b2c8;
+  margin: 18px 0;
+}
+.pair-connection-help {
+  padding: 12px;
+  background: #ffffff06;
+  border-radius: 10px;
+}
+.pair-connection-help p,
+.connection-guidance {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #b6b2c8;
+}
+.pair-success {
+  color: #a5d9bc !important;
+}
+.pair-code .pair-refreshing {
+  font-size: 20px;
+  letter-spacing: 0;
+}
+.pair-web-note {
+  display: block;
+  font-size: 12px;
+  color: #aaa4bc;
+  line-height: 1.8;
+  margin-top: 24px;
+}
+.pair-web-note svg {
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.pair-web-note a,
+.connection-guidance a,
+.phone-pair-inner a {
+  color: #c1b0ff;
+  text-decoration: underline;
+}
+@media (max-width: 700px) {
+  .sidebar {
+    position: fixed;
+  }
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+    background: #0009;
+    border: 0;
+    backdrop-filter: blur(3px);
+  }
+  .pair-entry-card {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 18px;
+  }
+  .pair-entry-card > div:nth-child(2) {
+    flex: 1;
+  }
+  .pair-entry-card .primary-button {
+    margin-left: 0;
+    width: 100%;
+  }
+  .subbar {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .pair-shortcut {
+    order: 2;
+    width: 100%;
+    justify-content: center;
+    padding: 8px;
+    border: 1px solid #7770a533;
+    border-radius: 8px;
+  }
 }

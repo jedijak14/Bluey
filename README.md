@@ -2,7 +2,7 @@
 
 A local-first desktop companion with a Windows workspace, a separate animated desktop pointer, and a paired Android face. Built with Electron, React, TypeScript, Tailwind, FastAPI, `windows-use`, faster-whisper, and Piper.
 
-**Status: working application foundation, not a validated production release.** The web build, client tests, backend tests, and browser interaction smoke tests pass. Windows UI Automation, microphone/Piper playback on physical devices, Electron packaging, and Android installation require target-device validation. No APK or Windows installer was built in the development sandbox: Java/Android SDK were unavailable and the Electron binary download was blocked. Build workflows are included, but have not been run remotely.
+**Status: preview, not a validated production release.** Published Windows and Android previews are available under [GitHub Releases](https://github.com/jedijak14/Bluey/releases). The current website changes are checked with production builds, client/backend tests, and browser smoke tests. Those checks do not validate Windows UI Automation, microphone/Piper quality on physical devices, or a user's private HTTPS/VPN setup. Python and model files remain external prerequisites.
 
 ## The reference, faithfully adapted
 
@@ -32,6 +32,20 @@ See [the reference adaptation notes](docs/REFERENCE.md) and [security / protocol
 | Pairing           | Manually entered PC address + short-lived one-use six-digit code, limited attempts, session-only phone credentials, revoke controls                                    |
 
 The code workspace is **not a complete Cursor replacement**: no shell execution, language server, debugger, Git UI, autonomous code patching, or project indexing is included. Chat does not automatically read your open project; attach the relevant text explicitly.
+
+## Website pairing
+
+Production frontend: **https://bluey-plum.vercel.app**. Use **Enter pairing code** in the toolbar (or **Connected devices → Pair this device**) to enter your PC endpoint and six-digit code. This opens the companion, not desktop administration.
+
+To generate codes, connect the Windows engine in Settings, then open **Connected devices → Pair my Android**. The countdown updates every second; devices are checked every two seconds while connected. Unused expired codes renew automatically while this screen stays open. Pairing, errors, disconnecting, or leaving the screen stop automatic renewal. Code generation works with the existing released Windows API; no cloud pairing service is implied.
+
+**HTTPS matters:** the Vercel frontend does not host the Windows engine. Browser pairing needs a trusted HTTPS/WSS endpoint over your private network/VPN, with the exact website origin explicitly configured in `BLUEY_ALLOWED_ORIGINS`. Do not publicly expose port 8765 or disable browser security. Ordinary HTTP LAN pairing remains available in the Android APK. See the [connection guide](public/pairing-guide.html), also available at `/pairing-guide.html` on the website.
+
+### Pairing regression tests
+
+After `npm ci` and installing `backend/requirements-dev.txt`, run `npm run build`, then start `npm run dev`. In a separate terminal, start an **isolated test engine** on port 8765 with `BLUEY_LAN=1 BLUEY_TOKEN=pairing-browser-smoke python -m backend.server --lan`. Run `npm run test:pairing`. Never point this test at a real user's engine: it revokes existing test devices. Stop the test engine afterward.
+
+The browser test checks real API redemption/authenticated WebSocket/revocation, plus deterministic short-lived code renewal and hosted HTTPS client fixtures. It also checks mobile drawer close/backdrop/Escape/navigation, disconnected generation, and HTTP-from-HTTPS rejection. Production build tests do not validate a user's private TLS/VPN setup or physical hardware. `npm test`, `npm run test:ui`, and `python -m pytest backend/tests -q` cover the remaining client/UI/backend behavior. On minimal Linux images, use a system browser via `BLUEY_BROWSER`, or provide the shared libraries required by the bundled Sparticuz Chromium.
 
 ## 1. Preview the interface
 

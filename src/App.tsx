@@ -29,14 +29,15 @@ import {
   Square,
   Trash2,
   Volume2,
-  Wifi,
   X,
   Zap,
 } from "lucide-react";
-import { Avatar, CursorAvatar } from "./components/FloatingWidget/Avatar";
+import { Avatar } from "./components/FloatingWidget/Avatar";
 import { Playground } from "./components/Playground";
 import { CodeWorkspace } from "./components/AppWindow/CodeWorkspace";
 import { client } from "./lib/client";
+import { ConnectedDevices, openPairing } from "./components/ConnectedDevices";
+import { connectionEndpoint } from "./lib/pairing";
 import { Microphone } from "./lib/audio";
 import { load, save, uid } from "./lib/storage";
 import type { Conversation, FaceState, Packet, Settings } from "./lib/types";
@@ -128,13 +129,21 @@ export default function App() {
   const voiceRef = useRef(settings.voice);
   const scroll = useRef<HTMLDivElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
-  const [sidebar, setSidebar] = useState(true);
-  const [pair, setPair] = useState<{
-    code: string;
-    expires_in: number;
-    addresses: string[];
-  } | null>(null);
-  const [devices, setDevices] = useState<{ id: string; name: string }[]>([]);
+  const [sidebar, setSidebar] = useState(
+    () => !window.matchMedia("(max-width: 700px)").matches,
+  );
+  const sidebarToggle = useRef<HTMLButtonElement>(null);
+  function closeSidebar() {
+    setSidebar(false);
+    sidebarToggle.current?.focus();
+  }
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 700px)");
+    const resized = () => setSidebar(!media.matches);
+    media.addEventListener("change", resized);
+    resized();
+    return () => media.removeEventListener("change", resized);
+  }, []);
   const conversation = conversations.find((c) => c.id === active);
   const notify = (text: string) => setNotice(text);
   useEffect(() => {
@@ -301,6 +310,7 @@ export default function App() {
         setPage("chat");
       }
       if (e.key === "Escape") {
+        if (window.matchMedia("(max-width: 700px)").matches) closeSidebar();
         setSettingsOpen(false);
         setHelp(false);
         setSearchOpen(false);
@@ -391,41 +401,29 @@ export default function App() {
     return () => clearTimeout(t);
   }, [recording]);
   async function connect(s: Settings, key: string) {
-    setSettings(s);
-    client.connect(s.endpoint, s.token);
     try {
+      const endpoint = connectionEndpoint(
+        s.endpoint,
+        location,
+        Boolean(window.bluey),
+        import.meta.env.DEV,
+      );
+      client.connect(endpoint, s.token);
       await client.request("/api/config", {
         provider: s.provider,
         model: s.model,
         base_url: s.modelUrl,
         api_key: key || undefined,
       });
+      setSettings({ ...s, endpoint });
       notify("Model configuration saved for this backend session.");
       setSettingsOpen(false);
     } catch (e) {
+      client.disconnect();
+      setStatus("offline");
       notify(String(e));
     }
   }
-  async function makePair() {
-    try {
-      const data = await client.request<{
-        code: string;
-        expires_in: number;
-        addresses: string[];
-      }>("/api/pair/create", {});
-      setPair(data);
-      setDevices(await client.request("/api/devices"));
-    } catch (e) {
-      notify(String(e));
-    }
-  }
-  useEffect(() => {
-    if (page === "devices" && status === "connected")
-      client
-        .request<{ id: string; name: string }[]>("/api/devices")
-        .then(setDevices)
-        .catch(() => {});
-  }, [page, status]);
   function stop() {
     const f = flight.current;
     if (f)
@@ -663,7 +661,34 @@ export default function App() {
   );
   return (
     <div className={`app-shell ${!sidebar ? "sidebar-hidden" : ""}`}>
-      <aside className="sidebar">
+      {sidebar && (
+        <button
+          className="sidebar-backdrop"
+          aria-label="Dismiss sidebar"
+          onClick={closeSidebar}
+        />
+      )}
+      <aside
+        id="workspace-sidebar"
+        className="sidebar"
+        inert={!sidebar}
+        onClick={(event) => {
+          if (
+            window.matchMedia("(max-width: 700px)").matches &&
+            (event.target as HTMLElement).closest(
+              "nav button, .new-chat, .brand, .recent-item > button:first-child, .sidebar-settings, .sidebar-footer button",
+            )
+          )
+            closeSidebar();
+        }}
+      >
+        <button
+          className="icon-button sidebar-close"
+          aria-label="Close sidebar"
+          onClick={closeSidebar}
+        >
+          <X size={18} />
+        </button>
         <button className="brand" onClick={newChat}>
           <Avatar mood="happy" />
           <span>
@@ -807,6 +832,9 @@ export default function App() {
             <button
               className="icon-button"
               title="Toggle sidebar"
+              ref={sidebarToggle}
+              aria-expanded={sidebar}
+              aria-controls="workspace-sidebar"
               onClick={() => setSidebar((v) => !v)}
             >
               <PanelLeftClose size={18} />
@@ -872,6 +900,9 @@ export default function App() {
           </div>
         </header>
         <div className="subbar">
+          <button className="pair-shortcut text-button" onClick={openPairing}>
+            <Smartphone size={15} /> Enter pairing code
+          </button>
           <div className="mode-switch">
             <button
               className={mode === "chat" ? "active" : ""}
@@ -939,127 +970,11 @@ export default function App() {
             }}
           />
         ) : (
-          <div className="page-scroll">
-            <div className="page-heading">
-              <span className="eyebrow-label">BETTER TOGETHER</span>
-              <h1>A little closer, on every screen.</h1>
-              <p>
-                Give Bluey a home on your Android. Keep the brains on your PC.
-              </p>
-            </div>
-            <div className="device-layout">
-              <div className="device-illustration">
-                <div className="illustration-monitor">
-                  <CursorAvatar />
-                  <span>WINDOWS</span>
-                </div>
-                <div className="pair-dots">
-                  <i />
-                  <i />
-                  <i />
-                </div>
-                <div className="illustration-phone">
-                  <Avatar mood={pair ? "listening" : "resting"} />
-                </div>
-                <span className="connection-caption">
-                  <Wifi size={14} /> One Wi-Fi. Two friends.
-                </span>
-              </div>
-              <div className="pair-card">
-                <div className="card-icon">
-                  <Smartphone size={22} />
-                </div>
-                <h2>Meet on your Android</h2>
-                <p>
-                  Open the Bluey Android app, enter your PC’s address and the
-                  one-time code below.
-                </p>
-                <ol>
-                  <li>
-                    <span>1</span>Connect both devices to trusted Wi-Fi.
-                  </li>
-                  <li>
-                    <span>2</span>Enable LAN mode when starting the backend.
-                  </li>
-                  <li>
-                    <span>3</span>Generate a code and pair within 2 minutes.
-                  </li>
-                </ol>
-                {pair ? (
-                  <div className="pair-code">
-                    <span>ONE-TIME PAIRING CODE</span>
-                    <strong>{pair.code}</strong>
-                    <small>
-                      {pair.addresses.join(" or ")} · expires after 2 minutes
-                    </small>
-                  </div>
-                ) : null}
-                <button
-                  className="primary-button"
-                  onClick={() => void makePair()}
-                >
-                  <Wifi size={16} />
-                  {pair ? "Generate a new code" : "Generate pairing code"}
-                  <ArrowRight size={16} />
-                </button>
-                <p className="tiny muted">
-                  Pairing requires the Windows backend. The phone never receives
-                  your model API key.
-                </p>
-              </div>
-            </div>
-            <div className="connected-list">
-              <h3>
-                Paired devices <span>{devices.length}</span>
-              </h3>
-              {devices.length ? (
-                devices.map((d) => (
-                  <div className="device-row" key={d.id}>
-                    <Smartphone size={20} />
-                    <div>
-                      <strong>{d.name}</strong>
-                      <span>Paired for this backend session</span>
-                    </div>
-                    <button
-                      className="outline-button"
-                      onClick={async () => {
-                        try {
-                          await client.request(
-                            `/api/devices/${d.id}`,
-                            undefined,
-                            "DELETE",
-                          );
-                          setDevices((ds) => ds.filter((x) => x.id !== d.id));
-                        } catch (e) {
-                          notify(String(e));
-                        }
-                      }}
-                    >
-                      Disconnect
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <div className="device-empty">
-                  <Monitor size={21} />
-                  <p>
-                    Your Windows PC is home base.
-                    <br />
-                    <span>Paired Android devices will appear here.</span>
-                  </p>
-                </div>
-              )}
-            </div>
-            <button
-              className="text-button"
-              onClick={() => {
-                location.hash = "#phone";
-                location.reload();
-              }}
-            >
-              Preview the Android companion <ExternalLink size={13} />
-            </button>
-          </div>
+          <ConnectedDevices
+            status={status}
+            endpoint={settings.endpoint}
+            onConnect={() => setSettingsOpen(true)}
+          />
         )}
         <footer className="statusbar">
           <span>
@@ -1265,13 +1180,21 @@ function SettingsDialog({
               setBusy(false);
             }}
           >
+            <p className="connection-guidance">
+              Hosted browser: use a trusted HTTPS/WSS endpoint to your Windows
+              PC, with this site’s origin explicitly allowed by the engine. A
+              blank address is only for the local development proxy.{" "}
+              <a href="/pairing-guide.html" target="_blank" rel="noreferrer">
+                Connection guide
+              </a>
+            </p>
             <div className="field-row">
               <label>
                 Backend address
                 <input
                   value={s.endpoint}
                   onChange={(e) => setS({ ...s, endpoint: e.target.value })}
-                  placeholder="Blank = same-origin development proxy"
+                  placeholder="https://your-pc.private-network"
                 />
               </label>
               <label>
