@@ -1,0 +1,7 @@
+-r requirements.txt
+# Install separately on a sufficiently provisioned inference host, not Vercel.
+kagglehub==1.0.2
+keras-hub==0.32.0
+keras==3.15.1
+torch>=2.6,<3
+tensorflow>=2.18,<3

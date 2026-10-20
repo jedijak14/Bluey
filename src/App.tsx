@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  FlaskConical,
   ArrowRight,
   ArrowUp,
   Check,
@@ -35,6 +36,7 @@ import {
 import { Avatar } from "./components/FloatingWidget/Avatar";
 import { Playground } from "./components/Playground";
 import { CodeWorkspace } from "./components/AppWindow/CodeWorkspace";
+import { GemmaPreview } from "./components/GemmaPreview";
 import { DesktopTools } from "./components/DesktopTools";
 import {
   ResponseCard,
@@ -65,7 +67,7 @@ const initialFace: FaceState = {
   gazeY: 0,
   talk: 0,
 };
-type Page = "chat" | "companion" | "devices" | "tools";
+type Page = "gemma" | "chat" | "companion" | "devices" | "tools";
 const quickActions = [
   {
     icon: Monitor,
@@ -788,6 +790,13 @@ export default function App() {
             <Zap size={17} />
             Desktop tools
           </button>
+          <button
+            className={page === "gemma" ? "selected" : ""}
+            onClick={() => setPage("gemma")}
+          >
+            <FlaskConical size={17} />
+            Gemma 3 preview
+          </button>
         </nav>
         <div className="recent-title">
           <span>RECENT CONVERSATIONS</span>
@@ -921,9 +930,11 @@ export default function App() {
                   : "Code workspace"
                 : page === "companion"
                   ? "My companion"
-                  : page === "tools"
-                    ? "Desktop tools"
-                    : "Connected devices"}
+                  : page === "gemma"
+                    ? "Gemma 3 preview"
+                    : page === "tools"
+                      ? "Desktop tools"
+                      : "Connected devices"}
             </strong>
           </div>
           <div className="top-actions">
@@ -1055,6 +1066,8 @@ export default function App() {
                 client.send({ type: "mood", mood: m });
             }}
           />
+        ) : page === "gemma" ? (
+          <GemmaPreview />
         ) : page === "tools" ? (
           <DesktopTools
             connected={status === "connected"}

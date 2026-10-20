@@ -21,3 +21,8 @@ playwright-report/
 *.keystore
 *.p12
 *.pem
+
+# Optional Gemma host environment and large model files
+.venv-gemma/
+*.safetensors
+*.weights.h5
