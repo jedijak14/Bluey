@@ -128,6 +128,7 @@ try {
     page.getByRole("heading", { name: "Test child’s rules" }),
   ).toBeVisible();
   await page.getByLabel("Daily computer allowance").fill("60");
+  await page.getByLabel("Parent allowlist exceptions").fill("x.com");
   await page.getByRole("button", { name: "Save rules" }).click();
   await expect(
     page.getByText(
@@ -168,6 +169,22 @@ try {
   await expect(
     page.getByText("Approved in Home.", { exact: false }),
   ).toBeVisible();
+  expect(child.policy.allowed_domains).toEqual(["x.com"]);
+  await page.addInitScript(() => {
+    window.blueyFamily = {
+      guardianStatus: async () => ({ state: "admin_needed" }),
+      openSetupGuide: async () => "",
+      vaultRead: async () => ({ token: "" }),
+      vaultWrite: async () => {},
+      vaultClear: async () => {},
+      request: async () => ({ status: 503, data: { error: "Not configured" } }),
+    };
+  });
+  await page.goto(base + "/#kids");
+  await expect(
+    page.getByText("Admin Permissions is needed", { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".kids-welcome .avatar")).toBeVisible();
   expect(errors).toEqual([]);
   console.log(
     "Account gate, mobile safety preview, enrollment, rules and time requests passed.",

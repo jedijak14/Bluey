@@ -15,6 +15,7 @@ class AgentReport(StrictModel):
     day: str = Field(pattern=r'^\d{4}-\d{2}-\d{2}$')
     time_service: StrictBool
     edge_rules: StrictBool
+    blocklist_version: str = Field(default='', max_length=40)
     error: str = Field(default='', max_length=160)
 
 class SafetyEvent(StrictModel):
@@ -69,10 +70,12 @@ def install_routes(app, connect, parent, actor, gateway, limited, owned, issue):
     def policy(identity=Depends(agent)):
         with connect() as db:
             row=db.execute('SELECT policy FROM children WHERE id=?',(identity['child'],)).fetchone()
-            policy=json.loads(row['policy']);now=time.time()
+            from .family_service import Policy
+            from .website_rules import build_rules
+            policy=Policy.model_validate_json(row['policy']).model_dump();now=time.time()
             day=datetime.fromtimestamp(now,ZoneInfo(policy['timezone'])).date().isoformat()
             extra=db.execute('SELECT COALESCE(SUM(minutes),0) FROM grants WHERE child=? AND day=?',(identity['child'],day)).fetchone()[0]
-            return {'policy':policy,'day':day,'extra_minutes_today':min(extra,1440),'server_time':now,'valid_until':now+86400}
+            return {'website_rules':build_rules(policy),'policy':policy,'day':day,'extra_minutes_today':min(extra,1440),'server_time':now,'valid_until':now+86400}
 
     @app.post('/api/family/agent/report')
     def report(body: AgentReport, identity=Depends(agent)):

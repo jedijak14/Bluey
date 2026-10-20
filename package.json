@@ -1,7 +1,7 @@
 {
   "name": "bluey-companion",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -23,7 +23,9 @@
     "test:mobile-site": "node scripts/mobile-site-smoke.mjs",
     "android:home": "node scripts/build-family-android.mjs home",
     "android:kids": "node scripts/build-family-android.mjs kids",
-    "test:family": "node scripts/family-smoke.mjs"
+    "test:family": "node scripts/family-smoke.mjs",
+    "package:win:kids": "node scripts/build-family-windows.mjs kids",
+    "package:win:home": "node scripts/build-family-windows.mjs home"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",

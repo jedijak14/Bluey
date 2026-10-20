@@ -28,17 +28,7 @@ def password_hash(password, salt):
     return hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=16384, r=8, p=1).hex()
 
 
-def domain(value):
-    value = value.strip().lower().rstrip('.')
-    if '://' in value:
-        parsed = urlsplit(value)
-        if parsed.scheme not in {'http', 'https'} or parsed.username or parsed.password or parsed.port or parsed.path not in {'', '/'} or parsed.query or parsed.fragment:
-            raise ValueError('Enter a domain, not a URL path or credentials.')
-        value = parsed.hostname or ''
-    value = value.encode('idna').decode('ascii')
-    if len(value) > 253 or '.' not in value or value.endswith(('.local', '.localhost')) or not all(re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', p) for p in value.split('.')) or re.fullmatch(r'[0-9.]+', value):
-        raise ValueError('Use a public website domain such as example.com.')
-    return value
+from .website_rules import domain, build_rules
 
 
 class StrictModel(BaseModel):
@@ -69,7 +59,9 @@ class Policy(StrictModel):
     timezone: str = Field(default='America/Los_Angeles', max_length=60)
     blocked_domains: list[str] = Field(default_factory=list, max_length=100)
 
-    @field_validator('blocked_domains')
+    allowed_domains: list[str] = Field(default_factory=list, max_length=100)
+
+    @field_validator('blocked_domains', 'allowed_domains')
     @classmethod
     def domains(cls, values): return sorted(set(domain(v) for v in values))
 
@@ -188,12 +180,12 @@ def create_app(path: str, gateway_token: str, invite: str):
     install_routes(app, connect, parent, actor, gateway, limited, owned, issue)
 
     def snapshot(db, row):
-        policy = json.loads(row['policy'])
+        policy = Policy.model_validate_json(row['policy']).model_dump()
         extra = db.execute('SELECT COALESCE(SUM(minutes),0) FROM grants WHERE child=? AND day=?', (row['id'], day(policy))).fetchone()[0]
         agent = db.execute('SELECT last_seen,report FROM agents WHERE child=?',(row['id'],)).fetchone()
         reporting = bool(agent and agent['last_seen'] and time.time()-agent['last_seen']<90)
         report = json.loads(agent['report']) if agent and agent['report'] else None
-        return {'agent': {'recent': reporting, 'report': report, 'last_seen': agent['last_seen'] if agent else None}, 'id':row['id'], 'name':row['name'], 'policy':policy, 'extra_minutes_today':extra, 'used_minutes':None,
+        return {'website_rules': build_rules(policy), 'agent': {'recent': reporting, 'report': report, 'last_seen': agent['last_seen'] if agent else None}, 'id':row['id'], 'name':row['name'], 'policy':policy, 'extra_minutes_today':extra, 'used_minutes':None,
                 'protected':False, 'enforcement':'not_installed', 'last_seen':None,
                 'notice':'Rules are saved, not enforced. This preview does not install a managed Windows service or browser filter.'}
 

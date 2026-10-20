@@ -1,0 +1,65 @@
+import { useEffect, useState } from "react";
+export type GuardianHealth = {
+  state: string;
+  restriction?: string;
+  policyVersion?: number;
+  blocklistVersion?: string;
+  verified?: boolean;
+};
+export function GuardianStatus() {
+  const [health, setHealth] = useState<GuardianHealth>({ state: "checking" });
+  useEffect(() => {
+    let alive = true;
+    const refresh = async () => {
+      try {
+        const next = await window.blueyFamily!.guardianStatus();
+        if (alive) setHealth(next);
+      } catch {
+        if (alive) setHealth({ state: "unavailable" });
+      }
+    };
+    void refresh();
+    const timer = setInterval(() => void refresh(), 5000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+  if (!window.blueyFamily) return null;
+  return (
+    <section className="home-warning guardian-status" role="status">
+      <div>
+        <strong>
+          {health.state === "admin_needed"
+            ? "Admin Permissions is needed"
+            : health.state === "checking"
+              ? "Checking Windows Guardian…"
+              : health.state === "wrong_account"
+                ? "This is not the enrolled child account"
+                : health.state === "reporting"
+                  ? "Windows Guardian is reporting"
+                  : "Protection needs administrator attention"}
+        </strong>
+        <p>
+          {health.state === "admin_needed"
+            ? "Ask your parent to install and enroll Windows Guardian using an administrator account. Installing this companion alone does not enable protection."
+            : health.state === "reporting"
+              ? `Applied policy ${health.policyVersion}. Blocklist ${health.blocklistVersion}. Edge rules and session-time enforcement are reported, not independently verified.`
+              : "No verified protection status. Keep your existing parental controls enabled."}
+        </p>
+        {health.restriction && (
+          <p>
+            Windows restriction: {health.restriction.replaceAll("_", " ")}.
+            Closing this companion does not stop the Windows service.
+          </p>
+        )}
+        <button
+          className="home-text"
+          onClick={() => void window.blueyFamily!.openSetupGuide()}
+        >
+          Parent administrator setup & recovery
+        </button>
+      </div>
+    </section>
+  );
+}

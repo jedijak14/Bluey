@@ -36,10 +36,14 @@ function ChildRules({
   onRemove: () => void;
   disabled: boolean;
 }) {
+  const [allowed, setAllowed] = useState(
+    (child.policy.allowed_domains || []).join("\n"),
+  );
   const [policy, setPolicy] = useState(child.policy),
     [domains, setDomains] = useState(child.policy.blocked_domains.join("\n"));
   useEffect(() => {
     setPolicy(child.policy);
+    setAllowed((child.policy.allowed_domains || []).join("\n"));
     setDomains(child.policy.blocked_domains.join("\n"));
   }, [child.id, child.policy.version]);
   return (
@@ -56,6 +60,10 @@ function ChildRules({
           e.preventDefault();
           void onSave({
             ...policy,
+            allowed_domains: allowed
+              .split("\n")
+              .map((v) => v.trim())
+              .filter(Boolean),
             blocked_domains: domains
               .split("\n")
               .map((s) => s.trim())
@@ -126,11 +134,32 @@ function ChildRules({
             placeholder={"example.com\nanother-site.com"}
           />
         </label>
+        <label>
+          Parent allowlist exceptions
+          <textarea
+            rows={3}
+            value={allowed}
+            onChange={(e) => setAllowed(e.target.value)}
+            placeholder="x.com"
+          />
+        </label>
         <p className="home-fine">
-          One domain per line. These are parent-entered rules, not a
-          comprehensive unsafe-site detector. Rules are not applied to Windows
-          or browsers by this preview.
+          Deterministic rules—not AI decisions. X/Twitter and a starter list of
+          adult services are blocked by default. Your allowlist overrides
+          matching blocks; each domain includes its subdomains. Allowing x.com
+          does not also allow twitter.com. Unlisted websites are not certified
+          safe. Requires an updated, enrolled Guardian and managed Edge.
         </p>
+        <details>
+          <summary>
+            Effective blocklist ·{" "}
+            {child.website_rules?.version || "awaiting updated service"}
+          </summary>
+          <p className="home-fine">
+            {child.website_rules?.blocked.join(", ") ||
+              "Connect to the updated family service to retrieve the effective blocklist."}
+          </p>
+        </details>
         <button className="home-primary" disabled={disabled}>
           Save rules <ArrowRight size={16} />
         </button>
