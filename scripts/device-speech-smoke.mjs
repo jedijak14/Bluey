@@ -1,4 +1,4 @@
-// Frontend contract fixture; native OS services are tested separately on Android.
+// Native API fixture, not proof of a physical Android recognizer's accuracy.
 import { chromium, expect } from "@playwright/test";
 import packed from "@sparticuz/chromium";
 const browser = await chromium.launch({
@@ -13,16 +13,17 @@ const browser = await chromium.launch({
 });
 try {
   const page = await browser.newPage({
-    viewport: { width: 1000, height: 650 },
-  });
-  const errors = [],
-    packets = [];
+      viewport: { width: 1000, height: 650 },
+    }),
+    packets = [],
+    errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript(() => {
     window.androidBridge = {};
     window.speechCalls = [];
+    window.recognitionActive = false;
+    window.recognitionText = "Background context";
     window.recognitionFailure = false;
-    window.holdSpeech = false;
     window.Capacitor = {
       PluginHeaders: [
         {
@@ -34,6 +35,8 @@ try {
             "speak",
             "stopSpeaking",
             "getStatus",
+            "chirp",
+            "saveNotes",
           ].map((name) => ({ name, rtype: "promise" })),
         },
       ],
@@ -42,49 +45,65 @@ try {
         if (method === "startRecognition") {
           if (window.recognitionFailure)
             throw new Error("Microphone permission was denied.");
-          return { id: "speech-session" };
+          window.recognitionActive = true;
+          return { id: crypto.randomUUID() };
         }
-        if (method === "stopRecognition")
-          return { text: "Recognized on the device" };
-        if (method === "speak" && window.holdSpeech)
-          return new Promise((resolve) => {
-            window.finishSpeech = resolve;
-          });
-        if (method === "stopSpeaking") window.finishSpeech?.();
+        if (method === "getStatus")
+          return { listening: window.recognitionActive };
+        if (method === "stopRecognition") {
+          window.recognitionActive = false;
+          return { text: window.recognitionText };
+        }
+        if (method === "cancelRecognition") window.recognitionActive = false;
+        if (method === "saveNotes") return { saved: true };
+        if (method === "speak") throw new Error("Spoken output is forbidden");
         return {};
       },
     };
     window.Audio = class {
       constructor() {
-        throw new Error("Android must never play PC WAV audio");
+        throw new Error("PC audio is forbidden");
       }
     };
   });
-  await page.route("**/api/pair", (route) =>
-    route.fulfill({ json: { token: "fixture-phone-token" } }),
+  await page.route("**/api/pair", (r) =>
+    r.fulfill({ json: { token: "fixture" } }),
   );
-  await page.routeWebSocket("**/api/ws", (socket) =>
-    socket.onMessage((raw) => {
-      const packet = JSON.parse(raw);
-      packets.push(packet);
-      if (packet.type === "auth")
-        socket.send(JSON.stringify({ type: "ready", role: "phone" }));
-      if (packet.type === "chat") {
-        socket.send(
-          JSON.stringify({
-            type: "token",
-            request: packet.request,
-            text: `Reply to ${packet.messages.at(-1).content}`,
-          }),
-        );
-        socket.send(
-          JSON.stringify({ type: "audio", audio: "unwanted-PC-WAV" }),
-        );
-        socket.send(JSON.stringify({ type: "done", request: packet.request }));
-      }
+  await page.route("**/api/companion/meeting", (r) =>
+    r.fulfill({ json: { active: null, supported: false } }),
+  );
+  await page.route("**/api/companion/notes", (r) =>
+    r.fulfill({
+      json: { notes: "Decision: ship on Friday. Owner not identified." },
     }),
   );
-  await page.goto("http://127.0.0.1:5173");
+  let peer;
+  await page.routeWebSocket("**/api/ws", (ws) => {
+    peer = ws;
+    ws.onMessage((raw) => {
+      const p = JSON.parse(raw);
+      packets.push(p);
+      if (p.type === "auth")
+        ws.send(JSON.stringify({ type: "ready", role: "phone" }));
+      if (p.type === "chat") {
+        const text = `Reply to ${p.messages.at(-1).content}`;
+        ws.send(JSON.stringify({ type: "token", request: p.request, text }));
+        ws.send(
+          JSON.stringify({
+            type: "response",
+            request: p.request,
+            text,
+            title: "Answer",
+            format: "quick",
+            sources: [],
+          }),
+        );
+        ws.send(JSON.stringify({ type: "audio", audio: "MUST-NOT-PLAY" }));
+        ws.send(JSON.stringify({ type: "done", request: p.request }));
+      }
+    });
+  });
+  await page.goto(process.env.BLUEY_PREVIEW_URL || "http://127.0.0.1:5173");
   await page
     .getByLabel("PC address", { exact: true })
     .fill("192.168.1.10:8765");
@@ -97,90 +116,84 @@ try {
   ).toBeVisible();
   const calls = (method) =>
     page.evaluate(
-      (method) => window.speechCalls.filter((call) => call.method === method),
+      (method) => window.speechCalls.filter((c) => c.method === method),
       method,
     );
-  const question = async (text) => {
-    await page.getByRole("button", { name: "Companion options" }).click();
-    await page.getByLabel("Ask Bluey", { exact: true }).fill(text);
-    await page
-      .getByRole("button", { name: "Send to my PC", exact: true })
-      .click();
-    await expect(page.locator(".phone-caption")).toContainText(
-      `Reply to ${text}`,
-    );
-  };
-  await expect(
-    page.getByRole("button", { name: "Enable spoken replies" }),
-  ).toHaveAttribute("aria-pressed", "false");
-  await question("quiet by default");
-  expect(await calls("speak")).toHaveLength(0);
-  expect(packets.filter((p) => p.type === "chat").at(-1).voice).toBe(false);
-  // Require informed recognition opt-in before the first recording.
-  await page.mouse.move(450, 340);
-  await page.mouse.down();
-  await expect(page.locator(".phone-error")).toContainText(
-    "Enable device speech recognition",
-  );
-  await page.mouse.up();
   expect(await calls("startRecognition")).toHaveLength(0);
+  await page.mouse.dblclick(450, 280);
   await expect(
-    page.getByLabel("Use device speech recognition"),
-  ).not.toBeChecked();
-  await page.getByLabel("Use device speech recognition").check();
-  await expect(
-    page.getByLabel(/Speak replies using Android/),
-  ).not.toBeChecked();
-  await page.getByRole("button", { name: "Close options" }).click();
-  const hold = async () => {
-    await page.mouse.move(450, 340);
-    await page.mouse.down();
-    await expect(page.locator(".phone-instruction")).toContainText(
-      "Listening — release",
-    );
-    await expect(page.locator(".listening-edge")).toBeVisible();
-    await page.mouse.up();
-    await expect(page.locator(".listening-edge")).toHaveCount(0);
-  };
-  await hold();
-  await expect(page.locator(".phone-caption")).toContainText(
-    "Reply to Recognized on the device",
+    page.getByRole("region", { name: "Microphone session consent" }),
+  ).toBeVisible();
+  expect(await calls("startRecognition")).toHaveLength(0);
+  await page
+    .getByLabel("I have permission from everyone being recorded.")
+    .check();
+  await page
+    .getByRole("button", { name: "Allow & start session", exact: true })
+    .click();
+  await expect(page.locator(".phone-instruction")).toContainText(
+    "Keeping context",
   );
-  expect(await calls("startRecognition")).toHaveLength(1);
-  expect(await calls("stopRecognition")).toHaveLength(1);
+  await expect(page.locator(".listening-edge")).toBeVisible();
+  await page.evaluate(() => {
+    window.recognitionText = "The team agreed to ship Friday";
+    window.recognitionActive = false;
+  });
+  await expect
+    .poll(async () => (await calls("startRecognition")).length)
+    .toBeGreaterThan(1);
+  expect(packets.filter((p) => p.type === "chat")).toHaveLength(0);
+  await page.mouse.move(450, 280);
+  await page.mouse.down();
+  await expect(page.locator(".phone-instruction")).toHaveText("Release to ask");
+  await page.evaluate(() => {
+    window.recognitionText = "What's this?";
+  });
+  await page.mouse.up();
+  await expect(page.locator(".phone-caption")).toContainText(
+    "Reply to What's this?",
+  );
+  const question = packets.find((p) => p.type === "chat");
+  expect(question.voice).toBe(false);
+  expect(question.messages[0].content).toContain("ship Friday");
+  expect(question.messages.at(-1).content).toBe("What's this?");
+  expect(packets.some((p) => p.type === "point_at_mouse")).toBe(true);
+  await expect.poll(async () => (await calls("chirp")).length).toBe(1);
   expect(await calls("speak")).toHaveLength(0);
   expect(packets.some((p) => p.type === "transcribe")).toBe(false);
-  await page.getByRole("button", { name: "Enable spoken replies" }).click();
-  await question("opted-in device output");
-  await expect.poll(async () => (await calls("speak")).length).toBe(1);
-  expect((await calls("speak"))[0].args.text).toBe(
-    "Reply to opted-in device output",
-  );
-  expect(
-    packets.filter((p) => p.type === "chat").every((p) => p.voice === false),
-  ).toBe(true);
+  await expect(page.locator(".listening-edge")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Take meeting notes", exact: true })
+    .click();
+  await expect(
+    page.getByText("Meeting notes recording", { exact: true }),
+  ).toBeVisible();
   await page.evaluate(() => {
-    window.holdSpeech = true;
+    window.recognitionText = "Decision: ship on Friday";
+    window.recognitionActive = false;
   });
-  await question("cancel this speech");
-  await expect.poll(async () => (await calls("speak")).length).toBe(2);
-  const beforeMute = (await calls("stopSpeaking")).length;
-  await page.getByRole("button", { name: "Mute spoken replies" }).click();
-  await expect
-    .poll(async () => (await calls("stopSpeaking")).length)
-    .toBeGreaterThan(beforeMute);
-  await question("silent again");
-  expect(await calls("speak")).toHaveLength(2);
-  await page.evaluate(() => {
-    window.recognitionFailure = true;
-  });
-  await page.mouse.move(450, 340);
-  await page.mouse.down();
-  await expect(page.locator(".phone-error")).toContainText(
-    "Microphone permission was denied",
+  await page.getByRole("button", { name: "End meeting", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "Save meeting notes" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Meeting notes", { exact: true })).toHaveValue(
+    "Decision: ship on Friday. Owner not identified.",
   );
-  await page.mouse.up();
-  const previousCancel = (await calls("cancelRecognition")).length;
+  await page
+    .getByRole("button", { name: "Save notes & transcription", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Save meeting notes" }),
+  ).toHaveCount(0);
+  expect((await calls("saveNotes"))[0].args.text).toContain(
+    "## Microphone transcript",
+  );
+  await page.mouse.dblclick(450, 280);
+  await expect(page.locator(".phone-instruction")).toContainText("Follow mode");
+  await expect(page.locator(".listening-edge")).toHaveCount(0);
+  // Windows shortcut command can start the already-consented paired phone, not TTS.
+  peer.send(JSON.stringify({ type: "session_toggle" }));
+  await expect(page.locator(".listening-edge")).toBeVisible();
   await page.evaluate(() => {
     Object.defineProperty(document, "hidden", {
       configurable: true,
@@ -188,12 +201,23 @@ try {
     });
     document.dispatchEvent(new Event("visibilitychange"));
   });
-  await expect
-    .poll(async () => (await calls("cancelRecognition")).length)
-    .toBeGreaterThan(previousCancel);
+  await expect(page.locator(".listening-edge")).toHaveCount(0);
+  expect(await page.evaluate(() => window.recognitionActive)).toBe(false);
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      value: false,
+    });
+    window.recognitionFailure = true;
+  });
+  peer.send(JSON.stringify({ type: "session_toggle" }));
+  await expect(page.locator(".session-error")).toContainText(
+    "Microphone permission was denied",
+  );
+  await expect(page.locator(".listening-edge")).toHaveCount(0);
   expect(errors).toEqual([]);
   console.log(
-    "Device speech UI passed: silent defaults, device text input, no PC audio, explicit TTS, mute/cancellation, permission error and background cleanup.",
+    "Quiet session fixture passed: explicit consent, ambient context without replies, hold/release, mouse target, text/chirp only, continued listening, meeting review/save, double-tap stop, remote toggle, permission failure and background cancellation.",
   );
 } finally {
   await browser.close();

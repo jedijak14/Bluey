@@ -3,6 +3,7 @@ import { registerPlugin } from "@capacitor/core";
 export const DEFAULT_SPEAK_REPLIES = false;
 export interface DeviceSpeechPlugin {
   getStatus(): Promise<{
+    listening?: boolean;
     recognition: boolean;
     onDevice: boolean;
     synthesis: boolean;
@@ -10,6 +11,11 @@ export interface DeviceSpeechPlugin {
   startRecognition(): Promise<{ id: string }>;
   stopRecognition(options: { id: string }): Promise<{ text: string }>;
   cancelRecognition(): Promise<void>;
+  chirp(): Promise<void>;
+  saveNotes(options: {
+    name: string;
+    text: string;
+  }): Promise<{ saved: boolean }>;
   speak(options: { text: string }): Promise<void>;
   stopSpeaking(): Promise<void>;
 }
@@ -17,7 +23,9 @@ export const DeviceSpeech = registerPlugin<DeviceSpeechPlugin>("DeviceSpeech");
 
 /** Android always requests text: even opted-in speech is synthesized on the phone. */
 export function requestServerVoice(native: boolean, enabled: boolean) {
-  return !native && enabled;
+  void native;
+  void enabled;
+  return false;
 }
 
 /** Cancellable sequence avoids queuing an entire reply after mute/backgrounding. */

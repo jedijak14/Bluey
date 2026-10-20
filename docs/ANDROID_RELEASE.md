@@ -1,3 +1,7 @@
+# Android 0.3.0 preview
+
+This source version introduces quiet sessions; the old 0.2.0 instructions below are historical and do not describe the new controls. Update the APK **and Windows Python engine** together. Double-tap to start/end a consented session, hold and release to ask, and use text replies with optional chirps—not TTS. Keep the app foregrounded. Meeting notes require consent and are best-effort; save through the Android file picker. See [full controls, setup, recording limits and meeting privacy](QUIET_SESSIONS.md).
+
 # Bluey 0.2.0 — Android device speech, silent by default
 
 Install **Bluey-0.2.0-Android.apk** on your Android phone. This is a universal, debug-signed sideload preview, not a Play Store release. The release workflow publishes the APK only after compilation, lint, tests, emulator checks and signature verification pass. Checksums and verification reports accompany the download.

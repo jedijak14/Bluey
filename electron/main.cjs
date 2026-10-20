@@ -86,7 +86,7 @@ function createWindows() {
     frame: false,
     thickFrame: true,
     show: false,
-    webPreferences,
+    webPreferences: { ...webPreferences, backgroundThrottling: false },
   });
   main.once("ready-to-show", () => main.show());
   load(main);
@@ -127,6 +127,14 @@ function createWindows() {
   if (!globalShortcut.register("CommandOrControl+Shift+B", toggleOverlay))
     console.warn(
       "Bluey overlay shortcut is already registered by another app.",
+    );
+  if (
+    !globalShortcut.register("CommandOrControl+Shift+Space", () =>
+      main.webContents.send("command", "session"),
+    )
+  )
+    console.warn(
+      "Bluey session shortcut is already registered by another app.",
     );
   if (!globalShortcut.register("CommandOrControl+Shift+S", emergencyStop))
     console.warn("Bluey stop shortcut is already registered by another app.");
@@ -204,6 +212,7 @@ ipcMain.on("window-action", (event, action) => {
   if (!ours(event)) return;
   if (action === "overlay") toggleOverlay();
   if (action === "stop") emergencyStop();
+  if (action === "session") main.webContents.send("command", "session");
   if (action === "workspace" || action === "microphone") {
     main.restore();
     main.show();

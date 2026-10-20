@@ -74,13 +74,32 @@ export class Microphone {
     this.stream = undefined;
     this.processor = undefined;
     if (context && context.state !== "closed") await context.close();
-    const b = new ArrayBuffer(44 + this.length * 2),
+    return this.drain(rate);
+  }
+  async cancel(): Promise<void> {
+    this.generation++;
+    this.processor?.disconnect();
+    this.stream?.getTracks().forEach((t) => t.stop());
+    const context = this.context;
+    this.context = undefined;
+    this.stream = undefined;
+    this.processor = undefined;
+    this.samples = [];
+    this.length = 0;
+    if (context && context.state !== "closed") await context.close();
+  }
+  async drain(rate = this.context?.sampleRate ?? 48000): Promise<string> {
+    const samples = this.samples,
+      length = this.length;
+    this.samples = [];
+    this.length = 0;
+    const b = new ArrayBuffer(44 + length * 2),
       v = new DataView(b);
     const str = (o: number, s: string) => {
       for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i));
     };
     str(0, "RIFF");
-    v.setUint32(4, 36 + this.length * 2, true);
+    v.setUint32(4, 36 + length * 2, true);
     str(8, "WAVE");
     str(12, "fmt ");
     v.setUint32(16, 16, true);
@@ -91,14 +110,13 @@ export class Microphone {
     v.setUint16(32, 2, true);
     v.setUint16(34, 16, true);
     str(36, "data");
-    v.setUint32(40, this.length * 2, true);
+    v.setUint32(40, length * 2, true);
     let o = 44;
-    for (const s of this.samples)
+    for (const s of samples)
       for (const n of s) {
         v.setInt16(o, Math.max(-1, Math.min(1, n)) * 32767, true);
         o += 2;
       }
-    this.samples = [];
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = () => resolve((reader.result as string).split(",")[1]);

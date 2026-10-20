@@ -1,6 +1,14 @@
 package app.bluey.companion;
 
 import android.Manifest;
+import android.app.Activity;
+import android.view.WindowManager;
+import android.media.AudioManager;
+import android.media.ToneGenerator;
+import androidx.activity.result.ActivityResult;
+import com.getcapacitor.annotation.ActivityCallback;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
@@ -89,6 +97,7 @@ public class DeviceSpeechPlugin extends Plugin {
                 call.reject("No Android speech recognition service is installed. Enable one in Android Settings or type your question.", "UNAVAILABLE");
                 return;
             }
+            getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             Session current = new Session();
             session = current;
             try {
@@ -176,11 +185,46 @@ public class DeviceSpeechPlugin extends Plugin {
     }
 
     private void cancelRecognitionSession() {
+        getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         Session old = session; session = null;
         if (old == null) return;
         if (old.timeout != null) main.removeCallbacks(old.timeout);
         if (old.recognizer != null) { old.recognizer.cancel(); old.recognizer.destroy(); }
         if (old.stopCall != null) old.stopCall.reject("Listening cancelled.", "CANCELLED");
+    }
+
+    @PluginMethod public void chirp(PluginCall call) {
+        main.post(() -> {
+            if (!foreground) { call.resolve(); return; }
+            try {
+                ToneGenerator tone = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 25);
+                tone.startTone(ToneGenerator.TONE_PROP_ACK, 140);
+                main.postDelayed(tone::release, 300);
+                call.resolve();
+            } catch (RuntimeException e) { call.reject("Chirp unavailable."); }
+        });
+    }
+
+    @PluginMethod public void saveNotes(PluginCall call) {
+        String text = call.getString("text", "");
+        if (text.length() > 250000) { call.reject("Notes exceed the save limit."); return; }
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("text/markdown");
+        intent.putExtra(Intent.EXTRA_TITLE, "Bluey-meeting-notes.md");
+        startActivityForResult(call, intent, "notesCreated");
+    }
+
+    @ActivityCallback private void notesCreated(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) {
+            JSObject response = new JSObject(); response.put("saved", false); call.resolve(response); return;
+        }
+        try (OutputStream output = getContext().getContentResolver().openOutputStream(result.getData().getData())) {
+            if (output == null) throw new java.io.IOException("No destination");
+            output.write(call.getString("text", "").getBytes(StandardCharsets.UTF_8));
+            JSObject response = new JSObject(); response.put("saved", true); call.resolve(response);
+        } catch (Exception e) { call.reject("Could not save notes. Choose another destination."); }
     }
 
     @PluginMethod public void speak(PluginCall call) {

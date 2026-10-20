@@ -14,6 +14,7 @@ export function Overlay() {
     gazeY: 0,
     talk: 0,
   });
+  const [sessionActive, setSessionActive] = useState(false);
   const [caption, setCaption] = useState("");
   const [response, setResponse] = useState<CompanionResponse | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -42,6 +43,7 @@ export function Overlay() {
   }, []);
   useEffect(() => {
     client.onPacket = (p) => {
+      if (p.type === "session_state") setSessionActive(Boolean(p.active));
       if (p.type === "response") {
         setResponse(p as unknown as CompanionResponse);
         setExpanded(p.format === "research");
@@ -82,6 +84,11 @@ export function Overlay() {
       }
     });
     const off = window.bluey?.onPointer((p) => {
+      if (!pinned.current)
+        target.current = {
+          x: Math.max(0, Math.min(innerWidth - 90, p.x + 18)),
+          y: Math.max(0, Math.min(innerHeight - 100, p.y + 20)),
+        };
       if (!pinned.current)
         setFace((f) => ({
           ...f,
@@ -208,6 +215,13 @@ export function Overlay() {
           talk={face.talk}
         />
         <div className="widget-controls">
+          <button
+            title={sessionActive ? "End quiet session" : "Start quiet session"}
+            aria-pressed={sessionActive}
+            onClick={() => window.bluey?.window("session")}
+          >
+            {sessionActive ? "End session" : "Session"}
+          </button>
           <button
             title="Ask with Windows microphone"
             onClick={() => window.bluey?.window("microphone")}

@@ -10,7 +10,7 @@ it("is silent by default and never asks Windows for Android speech", () => {
   expect(requestServerVoice(true, false)).toBe(false);
   expect(requestServerVoice(true, true)).toBe(false);
   expect(requestServerVoice(false, false)).toBe(false);
-  expect(requestServerVoice(false, true)).toBe(true);
+  expect(requestServerVoice(false, true)).toBe(false);
 });
 it("does not initialize output just by constructing a speaker", () => {
   const device = { speak: vi.fn(), stopSpeaking: vi.fn() };
