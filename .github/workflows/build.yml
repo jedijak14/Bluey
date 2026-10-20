@@ -224,17 +224,11 @@ jobs:
           path: |
             android/app/build/reports/
             android/app/build/outputs/androidTest-results/
-  windows-installer:
-    if: "github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[release-android]')"
-    timeout-minutes: 25
+  guardian-check:
     runs-on: windows-latest
-    needs: test
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -242,6 +236,17 @@ jobs:
         run: |
           python -m pip install -r guardian/requirements.txt
           python scripts/guardian-windows-check.py
+  windows-installer:
+    if: "github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[release-android]')"
+    timeout-minutes: 25
+    runs-on: windows-latest
+    needs: [test, guardian-check]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
       - run: npm ci
       - run: npm run package:win
         env:

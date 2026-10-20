@@ -9,6 +9,19 @@ import shutil
 import subprocess
 import sys
 import time
+import traceback
+
+def report_error(kind, value, tb):
+    text=''.join(traceback.format_exception(kind,value,tb))
+    print('::error::'+text.replace('%','%25').replace('\r','%0D').replace('\n','%0A'),flush=True)
+    sys.__excepthook__(kind,value,tb)
+sys.excepthook=report_error
+
+def command(args):
+    result=subprocess.run(args,capture_output=True,text=True,timeout=60)
+    if result.returncode:
+        raise RuntimeError(f'Command failed ({result.returncode}): {result.stdout} {result.stderr}')
+    print(result.stdout,flush=True)
 
 if sys.platform != 'win32' or os.getenv('GITHUB_ACTIONS') != 'true':
     raise SystemExit('Only run on an isolated Windows GitHub-hosted test runner.')
@@ -45,7 +58,9 @@ try:
     created=True
     group,_,_=win32security.LookupAccountSid(None,win32security.ConvertStringSidToSid('S-1-5-32-545'))
     sid,_,_=win32security.LookupAccountName(None,name)
-    win32net.NetLocalGroupAddMembers(None,group,0,[{'sid':sid}])
+    try:win32net.NetLocalGroupAddMembers(None,group,0,[{'sid':sid}])
+    except win32net.error as error:
+        if error.winerror!=1378:raise  # Some Windows images already add Users membership.
     sid_text=standard_local_user(name)
     process_token=win32security.OpenProcessToken(win32api.GetCurrentProcess(),win32con.TOKEN_ADJUST_PRIVILEGES|win32con.TOKEN_QUERY)
     for privilege in ('SeBackupPrivilege','SeRestorePrivilege'):
@@ -77,7 +92,7 @@ try:
     now=time.time();budget=Budget();budget.sync({'policy':policy,'day':datetime.now(timezone.utc).date().isoformat(),'extra_minutes_today':0,'server_time':now,'valid_until':now+86400},now)
     (data/'usage.json').write_text(json.dumps(budget.state))
     installed=True
-    subprocess.run([sys.executable,'-I',str(root/'service_entry.py'),'install','--config',str(config)],check=True,timeout=60)
+    command([sys.executable,'-I',str(root/'service_entry.py'),'install','--config',str(config)])
     deadline=time.monotonic()+45
     while time.monotonic()<deadline:
         try:
@@ -101,7 +116,7 @@ try:
 finally:
     win32security.RevertToSelf()
     if installed:
-        subprocess.run([sys.executable,'-I',str(root/'service_entry.py'),'recover','--config',str(data/'config.json')],check=True,timeout=60)
+        command([sys.executable,'-I',str(root/'service_entry.py'),'recover','--config',str(data/'config.json')])
         assert not (data/'config.json').exists()
     elif profile:
         for kind in ('URLAllowlist','URLBlocklist'):
