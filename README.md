@@ -10,17 +10,17 @@ Open **Test AI** in the sidebar or `/#gemma`. The configured model is exactly `k
 
 Phones, iPads and tablets can explore a separate mobile information site. **Test AI** and direct AI links remain desktop/laptop-only. Desktop visitors get a skippable wink-and-logo intro; mobile visitors see a sad Bluey, a device illustration and a clear notice. Detection uses browser signals—not CPU/GPU identification or hardware authentication. The native Android paired companion remains separate. Automatic Wi-Fi PC discovery is not implemented by this change.
 
-## Download Bluey 0.2.0
+## Download Bluey 0.3.0
 
-Published preview: [v0.2.0-preview.3](https://github.com/jedijak14/Bluey/releases/tag/v0.2.0-preview.3).
+Published preview: [v0.3.0-preview.5](https://github.com/jedijak14/Bluey/releases/tag/v0.3.0-preview.5).
 
 | Platform              | Download                                                                                                                                           |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Android               | [Bluey-0.2.0-Android.apk](https://github.com/jedijak14/Bluey/releases/download/v0.2.0-preview.3/Bluey-0.2.0-Android.apk)                           |
-| Windows x64 installer | [Bluey-0.2.0-Windows-x64-Setup.exe](https://github.com/jedijak14/Bluey/releases/download/v0.2.0-preview.3/Bluey-0.2.0-Windows-x64-Setup.exe)       |
-| Windows x64 portable  | [Bluey-0.2.0-Windows-x64-Portable.exe](https://github.com/jedijak14/Bluey/releases/download/v0.2.0-preview.3/Bluey-0.2.0-Windows-x64-Portable.exe) |
+| Android               | [Bluey-0.3.0-Android.apk](https://github.com/jedijak14/Bluey/releases/download/v0.3.0-preview.5/Bluey-0.3.0-Android.apk)                           |
+| Windows x64 installer | [Bluey-0.3.0-Windows-x64-Setup.exe](https://github.com/jedijak14/Bluey/releases/download/v0.3.0-preview.5/Bluey-0.3.0-Windows-x64-Setup.exe)       |
+| Windows x64 portable  | [Bluey-0.3.0-Windows-x64-Portable.exe](https://github.com/jedijak14/Bluey/releases/download/v0.3.0-preview.5/Bluey-0.3.0-Windows-x64-Portable.exe) |
 
-[Checksums](https://github.com/jedijak14/Bluey/releases/download/v0.2.0-preview.3/SHA256SUMS.txt) · [Windows setup](docs/RELEASE_NOTES.md) · [Android setup](docs/ANDROID_RELEASE.md). Windows binaries are unsigned and still require the Python/model setup. Android is debug-signed; a different preview signing key can require uninstalling the previous APK (clears app data). **Bluey is silent by default.**
+[Checksums](https://github.com/jedijak14/Bluey/releases/download/v0.3.0-preview.5/SHA256SUMS.txt) · [Windows setup](docs/RELEASE_NOTES.md) · [Android setup](docs/ANDROID_RELEASE.md). Windows binaries are unsigned and still require the Python/model setup. Android is debug-signed; a different preview signing key can require uninstalling the previous APK (clears app data). **No spoken replies—text bubbles and a brief phone chirp. Update both apps and the Python engine.**
 
 ## 0.2.0 preview additions
 
@@ -34,7 +34,7 @@ Reviewed [rbrown101010/bluey-by-riley](https://github.com/rbrown101010/bluey-by-
 - Seven expressions: listening, thinking, talking, pointing, happy, sleepy, resting.
 - Original blueberry colors, crown, eyes, blush, and locally bundled Fredoka / IBM Plex fonts.
 - Independent pointer eyes, cubic flight paths, comet/string/off trails, and soft glow.
-- Double tap the phone face to wake/rest. Hold an awake face to record; release to transcribe and ask.
+- Double-tap the phone face to start/end a quiet context session. Hold, wait for “Release to ask”, speak and release for a text reply and brief chirp.
 - Unlike the reference's always-listening OpenAI Realtime design, **recording is explicit**. Windows uses local transcription. Android prefers on-device recognition, but its configured system provider may use a network after explicit consent. No background meeting recording is implemented.
 
 See [the reference adaptation notes](docs/REFERENCE.md) and [security / protocol notes](docs/ARCHITECTURE.md).
@@ -129,7 +129,7 @@ npm run desktop
 
 The Whisper path must be an already-downloaded CTranslate2/faster-whisper model directory. The Piper path must point to a valid voice `.onnx` plus its configuration file. Respect model licenses.
 
-Desktop mic: click to start, click again to stop; review the resulting transcript before sending. Turn on **Read responses aloud** for desktop audio. Android 0.2.0 uses device speech recognition after explicit opt-in: double tap to wake, hold to speak, release to send recognized text. **Bluey is silent by default**; optional Android spoken replies use the device TTS engine, not Piper. See [Android device speech and privacy](docs/ANDROID_RELEASE.md).
+Desktop one-shot mic: click to start/stop and review the transcript. For continuous sessions, use **Start quiet session** or **Ctrl+Shift+Space**. Android 0.3.0 double-taps start/end a consented session; hold and release to ask. **No spoken replies.** See [quiet session controls, meeting notes and privacy](docs/QUIET_SESSIONS.md).
 
 First model load and CPU transcription/synthesis are **not zero-latency**. Whisper runs CPU/int8 in this implementation. For desktop/browser voice (not Android device speech), recordings are uploaded to the paired PC, temporary WAVs are deleted after transcription, and generated speech is sent as complete sentence-sized WAV chunks, not low-level streaming PCM.
 
@@ -161,7 +161,7 @@ Or run `python -m backend.server --lan` for a standalone backend. Allow Python o
 2. Keep the PC and phone on the same trusted Wi-Fi.
 3. In Windows → Connected devices, generate a pairing code.
 4. On Android, enter the displayed private PC address, e.g. `192.168.1.10:8765`, and the six-digit code within two minutes.
-5. Double tap to wake; hold to speak. Approve proposed desktop actions on the PC.
+5. Double-tap to start a quiet session; hold and release to ask. Approve proposed desktop actions on the PC.
 
 Pairing codes are one-use. Credentials are in memory and expire when the backend restarts; pair again after app/device restarts. Android can chat, transcribe, receive face/audio updates, and request stop, but **cannot approve actions, change model keys/configuration, or browse workspace files**.
 
@@ -235,3 +235,7 @@ docs/                        Reference and security/protocol notes
 ```
 
 The application code is public domain under the repository's [Unlicense](LICENSE). Font licenses and reference attribution are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Quiet sessions (0.3.0 preview)
+
+Double-tap the paired Android face to start/stop a quiet context session; hold, speak and release for a text bubble and brief phone chirp. No spoken replies. **Ctrl+Shift+Space** controls the paired phone from Windows (or the Windows microphone when no phone is connected). Meeting-window detection is best effort, with manual controls and a save/discard prompt for volatile notes/transcripts. See [setup, privacy boundaries and known limits](docs/QUIET_SESSIONS.md). New native APIs require the matching 0.3.0 app/engine; older downloads do not contain these changes.

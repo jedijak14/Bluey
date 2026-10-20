@@ -98,7 +98,7 @@
       </ol>
       <p>
         <a
-          href="https://github.com/jedijak14/Bluey/releases/download/v0.2.0-preview.3/Bluey-0.2.0-Android.apk"
+          href="https://github.com/jedijak14/Bluey/releases/download/v0.3.0-preview.5/Bluey-0.3.0-Android.apk"
           >Download the published Android preview APK</a
         >. The APK is debug-signed and needs the Windows engine; it is not a
         standalone AI service.
@@ -188,8 +188,9 @@ $env:BLUEY_ALLOWED_ORIGINS = "https://bluey-plum.vercel.app"
         </li>
         <li>
           <strong>Connected, but no AI reply:</strong> configure your local
-          model. Voice additionally needs Whisper and Piper models on Windows;
-          pairing does not install them.
+          model. Windows microphone transcription needs a local Whisper model;
+          Android uses its device recognizer. Pairing does not install models.
+          Bluey replies in text, not speech.
         </li>
       </ul>
       <p><a href="/#phone">Enter a pairing code →</a></p>

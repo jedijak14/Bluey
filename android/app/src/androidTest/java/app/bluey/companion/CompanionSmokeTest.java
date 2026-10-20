@@ -88,7 +88,7 @@ public class CompanionSmokeTest {
         evaluate(s, "(()=>{const e=document.querySelector('textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e," + JSONObject.quote(question) + ");e.dispatchEvent(new Event('input',{bubbles:true}));})()");
         evaluate(s, "document.querySelector('.phone-options form').requestSubmit()");
         waitFor(s, "document.querySelector('.phone-caption')?.textContent.includes(" + JSONObject.quote("Message received: " + question) + ")");
-        waitFor(s, "document.querySelector('.phone-instruction')?.textContent.includes('Hold to ask')");
+        waitFor(s, "!document.querySelector('.phone-instruction')?.textContent.includes('Thinking')");
     }
 
     @Test public void deviceSpeechIsSilentByDefaultAndUsesAndroidServices() throws Exception {
@@ -114,29 +114,34 @@ public class CompanionSmokeTest {
             evaluate(s, "(()=>{const inputs=document.querySelectorAll('form input');const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(inputs[0],'http://10.0.2.2:8765');inputs[0].dispatchEvent(new Event('input',{bubbles:true}));set.call(inputs[1]," + JSONObject.quote(pairingCode) + ");inputs[1].dispatchEvent(new Event('input',{bubbles:true}));})()");
             evaluate(s, "document.querySelector('form').requestSubmit()");
             waitFor(s, "document.querySelector('.phone-connection')?.textContent.includes('Connected to Windows')");
-            assertEquals("false", evaluate(s, "document.querySelector('[title=\"Enable spoken replies\"]').getAttribute('aria-pressed')==='true'"));
+            assertEquals("No spoken-output switch", "null", evaluate(s, "document.querySelector('[title=\"Enable spoken replies\"]')"));
             status(s);
             assertEquals("TTS must not initialize by default", "false", evaluate(s, "window.__voiceStatus.synthesisInitialized"));
             assertEquals("No background listening", "false", evaluate(s, "window.__voiceStatus.listening"));
             evaluate(s, "document.querySelector('[title=\"Companion options\"]').click()");
             waitFor(s, "document.querySelector('textarea')");
-            assertEquals("Speak replies defaults off", "false", evaluate(s, "document.querySelector('.phone-options form input[type=checkbox]').checked"));
-            evaluate(s, "document.querySelector('.phone-device-voice input').click()");
+
             typeQuestion(s, "android silent test");
             status(s);
             assertEquals("Text reply must not initialize TTS", "false", evaluate(s, "window.__voiceStatus.synthesisInitialized"));
             assertEquals("CI installs a system recognition fixture", "true", evaluate(s, "window.__voiceStatus.recognition"));
             assertEquals("CI must exercise the configured fixture, not another recognizer", "false", evaluate(s, "window.__voiceStatus.onDevice"));
+            evaluate(s, "document.querySelector('[title=\"Companion options\"]').click()");
+            evaluate(s, "Array.from(document.querySelectorAll('.phone-options button')).find(b=>b.textContent==='Start quiet session').click()");
+            waitFor(s, "document.querySelector('.session-consent')");
+            evaluate(s, "document.querySelectorAll('.session-consent input')[1].click()");
+            evaluate(s, "document.querySelector('.session-consent .primary-button').click()");
+            waitFor(s, "document.querySelector('.phone-instruction')?.textContent.includes('Keeping context')");
             long pressed = SystemClock.uptimeMillis();
             s.onActivity(activity -> {
                 android.webkit.WebView web = activity.getBridge().getWebView();
-                MotionEvent down = MotionEvent.obtain(pressed, pressed, MotionEvent.ACTION_DOWN, web.getWidth() * .45f, web.getHeight() * .65f, 0);
+                MotionEvent down = MotionEvent.obtain(pressed, pressed, MotionEvent.ACTION_DOWN, web.getWidth() * .45f, web.getHeight() * .45f, 0);
                 web.dispatchTouchEvent(down); down.recycle();
             });
-            waitFor(s, "document.querySelector('.phone-instruction')?.textContent.includes('Listening — release')");
+            waitFor(s, "document.querySelector('.phone-instruction')?.textContent.includes('Release to ask')");
             s.onActivity(activity -> {
                 android.webkit.WebView web = activity.getBridge().getWebView();
-                MotionEvent up = MotionEvent.obtain(pressed, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, web.getWidth() * .45f, web.getHeight() * .65f, 0);
+                MotionEvent up = MotionEvent.obtain(pressed, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, web.getWidth() * .45f, web.getHeight() * .45f, 0);
                 web.dispatchTouchEvent(up); up.recycle();
             });
             waitFor(s, "document.querySelector('.phone-caption')?.textContent.includes('Message received: device recognition smoke test')");
@@ -144,20 +149,10 @@ public class CompanionSmokeTest {
             assertEquals("Recognized input must still produce silent text", "false", evaluate(s, "window.__voiceStatus.synthesisInitialized"));
             evaluate(s, "document.querySelector('[title=\"Companion options\"]').click()");
             waitFor(s, "document.querySelector('textarea')");
-            evaluate(s, "document.querySelector('.phone-options form input[type=checkbox]').click()");
-            typeQuestion(s, "optional device output test");
-            boolean finished = false;
-            long deadline = SystemClock.elapsedRealtime() + 15000;
-            while (SystemClock.elapsedRealtime() < deadline) {
-                status(s);
-                if ("true".equals(evaluate(s, "window.__voiceStatus.synthesisInitialized && !window.__voiceStatus.speaking"))) {
-                    finished = true; break;
-                }
-                SystemClock.sleep(100);
-            }
-            assertTrue("Explicit opt-in should complete through Android TTS", finished);
-            assertEquals("No speech-service errors", "null", evaluate(s, "document.querySelector('.phone-error')"));
-            evaluate(s, "document.querySelector('[title=\"Mute spoken replies\"]').click()");
+            typeQuestion(s, "still silent test");
+            status(s);
+            assertEquals("Session replies never initialize TTS", "false", evaluate(s, "window.__voiceStatus.synthesisInitialized"));
+            assertEquals("Session keeps input active after an answer", "true", evaluate(s, "window.__voiceStatus.listening"));
             s.moveToState(androidx.lifecycle.Lifecycle.State.CREATED);
             s.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED);
             status(s);

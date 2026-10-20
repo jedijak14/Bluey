@@ -155,9 +155,9 @@ export function MobileWebsite({
               <ShieldCheck />
               <h3>You stay in control</h3>
               <p>
-                Desktop actions need your approval. Bluey stays silent by
-                default, and the microphone only listens when you explicitly
-                start it.
+                Desktop actions need your approval. Bluey never speaks replies.
+                Double-tap the paired phone to start a quiet session; hold and
+                release to ask.
               </p>
             </article>
             <article>

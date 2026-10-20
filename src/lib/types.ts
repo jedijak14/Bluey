@@ -50,6 +50,7 @@ export interface Bridge {
       | "approval"
       | "yield"
       | "workspace"
+      | "session"
       | "microphone"
       | "resume-overlay",
   ) => void;

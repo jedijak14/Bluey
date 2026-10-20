@@ -29,10 +29,11 @@ import {
   Sparkles,
   Square,
   Trash2,
-  Volume2,
   X,
   Zap,
 } from "lucide-react";
+import { useQuietSession } from "./hooks/useQuietSession";
+import { QuietSessionPanel } from "./components/QuietSessionPanel";
 import { ListeningEdge } from "./components/ListeningEdge";
 import { Avatar } from "./components/FloatingWidget/Avatar";
 import { Playground } from "./components/Playground";
@@ -117,6 +118,11 @@ export default function App() {
   const [status, setStatus] = useState<"offline" | "connecting" | "connected">(
     "offline",
   );
+  const quiet = useQuietSession(client, false, status === "connected");
+  useEffect(() => {
+    if (quiet.consentOpen || quiet.drafts.length)
+      window.bluey?.window("workspace");
+  }, [quiet.consentOpen, quiet.drafts.length]);
   const [face, setFace] = useState(initialFace);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -138,7 +144,7 @@ export default function App() {
   } | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
   const audioQueue = useRef<string[]>([]);
-  const voiceRef = useRef(settings.voice);
+  const voiceRef = useRef(false);
   const scroll = useRef<HTMLDivElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const [sidebar, setSidebar] = useState(
@@ -159,7 +165,7 @@ export default function App() {
   const conversation = conversations.find((c) => c.id === active);
   const notify = (text: string) => setNotice(text);
   useEffect(() => {
-    voiceRef.current = settings.voice;
+    voiceRef.current = false;
     save("bluey.settings", { ...settings, token: undefined });
   }, [settings]);
   useEffect(() => save("bluey.chats", conversations), [conversations]);
@@ -314,6 +320,13 @@ export default function App() {
     };
     const offCommand = window.bluey?.onCommand?.((command) => {
       if (command === "microphone") micAction.current();
+      if (command === "session") {
+        try {
+          client.send({ type: "session_toggle" });
+        } catch {
+          setNotice("Connect to Windows before starting a session.");
+        }
+      }
     });
     window.bluey?.connection().then((c) => {
       setSettings((s) => ({ ...s, ...c }));
@@ -403,7 +416,7 @@ export default function App() {
           role,
           content: text,
         })),
-        voice: settings.voice,
+        voice: false,
         mode: researchMode ? "research" : "chat",
       });
     } catch (e) {
@@ -412,6 +425,10 @@ export default function App() {
     }
   }
   async function toggleMic() {
+    if (quiet.active) {
+      notify("End the quiet session before making a separate recording.");
+      return;
+    }
     if (micBusy.current) return;
     if (status !== "connected") {
       notify("Connect the local engine before using the microphone.");
@@ -461,6 +478,12 @@ export default function App() {
       setLevel(0);
     }
   }, [status]);
+  useEffect(() => {
+    if (quiet.active) {
+      void mic.current.cancel();
+      setRecording(false);
+    }
+  }, [quiet.active]);
   micAction.current = () => void toggleMic();
   async function connect(s: Settings, key: string) {
     try {
@@ -515,6 +538,7 @@ export default function App() {
   }
   const composer = (
     <div className="composer-area">
+      <QuietSessionPanel session={quiet} client={client} />
       <div className={`composer ${recording ? "recording" : ""}`}>
         <textarea
           ref={textarea}
@@ -741,7 +765,7 @@ export default function App() {
   );
   return (
     <div className={`app-shell ${!sidebar ? "sidebar-hidden" : ""}`}>
-      <ListeningEdge active={recording} level={level} />
+      <ListeningEdge active={recording || quiet.listening} level={level} />
       {sidebar && (
         <button
           className="sidebar-backdrop"
@@ -1440,18 +1464,11 @@ function SettingsDialog({
                 transcription. {micNotice}
               </p>
             </div>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={s.voice}
-                onChange={(e) => setS({ ...s, voice: e.target.checked })}
-              />
-              <div>
-                Read responses aloud
-                <span>Uses your locally installed Piper voice.</span>
-              </div>
-              <Volume2 size={18} />
-            </label>
+            <p className="settings-note">
+              No spoken replies. Quiet sessions keep context until you end them.
+              Ctrl+Shift+Space toggles the paired phone session (or this PC if
+              no phone is connected).
+            </p>
             <div className="settings-note">
               <ShieldCheck size={17} />
               <span>

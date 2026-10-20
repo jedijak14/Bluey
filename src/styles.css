@@ -4136,3 +4136,137 @@ label > input::placeholder {
     transition: none !important;
   }
 }
+/* Quiet sessions: a readable recording strip, never a voice-output control. */
+.quiet-session-panel {
+  padding: 10px 0;
+  font-size: 12px;
+  text-align: left;
+}
+.session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+.session-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #bcceff;
+  padding: 9px 12px;
+  background: #8195fa12;
+  border: 1px solid #8195fa40;
+  border-radius: 12px;
+}
+.session-status button {
+  margin-left: auto;
+  padding: 5px 9px;
+  border: 1px solid #8c90b5;
+  border-radius: 8px;
+}
+.session-status strong {
+  width: 100%;
+  color: #d4bcf2;
+}
+.session-error {
+  color: #edb5a9;
+  margin: 8px;
+}
+.session-reply {
+  background: #e9e0ff;
+  color: #282039;
+  border-radius: 18px 18px 18px 5px;
+  padding: 16px;
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow: auto;
+}
+.session-consent,
+.meeting-review {
+  position: relative;
+  padding: 24px;
+  border: 1px solid #77648d;
+  background: #252130;
+  color: #eee7fb;
+  border-radius: 20px;
+  max-height: 70dvh;
+  overflow: auto;
+  box-shadow: 0 12px 40px #0003;
+}
+.session-consent h2,
+.meeting-review h2 {
+  font-size: 22px;
+  margin: 0 0 12px;
+}
+.session-consent p,
+.meeting-review p {
+  line-height: 1.65;
+  margin: 12px 0;
+}
+.session-consent label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 18px 0;
+  line-height: 1.6;
+}
+.session-consent input {
+  width: auto;
+  margin-top: 4px;
+}
+.meeting-review textarea {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  border: 1px solid #77648d;
+  border-radius: 9px;
+  background: #17141d;
+  color: #eee7fb;
+}
+.meeting-transcript {
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.meeting-transcript time {
+  color: #b99adf;
+  font-size: 10px;
+}
+.phone-face .quiet-session-panel {
+  position: absolute;
+  z-index: 12;
+  bottom: 72px;
+  left: 4%;
+  width: 92%;
+  max-height: 75dvh;
+  overflow: auto;
+  touch-action: pan-y;
+}
+.phone-face .quiet-session-panel:has(.session-consent),
+.phone-face .quiet-session-panel:has(.meeting-review) {
+  bottom: 16px;
+}
+.phone-face .session-status {
+  background: #24204fee;
+  color: white;
+}
+.phone-face .session-error {
+  background: #291f32;
+  padding: 10px;
+  border-radius: 10px;
+}
+.phone-caption.speech-bubble {
+  background: #f1eaff;
+  color: #292039;
+  border-radius: 24px 24px 24px 6px;
+  padding: 18px 24px;
+  box-shadow: 0 8px 30px #1d174b33;
+  max-height: 30dvh;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.phone-face .phone-options {
+  z-index: 25;
+}
