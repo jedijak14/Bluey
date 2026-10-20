@@ -61,7 +61,7 @@ jobs:
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon --stacktrace 2>&1 | tee ../android-build.log
+          ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest :app:lintDebug --no-daemon --stacktrace 2>&1 | tee ../android-build.log
       - name: Prepare native test backend and emulator access
         run: |
           python -m pip install -r backend/requirements.txt
@@ -78,7 +78,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: bash -o pipefail -c "cd android && ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace 2>&1 | tee ../android-native-test.log"
+          script: bash -o pipefail -c "cd android && ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace 2>&1 | tee ../android-native-test.log"
       - name: Verify signed APK and create download files
         run: |
           mkdir -p release/android

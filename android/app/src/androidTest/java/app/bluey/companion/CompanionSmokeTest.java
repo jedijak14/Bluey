@@ -88,9 +88,8 @@ public class CompanionSmokeTest {
             float[] point = new float[2];
             s.onActivity(activity -> {
                 android.webkit.WebView web = activity.getBridge().getWebView();
-                // Dispatch native MotionEvents in WebView-local coordinates. Android 15's
-                // targeted system injector uses display coordinates before rotation,
-                // which can direct landscape test touches into the navigation window.
+                // Dispatch native MotionEvents in WebView-local coordinates to avoid
+                // cross-window input injection failures on the rotated emulator.
                 point[0] = web.getWidth() * 0.45f;
                 point[1] = web.getHeight() * 0.65f;
             });
