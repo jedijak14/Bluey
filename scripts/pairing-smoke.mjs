@@ -22,6 +22,9 @@ const makePage = async (options = {}) => {
     viewport: { width: 1440, height: 1000 },
     ...options,
   });
+  await page.addInitScript(() =>
+    sessionStorage.setItem("bluey.desktop-welcome.v1", "seen"),
+  );
   const id = ++pageNumber;
   if (process.env.BLUEY_DEBUG_SMOKE) {
     for (const event of ["request", "requestfinished", "requestfailed"])

@@ -1,6 +1,6 @@
 # Gemma 3 website integration
 
-The website now uses the requested **`keras/gemma3/keras/gemma3_1b`** model identifier. The retired scratch-model page/weights are not shipped or used as a fallback. `/#gemma` opens the new page; the old `/#starter` bookmark redirects to the same interface. The sidebar calls it **Gemma 3 preview**.
+The website now uses the requested **`keras/gemma3/keras/gemma3_1b`** model identifier. The retired scratch-model page/weights are not shipped or used as a fallback. `/#gemma` opens the new page; the old `/#starter` bookmark redirects to the same interface. The sidebar entry is **Test AI**.
 
 ## What is and is not running
 
@@ -62,17 +62,24 @@ For local Vite development, the same variables may be stored in ignored `.env.lo
 
 Prompts go to the configured inference host only on submission. This code does not persist conversation history or log request bodies. Infrastructure-level logging/retention is the host operator's responsibility. Earlier turns are not automatically resent; this preview makes independent completion requests. There is no voice output.
 
-## Desktop-only website policy
+## Mobile information site, desktop-only AI
 
-The website checks browser/platform signals before mounting its UI or contacting Gemma. Phones, iPads (including desktop-mode Safari) and Android/other tablets receive an illustrated unsupported-device screen. Narrow desktop windows remain supported. Unknown browsers fail closed. Touch-first convertible PCs may be classified as tablets.
+Phones, iPads (including desktop-mode Safari) and generic tablets receive a separate, readable mobile information website with feature explanations, setup steps, a sad Bluey illustration and the notice: “iPads, Phones, and other tablets are not supported. You are now viewing the mobile version of the website.” This restriction refers to the interactive desktop/AI experience, not access to the information site.
 
-Browser detection is **best effort**, not secure physical-device verification. User-agent spoofing and some unusual hardware can evade or confuse it. The service secret, not the device check, protects the inference host. The native Capacitor Android paired companion remains available and bypasses only this website compatibility screen; it is a separate product path, not a phone Gemma client. No Android release is produced by publishing the website.
+Pressing **Test AI** rechecks the browser signals. Unsupported devices see an accessible explanation dialog and can continue exploring. Direct `/#gemma` and legacy `/#starter` links also remain restricted. Neither case mounts the AI client or contacts inference from a mobile device. Native Capacitor Android pairing remains separate and unchanged.
 
-The Bluey SVG favicon, PNG fallback/touch icon and manifest are local assets. Device illustrations are original vector drawings and contain no third-party tracking or external image requests.
+Desktop visitors see Bluey pop in, wink, reveal the logo, and then enter the workspace. The intro runs once per tab session, has a Skip control, and respects reduced-motion preferences. Windows Electron and the native Android app do not receive the website intro.
+
+Detection uses user-agent/platform hints, touch support and pointer characteristics. It does **not** scan CPU/GPU identity: browsers do not reliably expose it, and an Apple GPU is not proof of an iPad. Unknown tablets are labeled generically unless Apple-specific signals support the iPad heuristic. No hardware identifiers are collected or sent. Narrow desktop windows are supported; touch-first convertible PCs may be classified as tablets. This remains a best-effort compatibility policy, not security attestation.
+
+The “On it” expression has steady eyes and a confident smile across the face, phone face and independent cursor. Thinking bubbles pulse in place; no horizontal/scaling transform moves them. A thin, pointer-transparent blue screen edge appears only during actual microphone recording in the workspace or native companion. It disappears on stop, cancellation, hiding or navigation. It does not imply that idle “listening” facial expressions are recording audio. Reduced-motion mode makes the edge static.
+
+The Bluey SVG favicon, PNG fallback/touch icon and manifest are local assets. Device illustrations contain no tracking or external requests.
 
 ## Checks
 
 - Unit tests: device classification, server-only gateway auth/sanitization, missing configuration, exact-model enforcement, input bounds, backend authorization and busy capacity.
 - `npm run test:gemma`: desktop, iPhone, iPad desktop-mode, Android tablet, narrow desktop, local icons, unavailable state and clearly labeled transport fixtures.
+- `npm run test:mobile-site`: mobile reading/navigation, AI-entry restriction, generic-tablet classification, desktop welcome/reduced motion, fixed-position thoughts and actual simulated-microphone border lifecycle.
 - Existing UI, research/tools and native-speech browser regressions remain in CI.
 - No actual Gemma inference or Kaggle download success is implied by these tests.

@@ -13,6 +13,7 @@ import {
   Wifi,
   X,
 } from "lucide-react";
+import { ListeningEdge } from "./ListeningEdge";
 import { ResponseCard, type CompanionResponse } from "./ResponseCard";
 import { Avatar, FaceScreen } from "./FloatingWidget/Avatar";
 import { BlueyClient } from "../lib/client";
@@ -611,6 +612,7 @@ export function Phone() {
       }}
       onPointerCancel={() => void release(false)}
     >
+      <ListeningEdge active={recording} />
       <FaceScreen {...face} />
       {reportOpen && report && (
         <div className="phone-report">

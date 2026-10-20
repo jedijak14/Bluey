@@ -8,8 +8,10 @@ export function Avatar({
   gaze,
   talk = 0,
   onClick,
+  expression,
 }: {
   mood?: Mood;
+  expression?: "wink" | "sad";
   className?: string;
   gaze?: { x: number; y: number };
   talk?: number;
@@ -34,16 +36,16 @@ export function Avatar({
     window.addEventListener("pointermove", move, { passive: true });
     return () => window.removeEventListener("pointermove", move);
   }, [gaze]);
-  const x = mood === "thinking" ? 12 : look.x * 13;
-  const y = mood === "thinking" ? -16 : look.y * 12;
+  const x = mood === "thinking" ? 7 : mood === "pointing" ? 0 : look.x * 13;
+  const y = mood === "thinking" ? -14 : mood === "pointing" ? -3 : look.y * 12;
   return (
     <svg
       ref={node}
       viewBox="0 0 340 280"
-      className={`avatar mood-${mood} ${className}`}
+      className={`avatar mood-${mood} expression-${expression || "default"} ${className}`}
       onClick={onClick}
       role="img"
-      aria-label={`Bluey is ${mood}`}
+      aria-label={`Bluey is ${expression === "sad" ? "sad" : expression === "wink" ? "winking" : mood}`}
     >
       <defs>
         <linearGradient
@@ -101,13 +103,27 @@ export function Avatar({
           <g key={cx}>
             <path
               className={`eyebrow brow-${i}`}
-              d={`M${cx - 21} 82Q${cx} ${mood === "thinking" && i === 1 ? 61 : 70} ${cx + 21} 82`}
+              d={
+                expression === "sad"
+                  ? `M${cx - 21} ${i === 0 ? 87 : 72}Q${cx} 73 ${cx + 21} ${i === 0 ? 72 : 87}`
+                  : mood === "pointing"
+                    ? `M${cx - 21} 80Q${cx} 76 ${cx + 21} 80`
+                    : `M${cx - 21} 82Q${cx} ${mood === "thinking" && i === 1 ? 68 : 70} ${cx + 21} 82`
+              }
               fill="none"
               stroke="#1c1f66"
               strokeWidth="6"
               strokeLinecap="round"
             />
-            {mood === "happy" ? (
+            {expression === "wink" && i === 1 ? (
+              <path
+                d={`M${cx - 25} 136Q${cx} 152 ${cx + 25} 136`}
+                fill="none"
+                stroke="#17151f"
+                strokeWidth="9"
+                strokeLinecap="round"
+              />
+            ) : mood === "happy" ? (
               <path
                 d={`M${cx - 25} 145Q${cx} 107 ${cx + 25} 145`}
                 fill="none"
@@ -180,7 +196,24 @@ export function Avatar({
             )}
           </g>
         ))}
-        {mood === "happy" ? (
+        {expression === "sad" ? (
+          <path
+            d="M150 216Q170 198 190 216"
+            fill="none"
+            stroke="#1c1f66"
+            strokeWidth="7"
+            strokeLinecap="round"
+          />
+        ) : mood === "pointing" || expression === "wink" ? (
+          <path
+            className="confident-smile"
+            d="M150 201Q170 222 190 201"
+            fill="none"
+            stroke="#1c1f66"
+            strokeWidth="7"
+            strokeLinecap="round"
+          />
+        ) : mood === "happy" ? (
           <path d="M155 205Q170 226 185 205Z" fill="#1c1f66" />
         ) : (
           <g
@@ -289,6 +322,16 @@ export function CursorAvatar({
             )}
           </g>
         ))}
+        {mood === "pointing" && (
+          <path
+            className="confident-smile"
+            d="M47 72q8 9 16 0"
+            fill="none"
+            stroke="#17151f"
+            strokeWidth="3"
+            strokeLinecap="round"
+          />
+        )}
       </g>
     </svg>
   );
@@ -307,8 +350,8 @@ export function FaceScreen({
   talk: number;
 }) {
   const id = useId().replace(/:/g, "");
-  const gx = mood === "thinking" ? 0.6 : gazeX,
-    gy = mood === "thinking" ? -0.85 : gazeY;
+  const gx = mood === "thinking" ? 0.3 : mood === "pointing" ? 0 : gazeX,
+    gy = mood === "thinking" ? -0.7 : mood === "pointing" ? -0.08 : gazeY;
   return (
     <svg
       className={`face-screen mood-${mood}`}
@@ -348,7 +391,7 @@ export function FaceScreen({
         {[292, 552].map((cx, i) => (
           <g key={cx}>
             <path
-              d={`M${cx - 38} 93Q${cx} ${mood === "thinking" && i === 1 ? 56 : 75} ${cx + 38} 93`}
+              d={`M${cx - 38} 93Q${cx} ${mood === "thinking" && i === 1 ? 68 : 75} ${cx + 38} 93`}
               fill="none"
               stroke="#1c1f66"
               strokeWidth="14"
@@ -433,7 +476,16 @@ export function FaceScreen({
             />
           </g>
         ))}
-        {mood === "happy" ? (
+        {mood === "pointing" ? (
+          <path
+            className="confident-smile"
+            d="M384 324Q422 363 460 324"
+            fill="none"
+            stroke="#1c1f66"
+            strokeWidth="15"
+            strokeLinecap="round"
+          />
+        ) : mood === "happy" ? (
           <path d="M384 324Q422 373 460 324Z" fill="#1c1f66" />
         ) : (
           <g

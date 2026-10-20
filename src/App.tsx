@@ -33,6 +33,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import { ListeningEdge } from "./components/ListeningEdge";
 import { Avatar } from "./components/FloatingWidget/Avatar";
 import { Playground } from "./components/Playground";
 import { CodeWorkspace } from "./components/AppWindow/CodeWorkspace";
@@ -439,6 +440,27 @@ export default function App() {
     const t = setTimeout(() => void toggleMic(), 59000);
     return () => clearTimeout(t);
   }, [recording]);
+  useEffect(() => {
+    const hidden = () => {
+      if (document.hidden) {
+        void mic.current.stop().catch(() => {});
+        setRecording(false);
+        setLevel(0);
+      }
+    };
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      document.removeEventListener("visibilitychange", hidden);
+      void mic.current.stop().catch(() => {});
+    };
+  }, []);
+  useEffect(() => {
+    if (status !== "connected") {
+      void mic.current.stop().catch(() => {});
+      setRecording(false);
+      setLevel(0);
+    }
+  }, [status]);
   micAction.current = () => void toggleMic();
   async function connect(s: Settings, key: string) {
     try {
@@ -719,6 +741,7 @@ export default function App() {
   );
   return (
     <div className={`app-shell ${!sidebar ? "sidebar-hidden" : ""}`}>
+      <ListeningEdge active={recording} level={level} />
       {sidebar && (
         <button
           className="sidebar-backdrop"
@@ -792,10 +815,12 @@ export default function App() {
           </button>
           <button
             className={page === "gemma" ? "selected" : ""}
-            onClick={() => setPage("gemma")}
+            onClick={() => {
+              location.hash = "gemma";
+            }}
           >
             <FlaskConical size={17} />
-            Gemma 3 preview
+            Test AI
           </button>
         </nav>
         <div className="recent-title">
