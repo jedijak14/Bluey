@@ -1,0 +1,202 @@
+name: Test and build Bluey
+on:
+  push:
+    branches: [main, "arena/**"]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm run build && npm test
+      - run: pip install -r backend/requirements-dev.txt
+      - run: python -m pytest backend/tests -q
+  android-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    needs: test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Use the hosted runner Android SDK
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_HOME"
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$sdkmanager"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          (set +o pipefail; yes | "$sdkmanager" --licenses >/dev/null)
+          "$sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" 2>&1 | tee sdk-setup.log
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm run android:sync
+      - name: Compile and check Android app
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon --stacktrace 2>&1 | tee ../android-build.log
+      - name: Prepare native test backend and emulator access
+        run: |
+          python -m pip install -r backend/requirements.txt
+          BLUEY_NATIVE_SMOKE_TEST=1 BLUEY_TOKEN=native-smoke-test-only BLUEY_LAN=1 \
+            python -m backend.tests.android_smoke_server >native-smoke-server.log 2>&1 &
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install and test on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: bash -o pipefail -c "cd android && ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace 2>&1 | tee ../android-native-test.log"
+      - name: Verify signed APK and create download files
+        run: |
+          mkdir -p release/android
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/android/Bluey-0.1.1-Android.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs release/android/Bluey-0.1.1-Android.apk | tee release/android/APK-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging release/android/Bluey-0.1.1-Android.apk > release/android/APK-manifest.txt
+          (cd release/android && sha256sum Bluey-0.1.1-Android.apk > SHA256SUMS.txt)
+          cp docs/ANDROID_RELEASE.md release/android/Android-Setup-Instructions.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bluey-Android-APK
+          path: release/android/*
+          if-no-files-found: error
+      - name: Publish actionable failure details
+        if: failure()
+        run: |
+          python scripts/ci_android_diagnostics.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Android-test-reports
+          path: |
+            android/app/build/reports/
+            android/app/build/outputs/androidTest-results/
+            *-setup.log
+            android-*.log
+            native-smoke-server.log
+          if-no-files-found: ignore
+  publish-android-preview:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/e89e17b4-bluey' && contains(github.event.head_commit.message, '[release-android]')
+    needs: android-apk
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bluey-Android-APK
+          path: release/android
+      - name: Publish installable Android APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="v0.1.1-android-preview.1"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release/android/* --clobber
+          else
+            gh release create "$tag" release/android/* \
+              --target "$GITHUB_SHA" \
+              --title "Bluey 0.1.1 — Android companion" \
+              --prerelease \
+              --notes-file docs/ANDROID_RELEASE.md
+          fi
+  windows-installer:
+    if: "!contains(github.event.head_commit.message, '[release-android]')"
+    timeout-minutes: 25
+    runs-on: windows-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run package:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Verify executables and generate checksums
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem release/Bluey-*-Windows-x64-*.exe)
+          if ($files.Count -ne 2) { throw "Expected both installer and portable executables" }
+          $hashes = foreach ($file in $files) {
+            if ($file.Length -lt 1000000) { throw "Executable is unexpectedly small: $($file.Name)" }
+            $stream = [System.IO.File]::OpenRead($file.FullName)
+            try {
+              if ($stream.ReadByte() -ne 77 -or $stream.ReadByte() -ne 90) { throw "Missing PE executable header" }
+            } finally { $stream.Dispose() }
+            $hash = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($file.Name)"
+          }
+          $hashes | Set-Content release/SHA256SUMS.txt -Encoding ascii
+          Copy-Item docs/RELEASE_NOTES.md release/Windows-Setup-Instructions.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bluey-Windows-executables
+          path: |
+            release/Bluey-*-Windows-x64-*.exe
+            release/SHA256SUMS.txt
+            release/Windows-Setup-Instructions.md
+          if-no-files-found: error
+  publish-windows-preview:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/e89e17b4-bluey' && contains(github.event.head_commit.message, '[release-windows]')
+    needs: windows-installer
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bluey-Windows-executables
+          path: release
+      - name: Publish Windows preview downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="v0.1.0-preview.1"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release/* --clobber
+          else
+            gh release create "$tag" release/* \
+              --target "$GITHUB_SHA" \
+              --title "Bluey 0.1.0 — Windows preview" \
+              --prerelease \
+              --notes-file docs/RELEASE_NOTES.md
+          fi

@@ -1,0 +1,5 @@
+-r requirements.txt
+# Install on Windows. Keep optional engines out of the web/UI development environment.
+windows-use==0.8.1; sys_platform == "win32"
+faster-whisper>=1.1,<2
+piper-tts>=1.3,<2
