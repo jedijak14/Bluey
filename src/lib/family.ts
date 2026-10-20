@@ -7,7 +7,26 @@ export type FamilyPolicy = {
   timezone: string;
   blocked_domains: string[];
 };
+export type SafetyAlert = {
+  id: string;
+  kind: string;
+  domain: string;
+  created: number;
+  seen: number | null;
+  name?: string;
+};
 export type ChildProfile = {
+  alerts?: SafetyAlert[];
+  agent?: {
+    recent: boolean;
+    last_seen: number | null;
+    report: {
+      policy_version: number;
+      time_service: boolean;
+      edge_rules: boolean;
+      error: string;
+    } | null;
+  };
   id: string;
   name: string;
   policy: FamilyPolicy;

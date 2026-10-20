@@ -84,7 +84,7 @@ export function MobileWebsite({
             <img src="./favicon.svg" alt="" />
             bluey<span>.</span>
           </a>
-          <a href="#home">Bluey Home</a>
+          <a href="#account">Bluey Account · Home</a>
           <a href="#about-bluey">
             Meet Bluey <ArrowDown size={14} />
           </a>

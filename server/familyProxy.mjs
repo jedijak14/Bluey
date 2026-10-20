@@ -1,6 +1,12 @@
 /** Browser/native Home gateway. End-user tokens stay end-user scoped; gateway secret is server-only. */
 const routes = [
   [/^status$/, ["GET"]],
+  [/^children\/[a-f0-9-]{36}\/agent-enrollment$/, ["POST"]],
+  [/^agent\/enroll$/, ["POST"]],
+  [/^agent\/policy$/, ["GET"]],
+  [/^agent\/(report|events)$/, ["POST"]],
+  [/^alerts$/, ["GET"]],
+  [/^alerts\/[a-f0-9-]{36}\/seen$/, ["POST"]],
   [/^auth\/(register|login|logout)$/, ["POST"]],
   [/^dashboard$/, ["GET"]],
   [/^children$/, ["POST"]],

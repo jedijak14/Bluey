@@ -860,3 +860,141 @@
     transition: none !important;
   }
 }
+.account-content {
+  max-width: 960px;
+  margin: 65px auto;
+  padding: 0 22px;
+}
+.account-content > a {
+  font-size: 13px;
+  color: #687caf;
+}
+.kids-wordmark {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 26px;
+  border-radius: 24px;
+  background: linear-gradient(145deg, #873579, #6143b0 52%, #188da9);
+  color: white;
+  letter-spacing: -2px;
+  box-shadow: 0 14px 40px #6036a325;
+}
+.kids-wordmark > span {
+  font-weight: 800;
+  font-size: 28px;
+  line-height: 1;
+}
+.kids-wordmark > strong {
+  font-family: "Trebuchet MS", system-ui, sans-serif;
+  font-size: 48px;
+  font-weight: 500;
+  line-height: 1.1;
+  position: relative;
+}
+.kids-wordmark strong span {
+  position: absolute;
+  font-size: 17px;
+  right: -16px;
+  top: 2px;
+}
+.kids-safety {
+  border: 1px solid #e5e0fa;
+  border-radius: 28px;
+  background: linear-gradient(160deg, #fff, #f1edff);
+  color: #34415c;
+  width: min(92vw, 470px);
+  padding: 30px;
+  text-align: center;
+  box-shadow: 0 24px 120px #19204466;
+}
+.kids-safety::backdrop {
+  background: #18233c99;
+  backdrop-filter: blur(18px);
+}
+.kids-safety p {
+  font-size: 14px;
+  line-height: 1.8;
+}
+.kids-safety small {
+  display: block;
+  color: #7e8aa2;
+  font-size: 11px;
+  line-height: 1.8;
+  margin-bottom: 20px;
+}
+.kids-safety .home-primary {
+  margin: auto;
+  background: #6165d8;
+  color: white;
+  padding: 12px 28px;
+  border-radius: 12px;
+}
+.safety-arrival {
+  position: relative;
+  width: 180px;
+  margin: 22px auto 10px;
+  animation: safety-rise 0.65s cubic-bezier(0.18, 0.9, 0.3, 1) both;
+}
+.safety-arrival .avatar {
+  width: 180px;
+}
+.safety-spark {
+  position: absolute;
+  color: #9a83dc;
+  font-size: 26px;
+  animation: safety-spark 0.7s ease-out both;
+}
+.spark-one {
+  top: 12px;
+  left: -12px;
+}
+.spark-two {
+  right: -8px;
+  bottom: 30px;
+}
+.kids-safety h2 {
+  font-size: 27px;
+  letter-spacing: -0.8px;
+  margin: 12px 0;
+}
+.kids-safety > svg {
+  color: #7a6ac5;
+}
+@keyframes safety-rise {
+  from {
+    opacity: 0;
+    transform: translateY(90px) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes safety-spark {
+  from {
+    opacity: 0;
+    transform: scale(0.2) rotate(-40deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .safety-arrival,
+  .safety-spark {
+    animation: none !important;
+  }
+}
+.kids-logo {
+  width: 118px;
+  height: 118px;
+  object-fit: contain;
+  border-radius: 24px;
+  box-shadow: 0 14px 40px #6036a32b;
+}
+.bluey-kids .home-brand img {
+  border-radius: 9px;
+}

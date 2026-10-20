@@ -1,0 +1,20 @@
+services:
+  family:
+    build:
+      context: ../..
+      dockerfile: deploy/family/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      BLUEY_FAMILY_DB: /data/family.sqlite
+    ports:
+      - "127.0.0.1:8767:8767"
+    volumes:
+      - family-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+volumes:
+  family-data:

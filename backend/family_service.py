@@ -131,6 +131,15 @@ def create_app(path: str, gateway_token: str, invite: str):
         if request.headers.get('content-length', '0').isdigit() and int(request.headers.get('content-length', '0')) > 20000:
             from fastapi.responses import JSONResponse
             return JSONResponse({'detail':'Request too large.'}, status_code=413)
+        if request.method in {'POST', 'PUT'}:
+            from fastapi.responses import JSONResponse
+            chunks=[]; size=0
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > 20000:
+                    return JSONResponse({'detail':'Request too large.'},status_code=413,headers={'Cache-Control':'no-store'})
+                chunks.append(chunk)
+            request._body=b''.join(chunks)
         response = await call_next(request)
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -175,10 +184,16 @@ def create_app(path: str, gateway_token: str, invite: str):
 
     def day(policy): return datetime.now(ZoneInfo(policy['timezone'])).date().isoformat()
 
+    from .family_agents import install_routes
+    install_routes(app, connect, parent, actor, gateway, limited, owned, issue)
+
     def snapshot(db, row):
         policy = json.loads(row['policy'])
         extra = db.execute('SELECT COALESCE(SUM(minutes),0) FROM grants WHERE child=? AND day=?', (row['id'], day(policy))).fetchone()[0]
-        return {'id':row['id'], 'name':row['name'], 'policy':policy, 'extra_minutes_today':extra, 'used_minutes':None,
+        agent = db.execute('SELECT last_seen,report FROM agents WHERE child=?',(row['id'],)).fetchone()
+        reporting = bool(agent and agent['last_seen'] and time.time()-agent['last_seen']<90)
+        report = json.loads(agent['report']) if agent and agent['report'] else None
+        return {'agent': {'recent': reporting, 'report': report, 'last_seen': agent['last_seen'] if agent else None}, 'id':row['id'], 'name':row['name'], 'policy':policy, 'extra_minutes_today':extra, 'used_minutes':None,
                 'protected':False, 'enforcement':'not_installed', 'last_seen':None,
                 'notice':'Rules are saved, not enforced. This preview does not install a managed Windows service or browser filter.'}
 
@@ -188,7 +203,9 @@ def create_app(path: str, gateway_token: str, invite: str):
         db.execute('DELETE FROM enrollments WHERE expires < ?', (time.time(),))
 
     @app.get('/api/family/status', dependencies=[Depends(gateway)])
-    def status(): return {'status':'ready', 'enforcement_available':False, 'notifications':'in_app_polling', 'version':1}
+    def status():
+        with connect() as db: db.execute('SELECT count(*) FROM parents').fetchone()
+        return {'status':'ready', 'enforcement_available':False, 'notifications':'in_app_polling', 'version':2}
 
     @app.post('/api/family/auth/register', dependencies=[Depends(gateway)])
     def register(body: Account):
@@ -248,6 +265,7 @@ def create_app(path: str, gateway_token: str, invite: str):
     def delete_child(child: str, owner=Depends(parent)):
         with connect() as db:
             owned(db,child,owner)
+            db.execute("DELETE FROM sessions WHERE role='agent' AND subject IN (SELECT id FROM agents WHERE child=?)", (child,))
             db.execute("DELETE FROM sessions WHERE role='kid' AND subject=?", (child,))
             db.execute('DELETE FROM children WHERE id=?', (child,))
         return {'deleted':True}
@@ -278,7 +296,7 @@ def create_app(path: str, gateway_token: str, invite: str):
             cleanup(db)
             row=db.execute('SELECT * FROM children WHERE id=?', (child,)).fetchone()
             if not row: raise HTTPException(401,'Enrollment was removed.')
-            return {**snapshot(db,row), 'requests':[dict(r) for r in db.execute('SELECT * FROM requests WHERE child=? ORDER BY created DESC LIMIT 10',(child,)).fetchall()]}
+            return {**snapshot(db,row), 'alerts':[dict(r) for r in db.execute('SELECT id,kind,domain,created,seen FROM safety_events WHERE child=? AND created>? ORDER BY created DESC LIMIT 10',(child,time.time()-86400))], 'requests':[dict(r) for r in db.execute('SELECT * FROM requests WHERE child=? ORDER BY created DESC LIMIT 10',(child,)).fetchall()]}
 
     @app.post('/api/family/kid/requests')
     def request_time(body: TimeRequest, child=Depends(kid)):

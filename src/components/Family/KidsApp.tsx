@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { ArrowRight, Clock3, Heart, Shield } from "lucide-react";
+import { SafetyMessage } from "./SafetyMessage";
+import type { SafetyAlert } from "../../lib/family";
 import { Avatar } from "../FloatingWidget/Avatar";
 import {
   FamilyError,
@@ -20,6 +22,9 @@ export function KidsApp() {
     [minutes, setMinutes] = useState(15),
     [reason, setReason] = useState(""),
     [preview, setPreview] = useState(false);
+  const [safety, setSafety] = useState<SafetyAlert | null>(null);
+  const [safetyPreview, setSafetyPreview] = useState(false);
+  const seenAlerts = useRef(new Set<string>());
   const session = useRef({ token: "", generation: 0 });
   session.current.token = token;
   const dialog = useRef<HTMLDialogElement>(null),
@@ -42,6 +47,8 @@ export function KidsApp() {
     session.current.generation++;
     session.current.token = "";
     setPreview(false);
+    setSafety(null);
+    seenAlerts.current.clear();
     setToken("");
     setProfile(null);
     if (native) await FamilyVault.clear().catch(() => {});
@@ -51,7 +58,17 @@ export function KidsApp() {
       const result = await familyRequest<
         ChildProfile & { requests: ExtraRequest[] }
       >("kid", token);
-      if (session.current.token === token) setProfile(result);
+      if (session.current.token === token) {
+        setProfile(result);
+        const latest = result.alerts?.find(
+          (a) => !seenAlerts.current.has(a.id),
+        );
+        if (latest) {
+          seenAlerts.current.add(latest.id);
+          setSafety(latest);
+          setSafetyPreview(false);
+        }
+      }
     } catch (e) {
       if (session.current.token !== token) return;
       setMessage(String(e));
@@ -104,7 +121,7 @@ export function KidsApp() {
     <main className="bluey-kids">
       <header>
         <a className="home-brand" href="#kids">
-          <img src="./favicon.svg" alt="" />
+          <img src="./bluey-kids-logo.png" alt="" />
           bluey<span>for kids</span>
         </a>
         <span>
@@ -244,6 +261,28 @@ export function KidsApp() {
         Limits become real only with a managed Windows agent. This preview is
         not a safety barrier.
       </footer>
+      <button
+        className="home-text"
+        onClick={() => {
+          setSafetyPreview(true);
+          setSafety({
+            id: "preview",
+            kind: "site_blocked",
+            domain: "",
+            created: Date.now() / 1000,
+            seen: null,
+          });
+        }}
+      >
+        Preview safety message (not enforcement)
+      </button>
+      {safety && (
+        <SafetyMessage
+          alert={safety}
+          preview={safetyPreview}
+          onClose={() => setSafety(null)}
+        />
+      )}
       <dialog
         ref={dialog}
         onCancel={() => setPreview(false)}

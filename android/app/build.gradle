@@ -25,6 +25,9 @@ android {
     sourceSets {
         main { manifest.srcFile family ? "src/family/AndroidManifest.xml" : "src/main/AndroidManifest.xml" }
     }
+    if (blueyVariant == 'kids') {
+        sourceSets { debug.res.srcDir 'src/kids/res'; release.res.srcDir 'src/kids/res' }
+    }
     buildTypes {
         release {
             minifyEnabled false

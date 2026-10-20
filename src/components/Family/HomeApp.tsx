@@ -159,12 +159,16 @@ export function HomeApp() {
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
     [code, setCode] = useState("");
+  const [codeScope, setCodeScope] = useState<"phone" | "windows">("phone");
   const [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
     [invite, setInvite] = useState(""),
     [register, setRegister] = useState(false),
     [nickname, setNickname] = useState("");
   const [updated, setUpdated] = useState("");
+  const [alerts, setAlerts] = useState<
+    import("../../lib/family").SafetyAlert[]
+  >([]);
   const session = useRef({ token: "", request: 0 });
   session.current.token = token;
   const active = demo ? exampleFamily : data,
@@ -189,6 +193,14 @@ export function HomeApp() {
       )
         return;
       setData(r);
+      const inbox = await familyRequest<
+        import("../../lib/family").SafetyAlert[]
+      >("alerts", token);
+      if (
+        session.current.token === token &&
+        request === session.current.request
+      )
+        setAlerts(inbox);
       setUpdated(new Date().toLocaleTimeString());
     } catch (e) {
       if (
@@ -241,6 +253,7 @@ export function HomeApp() {
         { username, password, ...(register ? { invite } : {}) },
       );
       setToken(r.token);
+      if (!import.meta.env.VITE_BLUEY_VARIANT) location.hash = "home";
       setPassword("");
       setInvite("");
       setDemo(false);
@@ -256,6 +269,7 @@ export function HomeApp() {
     session.current.request++;
     setToken("");
     setData({ children: [], requests: [] });
+    setAlerts([]);
     setDemo(false);
     setCode("");
     setSelected("");
@@ -268,6 +282,113 @@ export function HomeApp() {
         /* Local identity is already gone. Server sessions expire. */
       }
   }
+  if (!token)
+    return (
+      <main className="bluey-home account-gate">
+        <header className="home-header">
+          <a className="home-brand" href="#">
+            <img src="./favicon.svg" alt="" />
+            bluey<span>account</span>
+          </a>
+          <span className="home-connection">Private family access</span>
+        </header>
+        <div className="account-content">
+          <section className="home-signin">
+            <div>
+              <span className="home-eyebrow">A HOME FOR YOUR WHOLE FAMILY</span>
+              <h2>Sign in to your Bluey Account.</h2>
+              <p>
+                Children get their own enrollment—not your password. Invitations
+                are issued by the family-service operator.
+              </p>
+              <p className="home-fine">
+                Home opens only after your Bluey Account is authenticated. No
+                public family dashboard or demo data.
+              </p>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void auth();
+              }}
+            >
+              <h3>{register ? "Create Bluey Account" : "Bluey Account"}</h3>
+              <label>
+                Parent username
+                <input
+                  autoComplete="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  minLength={3}
+                  maxLength={40}
+                  pattern="[a-zA-Z0-9_.-]+"
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  autoComplete={register ? "new-password" : "current-password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={12}
+                  maxLength={128}
+                />
+              </label>
+              {register && (
+                <label>
+                  Operator setup invite
+                  <input
+                    type="password"
+                    value={invite}
+                    onChange={(e) => setInvite(e.target.value)}
+                    required
+                    maxLength={128}
+                  />
+                </label>
+              )}
+              <button
+                className="home-primary"
+                disabled={busy || service !== "ready"}
+              >
+                {register ? "Create parent account" : "Sign in"}
+                <ArrowRight size={16} />
+              </button>
+              <button
+                type="button"
+                className="home-text"
+                onClick={() => setRegister(!register)}
+              >
+                {register
+                  ? "Already have an account?"
+                  : "Create a Bluey Account"}
+              </button>
+              {service !== "ready" && (
+                <p className="home-fine">
+                  A persistent family backend has not been connected. Sign-in
+                  and remote management are unavailable.{" "}
+                  <button
+                    type="button"
+                    className="home-text"
+                    onClick={() => void check()}
+                  >
+                    Check again
+                  </button>
+                </p>
+              )}
+            </form>
+          </section>
+          {message && (
+            <p role="alert" className="home-message">
+              {message}
+            </p>
+          )}
+          <a href="#">← Back to Bluey</a>
+        </div>
+      </main>
+    );
   return (
     <div className="bluey-home">
       <header className="home-header">
@@ -346,9 +467,10 @@ export function HomeApp() {
             <div>
               <strong>Not protected yet</strong>
               <p>
-                This preview manages profiles and requests. It does not install
-                Windows enforcement, block websites, or lock a computer. Remote
-                setup and a managed Windows service are still required.
+                Rules require the separately installed experimental Windows
+                Guardian service. It can disconnect over-budget child sessions
+                and apply Edge rules. Neither all-browser protection nor Android
+                enforcement is verified.
               </p>
             </div>
           </div>
@@ -363,108 +485,7 @@ export function HomeApp() {
               {message}
             </p>
           )}
-          {!token && !demo && (
-            <section className="home-signin">
-              <div>
-                <span className="home-eyebrow">
-                  A HOME FOR YOUR WHOLE FAMILY
-                </span>
-                <h2>Start with a parent account.</h2>
-                <p>
-                  Children get their own enrollment—not your password.
-                  Invitations are issued by the family-service operator.
-                </p>
-                <button
-                  className="home-outline"
-                  onClick={() => {
-                    setDemo(true);
-                    setSelected("demo-avery");
-                  }}
-                >
-                  Explore a demo family <ArrowRight size={16} />
-                </button>
-                <p className="home-fine">
-                  The demo is not a parental-control service. Do not rely on it
-                  to protect a child.
-                </p>
-              </div>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void auth();
-                }}
-              >
-                <h3>{register ? "Create Bluey Home" : "Welcome home"}</h3>
-                <label>
-                  Parent username
-                  <input
-                    autoComplete="username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                    minLength={3}
-                    maxLength={40}
-                    pattern="[a-zA-Z0-9_.-]+"
-                  />
-                </label>
-                <label>
-                  Password
-                  <input
-                    type="password"
-                    autoComplete={
-                      register ? "new-password" : "current-password"
-                    }
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={12}
-                    maxLength={128}
-                  />
-                </label>
-                {register && (
-                  <label>
-                    Operator setup invite
-                    <input
-                      type="password"
-                      value={invite}
-                      onChange={(e) => setInvite(e.target.value)}
-                      required
-                      maxLength={128}
-                    />
-                  </label>
-                )}
-                <button
-                  className="home-primary"
-                  disabled={busy || service !== "ready"}
-                >
-                  {register ? "Create parent account" : "Sign in"}
-                  <ArrowRight size={16} />
-                </button>
-                <button
-                  type="button"
-                  className="home-text"
-                  onClick={() => setRegister(!register)}
-                >
-                  {register
-                    ? "Already have an account?"
-                    : "Create a parent account"}
-                </button>
-                {service !== "ready" && (
-                  <p className="home-fine">
-                    A persistent family backend has not been connected. Sign-in
-                    and remote management are unavailable.{" "}
-                    <button
-                      type="button"
-                      className="home-text"
-                      onClick={() => void check()}
-                    >
-                      Check again
-                    </button>
-                  </p>
-                )}
-              </form>
-            </section>
-          )}
+
           {(token || demo) && (
             <>
               <div className="home-stats">
@@ -488,8 +509,8 @@ export function HomeApp() {
                 <article>
                   <Shield />
                   <span>Verified protection</span>
-                  <strong>Not installed</strong>
-                  <small>No usage or enforcement reports</small>
+                  <strong>Not verified</strong>
+                  <small>Check each device’s agent status</small>
                 </article>
               </div>
               {tab === "family" && (
@@ -574,7 +595,7 @@ export function HomeApp() {
                               policy,
                               "PUT",
                             ),
-                          "Rules saved. Windows and browser enforcement are not connected.",
+                          "Rules saved. Check the Windows agent’s applied policy version before relying on them.",
                         )
                       }
                       onEnroll={() =>
@@ -584,6 +605,7 @@ export function HomeApp() {
                             token,
                             {},
                           );
+                          setCodeScope("phone");
                           setCode(r.code);
                         }, "Code created. Share it only with the Kids app for this child.")
                       }
@@ -606,12 +628,61 @@ export function HomeApp() {
                       }}
                     />
                   )}
+                  {child && (
+                    <section className="home-rule-panel">
+                      <h2>Windows enforcement setup</h2>
+                      <p>
+                        Use a separate parent administrator and a standard child
+                        account. This experimental service disconnects
+                        over-budget sessions and applies Edge rules; it is not
+                        all-browser or Android protection.
+                      </p>
+                      <button
+                        className="home-outline"
+                        disabled={busy || demo}
+                        onClick={() =>
+                          void action(async () => {
+                            const result = await familyRequest<{
+                              code: string;
+                            }>(
+                              `children/${child.id}/agent-enrollment`,
+                              token,
+                              {},
+                            );
+                            setCodeScope("windows");
+                            setCode(result.code);
+                          }, "Windows-only enrollment code created. Install from the administrator account.")
+                        }
+                      >
+                        Create Windows agent code
+                      </button>
+                      <p>
+                        {child.agent?.recent
+                          ? `Agent reporting · policy version ${child.agent.report?.policy_version ?? "unknown"}. ${child.agent.report?.error || "Verify enforcement on the child PC."}`
+                          : "No recent Windows agent report. Protection cannot be verified."}
+                      </p>
+                      <a
+                        className="home-text"
+                        href="https://github.com/jedijak14/Bluey/blob/arena/a5c27d6b-bluey/guardian/README.md"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Administrator install & recovery instructions
+                      </a>
+                    </section>
+                  )}
                   {code && (
                     <section className="home-enrollment">
-                      <h3>Open the separate Bluey for Kids app</h3>
+                      <h3>
+                        {codeScope === "windows"
+                          ? "Windows administrator enrollment"
+                          : "Bluey for Kids phone enrollment"}
+                      </h3>
                       <p>
-                        Enter this one-use code within 10 minutes. It enrolls
-                        the Kids app—not Windows enforcement.
+                        Use this one-use code within 10 minutes.{" "}
+                        {codeScope === "windows"
+                          ? "Enter it only in the Windows administrator installer—not the phone app."
+                          : "Enter it in the separate Kids app—not the Windows installer."}
                       </p>
                       <code>{code}</code>
                       <button className="home-text" onClick={() => setCode("")}>
@@ -735,7 +806,7 @@ export function HomeApp() {
               </p>
               <a
                 className="home-text"
-                href="https://github.com/jedijak14/Bluey/blob/arena/e8d2ea05-bluey/docs/BLUEY_HOME.md"
+                href="https://github.com/jedijak14/Bluey/blob/arena/a5c27d6b-bluey/docs/BLUEY_HOME.md"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -743,6 +814,43 @@ export function HomeApp() {
               </a>
             </section>
           )}
+          <section className="home-rule-panel">
+            <h2>Safety inbox</h2>
+            <p>
+              Agent-reported events, not verified browsing history. Background
+              push is not configured.
+            </p>
+            {alerts.length ? (
+              alerts.map((alert) => (
+                <article className="home-request" key={alert.id}>
+                  <div>
+                    <strong>
+                      {alert.name}: {alert.kind.replaceAll("_", " ")}
+                    </strong>
+                    <p>
+                      {alert.domain || "Windows session policy"} ·{" "}
+                      {new Date(alert.created * 1000).toLocaleString()}
+                    </p>
+                  </div>
+                  <button
+                    className="home-outline"
+                    disabled={busy || Boolean(alert.seen)}
+                    onClick={() =>
+                      void action(
+                        () =>
+                          familyRequest(`alerts/${alert.id}/seen`, token, {}),
+                        "Marked read.",
+                      )
+                    }
+                  >
+                    {alert.seen ? "Read" : "Mark read"}
+                  </button>
+                </article>
+              ))
+            ) : (
+              <p>No safety alerts received.</p>
+            )}
+          </section>
           <footer className="home-footer">
             <span>bluey home · room to grow.</span>
             <small>
