@@ -235,6 +235,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Real Windows Guardian service and permission checks
+        run: |
+          python -m pip install -r guardian/requirements.txt
+          python scripts/guardian-windows-check.py
       - run: npm ci
       - run: npm run package:win
         env:
