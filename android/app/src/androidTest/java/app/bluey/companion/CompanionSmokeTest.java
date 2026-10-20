@@ -88,17 +88,25 @@ public class CompanionSmokeTest {
             float[] point = new float[2];
             s.onActivity(activity -> {
                 android.webkit.WebView web = activity.getBridge().getWebView();
-                int[] location = new int[2]; web.getLocationOnScreen(location);
-                point[0] = location[0] + web.getWidth() * 0.45f;
-                point[1] = location[1] + web.getHeight() * 0.65f;
+                // Dispatch native MotionEvents in WebView-local coordinates. Android 15's
+                // targeted system injector uses display coordinates before rotation,
+                // which can direct landscape test touches into the navigation window.
+                point[0] = web.getWidth() * 0.45f;
+                point[1] = web.getHeight() * 0.65f;
             });
             long pressed = SystemClock.uptimeMillis();
-            InstrumentationRegistry.getInstrumentation().sendPointerSync(MotionEvent.obtain(
-                pressed, pressed, MotionEvent.ACTION_DOWN, point[0], point[1], 0));
+            s.onActivity(activity -> {
+                MotionEvent event = MotionEvent.obtain(pressed, pressed, MotionEvent.ACTION_DOWN, point[0], point[1], 0);
+                activity.getBridge().getWebView().dispatchTouchEvent(event);
+                event.recycle();
+            });
             waitFor(s, "document.querySelector('.phone-instruction')?.textContent.includes('Listening — release')");
             SystemClock.sleep(1200);
-            InstrumentationRegistry.getInstrumentation().sendPointerSync(MotionEvent.obtain(
-                pressed, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, point[0], point[1], 0));
+            s.onActivity(activity -> {
+                MotionEvent event = MotionEvent.obtain(pressed, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, point[0], point[1], 0);
+                activity.getBridge().getWebView().dispatchTouchEvent(event);
+                event.recycle();
+            });
             waitFor(s, "document.querySelector('.phone-caption')?.textContent.includes('Voice transport verified')");
             waitFor(s, "document.querySelector('.phone-instruction')?.textContent.includes('Hold to ask')");
             assertEquals("No voice or microphone error", "null", evaluate(s, "document.querySelector('.phone-error')"));
