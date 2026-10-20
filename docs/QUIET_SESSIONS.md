@@ -13,9 +13,9 @@ Windows microphone sessions require local Whisper, like one-shot transcription. 
 
 ## Honest capture limits
 
-Android's built-in recognizer ends utterances automatically. Bluey restarts it, but there can be gaps and providers may impose their own limits. On-device recognition is preferred; fallback Android providers may process audio online. Windows keeps one microphone stream open and sends bounded WAV chunks to its local engine. Slow or failed transcription stops the session rather than pretending to have captured context. No implementation here guarantees every word.
+Android's built-in recognizer ends utterances automatically. Bluey restarts it, but there can be gaps and providers may impose their own limits. On-device recognition is preferred; fallback Android providers may process audio online. Windows keeps one microphone stream open and sends bounded WAV chunks to its local engine. Slow or failed transcription stops the session rather than pretending to have captured context. No implementation here guarantees every word. At most five unsaved meeting drafts are retained; save/discard them before recording more meetings.
 
-Recent context is capped at 24,000 characters and cleared on session end. The UI reports trimming. Meeting transcripts have a separate 160,000-character limit; reaching it ends capture and offers the partial draft for saving. Unfinished utterances can be lost on lifecycle cancellation. No raw-audio archive, persistent background-context store, or automatic transcript file is created.
+Recent context is capped at 24,000 characters and cleared on session end. The UI reports trimming. Meeting transcripts have a separate 160,000-character / 2,000-segment limit; reaching it ends capture and offers the partial draft for saving. Unfinished utterances can be lost on lifecycle cancellation. No raw-audio archive, persistent background-context store, or automatic transcript file is created.
 
 ## “What's this?”
 

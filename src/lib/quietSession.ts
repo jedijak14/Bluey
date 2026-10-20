@@ -22,9 +22,10 @@ export class SessionMemory {
     }
     if (this.meeting && microphone) {
       if (
+        this.meeting.transcript.length >= 2000 ||
         this.meeting.transcript.map((x) => x.text).join("").length +
           text.length >
-        160000
+          160000
       )
         return true;
       this.meeting.transcript.push(entry);

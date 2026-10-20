@@ -3,12 +3,17 @@ import { chromium, expect } from "@playwright/test";
 import packed from "@sparticuz/chromium";
 const browser = await chromium.launch({
   executablePath: process.env.BLUEY_BROWSER || (await packed.executablePath()),
-  args: packed.args.filter(
-    (a) =>
-      !a.includes("disable-web-security") &&
-      !a.includes("allow-running-insecure-content") &&
-      !a.includes("single-process"),
-  ),
+  args: packed.args
+    .filter(
+      (a) =>
+        !a.includes("disable-web-security") &&
+        !a.includes("allow-running-insecure-content") &&
+        !a.includes("single-process"),
+    )
+    .concat([
+      "--use-fake-ui-for-media-stream",
+      "--use-fake-device-for-media-stream",
+    ]),
   headless: true,
 });
 try {
@@ -43,6 +48,10 @@ try {
       nativePromise: async (_, method, args) => {
         window.speechCalls.push({ method, args });
         if (method === "startRecognition") {
+          if (window.delayPermission)
+            await new Promise((resolve) => {
+              window.grantPermission = resolve;
+            });
           if (window.recognitionFailure)
             throw new Error("Microphone permission was denied.");
           window.recognitionActive = true;
@@ -153,6 +162,8 @@ try {
   await expect(page.locator(".phone-caption")).toContainText(
     "Reply to What's this?",
   );
+  if (process.env.BLUEY_SCREENSHOTS)
+    await page.screenshot({ path: "artifacts/quiet-phone.png" });
   const question = packets.find((p) => p.type === "chat");
   expect(question.voice).toBe(false);
   expect(question.messages[0].content).toContain("ship Friday");
@@ -179,6 +190,8 @@ try {
   await expect(page.getByLabel("Meeting notes", { exact: true })).toHaveValue(
     "Decision: ship on Friday. Owner not identified.",
   );
+  if (process.env.BLUEY_SCREENSHOTS)
+    await page.screenshot({ path: "artifacts/meeting-phone.png" });
   await page
     .getByRole("button", { name: "Save notes & transcription", exact: true })
     .click();
@@ -215,6 +228,120 @@ try {
     "Microphone permission was denied",
   );
   await expect(page.locator(".listening-edge")).toHaveCount(0);
+  // Stop during a pending permission request must invalidate a late grant.
+  await page.evaluate(() => {
+    window.recognitionFailure = false;
+    window.delayPermission = true;
+  });
+  const previousStarts = (await calls("startRecognition")).length;
+  peer.send(JSON.stringify({ type: "session_toggle" }));
+  await expect
+    .poll(async () => (await calls("startRecognition")).length)
+    .toBe(previousStarts + 1);
+  peer.send(JSON.stringify({ type: "session_toggle" }));
+  await expect(page.locator(".phone-instruction")).toContainText("Follow mode");
+  await page.evaluate(() => window.grantPermission());
+  await expect
+    .poll(() => page.evaluate(() => window.recognitionActive))
+    .toBe(false);
+  await expect(page.locator(".listening-edge")).toHaveCount(0);
+  await page.close();
+  // Real browser audio plumbing with a Chromium virtual microphone; no physical audio.
+  const desktop = await browser.newPage({
+    permissions: ["microphone"],
+    viewport: { width: 1280, height: 900 },
+  });
+  desktop.on("pageerror", (e) => errors.push(e.message));
+  await desktop.addInitScript(() => {
+    window.bluey = {
+      connection: async () => ({
+        endpoint: "http://127.0.0.1:8765",
+        token: "fixture",
+      }),
+      window: () => {},
+      onCommand: () => () => {},
+    };
+    window.inputCalls = 0;
+    const original = navigator.mediaDevices.getUserMedia.bind(
+      navigator.mediaDevices,
+    );
+    navigator.mediaDevices.getUserMedia = async (options) => {
+      window.inputCalls++;
+      const stream = await original(options);
+      window.tracks = stream.getTracks();
+      return stream;
+    };
+  });
+  let chunk = 0;
+  const desktopPackets = [];
+  await desktop.route("**/api/companion/transcribe", (r) =>
+    r.fulfill({
+      json: { text: ++chunk === 1 ? "Ambient plan" : "What is the plan?" },
+    }),
+  );
+  await desktop.route("**/api/companion/meeting", (r) =>
+    r.fulfill({ json: { active: null, supported: false } }),
+  );
+  await desktop.routeWebSocket("**/api/ws", (ws) =>
+    ws.onMessage((raw) => {
+      const p = JSON.parse(raw);
+      desktopPackets.push(p);
+      if (p.type === "auth") ws.send(JSON.stringify({ type: "ready" }));
+      if (p.type === "chat") {
+        ws.send(
+          JSON.stringify({
+            type: "token",
+            request: p.request,
+            text: "Here is the plan.",
+          }),
+        );
+        ws.send(JSON.stringify({ type: "done", request: p.request }));
+      }
+    }),
+  );
+  await desktop.goto(process.env.BLUEY_PREVIEW_URL || "http://127.0.0.1:5173");
+  await desktop
+    .getByRole("button", { name: "Start quiet session", exact: true })
+    .click();
+  await desktop
+    .getByLabel("I have permission from everyone being recorded.")
+    .check();
+  await desktop
+    .getByRole("button", { name: "Allow & start session", exact: true })
+    .click();
+  await expect(desktop.locator(".listening-edge")).toBeVisible();
+  const button = desktop.getByRole("button", {
+    name: "Hold to ask",
+    exact: true,
+  });
+  await button.hover();
+  await desktop.mouse.down();
+  await expect(desktop.locator(".session-status")).toContainText(
+    "Release to ask",
+  );
+  await desktop.mouse.up();
+  await expect(desktop.locator(".session-reply")).toHaveText(
+    "Here is the plan.",
+  );
+  expect(
+    desktopPackets.find((p) => p.type === "chat").messages.at(-1).content,
+  ).toBe("What is the plan?");
+  expect(await desktop.evaluate(() => window.inputCalls)).toBe(1);
+  expect(
+    await desktop.evaluate(() =>
+      window.tracks.every((t) => t.readyState === "live"),
+    ),
+  ).toBe(true);
+  await desktop
+    .getByRole("button", { name: "End quiet session", exact: true })
+    .click();
+  await expect(desktop.locator(".listening-edge")).toHaveCount(0);
+  expect(
+    await desktop.evaluate(() =>
+      window.tracks.every((t) => t.readyState === "ended"),
+    ),
+  ).toBe(true);
+  await desktop.close();
   expect(errors).toEqual([]);
   console.log(
     "Quiet session fixture passed: explicit consent, ambient context without replies, hold/release, mouse target, text/chirp only, continued listening, meeting review/save, double-tap stop, remote toggle, permission failure and background cancellation.",

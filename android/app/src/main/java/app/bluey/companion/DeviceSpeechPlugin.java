@@ -30,6 +30,7 @@ import com.getcapacitor.annotation.PermissionCallback;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /** Phone-owned speech only. Never starts a recognizer or TTS at app launch. */
 @CapacitorPlugin(name = "DeviceSpeech", permissions = {
@@ -40,6 +41,7 @@ public class DeviceSpeechPlugin extends Plugin {
     private boolean foreground = false;
     private boolean preferOnDevice = true;
     private Session session;
+    private final AtomicInteger captureGeneration = new AtomicInteger();
     private TextToSpeech tts;
     private boolean ttsReady;
     private int ttsGeneration;
@@ -75,6 +77,7 @@ public class DeviceSpeechPlugin extends Plugin {
     }
 
     @PluginMethod public void startRecognition(PluginCall call) {
+        call.getData().put("_captureGeneration", captureGeneration.incrementAndGet());
         if (getPermissionState("microphone") != PermissionState.GRANTED) {
             requestPermissionForAlias("microphone", call, "microphonePermission");
         } else begin(call);
@@ -88,6 +91,7 @@ public class DeviceSpeechPlugin extends Plugin {
 
     private void begin(PluginCall call) {
         main.post(() -> {
+            if (call.getInt("_captureGeneration", -1) != captureGeneration.get()) { call.reject("Listening cancelled.", "CANCELLED"); return; }
             if (!foreground) {
                 call.reject("Return to Bluey and hold again to speak.", "BACKGROUND");
                 return;
@@ -181,6 +185,7 @@ public class DeviceSpeechPlugin extends Plugin {
     }
 
     @PluginMethod public void cancelRecognition(PluginCall call) {
+        captureGeneration.incrementAndGet();
         main.post(() -> { cancelRecognitionSession(); call.resolve(); });
     }
 
@@ -294,6 +299,7 @@ public class DeviceSpeechPlugin extends Plugin {
     @Override protected void handleOnResume() { foreground = true; }
     @Override protected void handleOnPause() {
         foreground = false;
+        captureGeneration.incrementAndGet();
         cancelRecognitionSession(); stopSynthesis();
     }
     @Override protected void handleOnDestroy() {

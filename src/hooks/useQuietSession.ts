@@ -29,11 +29,24 @@ export function useQuietSession(
   const [autoMeeting, setAutoMeeting] = useState(true);
   const [drafts, setDrafts] = useState<MeetingDraft[]>([]);
   const [chirps, setChirps] = useState(true);
-  const props = useRef({ connected, consent, autoMeeting, chirps });
-  props.current = { connected, consent, autoMeeting, chirps };
+  const props = useRef({
+    connected,
+    consent,
+    autoMeeting,
+    chirps,
+    draftsCount: drafts.length,
+  });
+  props.current = {
+    connected,
+    consent,
+    autoMeeting,
+    chirps,
+    draftsCount: drafts.length,
+  };
   const state = useRef({
     active: false,
     asking: false,
+    holdRequested: false,
     ending: false,
     generation: 0,
     alive: true,
@@ -80,6 +93,7 @@ export function useQuietSession(
     s.generation++;
     s.active = false;
     s.asking = false;
+    s.holdRequested = false;
     s.ending = false;
     s.request = "";
     s.question = "";
@@ -236,7 +250,9 @@ export function useQuietSession(
   }
   function hold() {
     const s = state.current;
-    if (!s.active || s.ending || s.asking || s.request) return;
+    if (!s.active || s.ending || s.asking || s.holdRequested || s.request)
+      return;
+    s.holdRequested = true;
     patch({ transitioning: true });
     const snapshot = recorder.current!.snapshot();
     void serial(async (generation) => {
@@ -251,7 +267,8 @@ export function useQuietSession(
   }
   function release(cancelled = false) {
     const s = state.current;
-    if (!s.active || s.ending) return;
+    if (!s.active || s.ending || !s.holdRequested) return;
+    s.holdRequested = false;
     const snapshot = recorder.current!.snapshot();
     void serial(async (generation) => {
       if (!s.asking) return;
@@ -275,6 +292,13 @@ export function useQuietSession(
   }
   function meetingToggle() {
     if (!state.current.active) return;
+    if (!state.current.memory.meeting && props.current.draftsCount >= 5) {
+      patch({
+        error:
+          "Save or discard meeting drafts before starting another meeting.",
+      });
+      return;
+    }
     void serial(async (generation) => {
       await cut(generation);
       if (generation !== state.current.generation) return;
@@ -355,7 +379,11 @@ export function useQuietSession(
         .then((signal) => {
           if (generation !== s.generation || !s.active) return;
           const change = s.detector.observe(signal.active, Date.now());
-          if (change === "start" && !s.memory.meeting) {
+          if (
+            change === "start" &&
+            !s.memory.meeting &&
+            props.current.draftsCount < 5
+          ) {
             s.memory.beginMeeting();
             patch({ meeting: true });
           }
