@@ -1,7 +1,6 @@
 """Remote-ready Bluey Home control plane. NOT a Windows enforcement service.
 Run behind HTTPS on a host with persistent storage, separate from the desktop engine.
 """
-from contextlib import contextmanager
 import hashlib
 import hmac
 import json
@@ -28,17 +27,7 @@ def password_hash(password, salt):
     return hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=16384, r=8, p=1).hex()
 
 
-def domain(value):
-    value = value.strip().lower().rstrip('.')
-    if '://' in value:
-        parsed = urlsplit(value)
-        if parsed.scheme not in {'http', 'https'} or parsed.username or parsed.password or parsed.port or parsed.path not in {'', '/'} or parsed.query or parsed.fragment:
-            raise ValueError('Enter a domain, not a URL path or credentials.')
-        value = parsed.hostname or ''
-    value = value.encode('idna').decode('ascii')
-    if len(value) > 253 or '.' not in value or value.endswith(('.local', '.localhost')) or not all(re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', p) for p in value.split('.')) or re.fullmatch(r'[0-9.]+', value):
-        raise ValueError('Use a public website domain such as example.com.')
-    return value
+from .website_rules import domain, build_rules
 
 
 class StrictModel(BaseModel):
@@ -69,7 +58,9 @@ class Policy(StrictModel):
     timezone: str = Field(default='America/Los_Angeles', max_length=60)
     blocked_domains: list[str] = Field(default_factory=list, max_length=100)
 
-    @field_validator('blocked_domains')
+    allowed_domains: list[str] = Field(default_factory=list, max_length=100)
+
+    @field_validator('blocked_domains', 'allowed_domains')
     @classmethod
     def domains(cls, values): return sorted(set(domain(v) for v in values))
 
@@ -94,22 +85,18 @@ class Decision(StrictModel):
     decision: str = Field(pattern=r'^(approve|deny)$')
 
 
-def create_app(path: str, gateway_token: str, invite: str):
+def create_app(path: str, gateway_token: str, invite: str, *, schema="bluey_family"):
     app = FastAPI(title='Bluey Home foundation', docs_url=None, redoc_url=None)
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    @contextmanager
-    def connect():
-        db = sqlite3.connect(path, timeout=5)
-        db.row_factory = sqlite3.Row
-        db.execute('PRAGMA foreign_keys=ON')
-        try:
-            yield db
-            db.commit()
-        except BaseException:
-            db.rollback()
-            raise
-        finally:
-            db.close()
+    from .family_database import Database
+    storage = Database(path, schema)
+    connect = storage.connect
+    from fastapi.responses import JSONResponse
+    async def storage_unavailable(request, error):
+        return JSONResponse({'error': 'Family storage is temporarily unavailable. Try again shortly.'}, status_code=503, headers={'Cache-Control':'no-store'})
+    app.add_exception_handler(sqlite3.OperationalError, storage_unavailable)
+    if storage.postgres:
+        import psycopg
+        app.add_exception_handler(psycopg.Error, storage_unavailable)
     with connect() as db:
         db.executescript('''
         CREATE TABLE IF NOT EXISTS parents(id TEXT PRIMARY KEY, username TEXT UNIQUE, salt TEXT, password TEXT);
@@ -120,7 +107,6 @@ def create_app(path: str, gateway_token: str, invite: str):
         CREATE TABLE IF NOT EXISTS grants(request TEXT PRIMARY KEY REFERENCES requests(id) ON DELETE CASCADE, child TEXT REFERENCES children(id) ON DELETE CASCADE, day TEXT, minutes INTEGER);
         CREATE TABLE IF NOT EXISTS attempts(key TEXT PRIMARY KEY, count INTEGER, reset REAL);
         ''')
-    os.chmod(path, 0o600)
 
     async def gateway(x_bluey_gateway: str = Header(default='')):
         if not gateway_token or not hmac.compare_digest(x_bluey_gateway.encode(), gateway_token.encode()):
@@ -152,7 +138,7 @@ def create_app(path: str, gateway_token: str, invite: str):
             db.execute('DELETE FROM attempts WHERE reset < ?', (now,))
             row = db.execute('SELECT count FROM attempts WHERE key=?', (key,)).fetchone()
             if row and row['count'] >= maximum: raise HTTPException(429, 'Too many attempts. Try again in 15 minutes.')
-            db.execute('INSERT INTO attempts VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1', (key, now+900))
+            db.execute('INSERT INTO attempts VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=attempts.count+1', (key, now+900))
 
     def actor(authorization: str = Header(default=''), _=Depends(gateway)):
         token = authorization.removeprefix('Bearer ')
@@ -188,12 +174,12 @@ def create_app(path: str, gateway_token: str, invite: str):
     install_routes(app, connect, parent, actor, gateway, limited, owned, issue)
 
     def snapshot(db, row):
-        policy = json.loads(row['policy'])
+        policy = Policy.model_validate_json(row['policy']).model_dump()
         extra = db.execute('SELECT COALESCE(SUM(minutes),0) FROM grants WHERE child=? AND day=?', (row['id'], day(policy))).fetchone()[0]
         agent = db.execute('SELECT last_seen,report FROM agents WHERE child=?',(row['id'],)).fetchone()
         reporting = bool(agent and agent['last_seen'] and time.time()-agent['last_seen']<90)
         report = json.loads(agent['report']) if agent and agent['report'] else None
-        return {'agent': {'recent': reporting, 'report': report, 'last_seen': agent['last_seen'] if agent else None}, 'id':row['id'], 'name':row['name'], 'policy':policy, 'extra_minutes_today':extra, 'used_minutes':None,
+        return {'website_rules': build_rules(policy), 'agent': {'recent': reporting, 'report': report, 'last_seen': agent['last_seen'] if agent else None}, 'id':row['id'], 'name':row['name'], 'policy':policy, 'extra_minutes_today':extra, 'used_minutes':None,
                 'protected':False, 'enforcement':'not_installed', 'last_seen':None,
                 'notice':'Rules are saved, not enforced. This preview does not install a managed Windows service or browser filter.'}
 
@@ -205,7 +191,7 @@ def create_app(path: str, gateway_token: str, invite: str):
     @app.get('/api/family/status', dependencies=[Depends(gateway)])
     def status():
         with connect() as db: db.execute('SELECT count(*) FROM parents').fetchone()
-        return {'status':'ready', 'enforcement_available':False, 'notifications':'in_app_polling', 'version':2}
+        return {'status':'ready', 'enforcement_available':False, 'notifications':'in_app_polling', 'registration_available':bool(invite), 'version':3}
 
     @app.post('/api/family/auth/register', dependencies=[Depends(gateway)])
     def register(body: Account):
@@ -238,7 +224,7 @@ def create_app(path: str, gateway_token: str, invite: str):
     def dashboard(owner=Depends(parent)):
         with connect() as db:
             cleanup(db)
-            children=[snapshot(db,row) for row in db.execute('SELECT * FROM children WHERE parent=? ORDER BY rowid', (owner,)).fetchall()]
+            children=[snapshot(db,row) for row in db.execute('SELECT * FROM children WHERE parent=? ORDER BY name,id', (owner,)).fetchall()]
             requests=[dict(r) for r in db.execute('SELECT r.*, c.name FROM requests r JOIN children c ON c.id=r.child WHERE c.parent=? ORDER BY created DESC LIMIT 100', (owner,)).fetchall()]
             return {'children':children, 'requests':requests}
 
@@ -325,9 +311,9 @@ def create_app(path: str, gateway_token: str, invite: str):
 
 
 def app_factory():
-    path=os.getenv('BLUEY_FAMILY_DB')
+    path=os.getenv('BLUEY_FAMILY_DATABASE_URL') or os.getenv('BLUEY_FAMILY_DB')
     gateway=os.getenv('BLUEY_FAMILY_GATEWAY_TOKEN')
-    if not path or not gateway: raise RuntimeError('Configure a persistent BLUEY_FAMILY_DB path and BLUEY_FAMILY_GATEWAY_TOKEN before hosting Bluey Home.')
+    if not path or not gateway: raise RuntimeError('Configure durable family storage and BLUEY_FAMILY_GATEWAY_TOKEN before hosting Bluey Home.')
     return create_app(path,gateway,os.getenv('BLUEY_FAMILY_SETUP_INVITE',''))
 
 

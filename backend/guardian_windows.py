@@ -12,6 +12,7 @@ import uuid
 from urllib.parse import urlsplit
 
 from .enforcement_policy import Budget
+from .website_rules import build_rules, BLOCKLIST_VERSION
 
 SERVICE = 'BlueyGuardian'
 
@@ -33,7 +34,7 @@ def standard_local_user(name):
         raise ValueError('Choose a local standard Windows account name.')
     info = win32net.NetUserGetInfo(None, name, 1)
     sid, _, _ = win32security.LookupAccountName(None, win32api.GetComputerName()+'\\'+name)
-    groups = win32net.NetUserGetLocalGroups(None, name, 0, 1)
+    groups = win32net.NetUserGetLocalGroups(None, name, 1)
     admin_sid = win32security.ConvertStringSidToSid('S-1-5-32-544')
     for group in groups:
         group_sid, _, _ = win32security.LookupAccountName(None, group)
@@ -61,17 +62,18 @@ def sessions(sid):
     return found
 
 
-def edge_path(sid):
-    return sid+r'\Software\Policies\Microsoft\Edge\URLBlocklist'
+def edge_path(sid, kind="URLBlocklist"):
+    if kind not in {"URLBlocklist", "URLAllowlist"}: raise ValueError("Unsupported policy key.")
+    return sid + "\\Software\\Policies\\Microsoft\\Edge\\" + kind
 
 
-def edge_rules(sid, domains):
+def write_edge_list(sid, domains, kind):
     import winreg
     import win32security
     # Never load an arbitrary hive or apply a machine-wide rule affecting parents.
     # An unloaded child's hive is retried when that child logs in.
     with winreg.OpenKey(winreg.HKEY_USERS, sid): pass
-    with winreg.CreateKeyEx(winreg.HKEY_USERS, edge_path(sid), 0, winreg.KEY_ALL_ACCESS) as key:
+    with winreg.CreateKeyEx(winreg.HKEY_USERS, edge_path(sid, kind), 0, winreg.KEY_ALL_ACCESS) as key:
         system = win32security.ConvertStringSidToSid('S-1-5-18')
         administrators = win32security.ConvertStringSidToSid('S-1-5-32-544')
         child = win32security.ConvertStringSidToSid(sid)
@@ -90,6 +92,16 @@ def edge_rules(sid, domains):
         for name,value in wanted.items():
             if actual.get(name)!=value: winreg.SetValueEx(key,name,0,winreg.REG_SZ,value)
         return True
+
+
+def edge_rules(sid, policy):
+    rules=build_rules(policy)
+    # Clear old exceptions first; a partial failure must not preserve a revoked
+    # allowlist exception. Reapply blocks before restoring approved exceptions.
+    write_edge_list(sid, [], 'URLAllowlist')
+    write_edge_list(sid, rules['blocked'], 'URLBlocklist')
+    write_edge_list(sid, rules['allowed'], 'URLAllowlist')
+    return True
 
 
 class Gateway:
@@ -120,6 +132,10 @@ def run(config_path, stop):
     import threading
     lock=threading.RLock()
     previous=time.monotonic(); last_reason=''
+    health={'edge_rules':False, 'applied_version':None}
+    import win32com.shell.shell as shell
+    import win32com.shell.shellcon as shellcon
+    status_path=Path(shell.SHGetFolderPath(0,shellcon.CSIDL_COMMON_APPDATA,0,0))/'Bluey Guardian Status'/'status.json'
 
     def sync_worker():
         # Network failures never block the independent session-enforcement loop.
@@ -132,14 +148,15 @@ def run(config_path, stop):
             except Exception:
                 error='Remote sync failed; cached policy remains until expiry.'
             with lock:
-                domains=list(budget.bundle['policy']['blocked_domains']) if budget.bundle else None
-            if domains is not None:
-                try: edge_ok=edge_rules(config['sid'],domains)
+                policy=dict(budget.bundle['policy']) if budget.bundle else None
+            if policy is not None:
+                try: edge_ok=edge_rules(config['sid'],policy)
                 except OSError: error='Child hive unavailable or Edge policy write failed.'
             with lock:
+                health.update(edge_rules=edge_ok,applied_version=policy['version'] if edge_ok and policy else None)
                 report={'policy_version':budget.bundle['policy']['version'] if budget.bundle else 0,
                     'day':budget.state['day'] or '1970-01-01','used_seconds':min(172800,int(budget.state['used_seconds'])),
-                    'time_service':True,'edge_rules':edge_ok,'error':error}
+                    'time_service':True,'edge_rules':edge_ok,'blocklist_version':BLOCKLIST_VERSION if edge_ok else '', 'error':error}
                 pending=list(events[:10])
             try:
                 gateway.call('agent/report',report)
@@ -161,6 +178,9 @@ def run(config_path, stop):
             if reason and reason != last_reason and reason in {'time_limit','bedtime','clock_error','offline_policy_expired'}:
                 events[:]=(events+[{'id':str(uuid.uuid4()),'kind':reason}])[-100:];save(event_path,events)
             last_reason=reason
+            save(status_path,{'updated_at':time.time(), 'child_sid':config['sid'], 'restriction':reason,
+                'edge_rules':health['edge_rules'], 'applied_version':health['applied_version'],
+                'blocklist_version':BLOCKLIST_VERSION, 'verified':False})
         if reason:
             for identifier in active: win32ts.WTSDisconnectSession(None,identifier,False)
         if stop(1): break
@@ -181,7 +201,7 @@ def main():
     parser.add_argument('--origin');parser.add_argument('--username')
     args=parser.parse_args()
     import ctypes
-    if not ctypes.windll.shell32.IsUserAnAdmin(): raise SystemExit('Administrator permission required.')
+    if not ctypes.windll.shell32.IsUserAnAdmin(): raise SystemExit('Admin Permissions is needed')
     if args.command=='enroll':
         import getpass
         import winreg
@@ -189,10 +209,11 @@ def main():
         sid=standard_local_user(args.username)
         # Child must have logged in once; refuse to overwrite existing managed rules.
         with winreg.OpenKey(winreg.HKEY_USERS,sid): pass
-        try:
-            with winreg.OpenKey(winreg.HKEY_USERS,edge_path(sid)): pass
-        except FileNotFoundError: pass
-        else: raise SystemExit('Existing managed Edge blocklist found. No settings were changed.')
+        for kind in ['URLBlocklist','URLAllowlist']:
+            try:
+                with winreg.OpenKey(winreg.HKEY_USERS,edge_path(sid,kind)): pass
+            except FileNotFoundError: pass
+            else: raise SystemExit('Existing managed Edge rules found. No settings were changed.')
         gateway=Gateway(args.origin)
         try: identity=gateway.call('agent/enroll',{'code':getpass.getpass('One-use WINDOWS enrollment code from Bluey Home: ')})
         finally: gateway.client.close()
@@ -215,8 +236,9 @@ def main():
         if args.config.exists():
             import winreg
             config=json.loads(args.config.read_text())
-            try: winreg.DeleteKey(winreg.HKEY_USERS,edge_path(config['sid']))
-            except FileNotFoundError: pass
+            for kind in ['URLAllowlist','URLBlocklist']:
+                try: winreg.DeleteKey(winreg.HKEY_USERS,edge_path(config['sid'],kind))
+                except FileNotFoundError: pass
             args.config.unlink()
         try: win32serviceutil.RemoveService(SERVICE)
         except win32service.error as e:

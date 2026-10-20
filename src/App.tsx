@@ -868,6 +868,16 @@ export default function App() {
             <ShieldCheck size={17} />
             Bluey Account · Home
           </button>
+          {!window.bluey && (
+            <button
+              onClick={() => {
+                location.href = "/downloads.html";
+              }}
+            >
+              <ExternalLink size={17} />
+              Downloads · Windows & Android
+            </button>
+          )}
         </nav>
         <div className="recent-title">
           <span>RECENT CONVERSATIONS</span>

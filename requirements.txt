@@ -1,0 +1,4 @@
+# Vercel family API only. Desktop/model dependencies remain under backend/.
+-r backend/requirements-family.txt
+httpx>=0.28,<1
+psycopg[binary]>=3.2,<4

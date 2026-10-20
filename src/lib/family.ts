@@ -6,6 +6,7 @@ export type FamilyPolicy = {
   bedtime_end: string;
   timezone: string;
   blocked_domains: string[];
+  allowed_domains?: string[];
 };
 export type SafetyAlert = {
   id: string;
@@ -16,6 +17,7 @@ export type SafetyAlert = {
   name?: string;
 };
 export type ChildProfile = {
+  website_rules?: { version: string; blocked: string[]; allowed: string[] };
   alerts?: SafetyAlert[];
   agent?: {
     recent: boolean;
@@ -63,6 +65,20 @@ export async function familyRequest<T>(
   body?: unknown,
   method?: string,
 ): Promise<T> {
+  if (typeof window !== "undefined" && window.blueyFamily) {
+    const result = await window.blueyFamily.request(
+      path,
+      token,
+      body,
+      method || (body === undefined ? "GET" : "POST"),
+    );
+    if (result.status >= 400)
+      throw new FamilyError(
+        result.data?.error || "Family request failed.",
+        result.status,
+      );
+    return result.data as T;
+  }
   const response = await fetch(`${nativeBase}/api/family/${path}`, {
     method: method || (body === undefined ? "GET" : "POST"),
     headers: {
@@ -84,7 +100,7 @@ export async function familyRequest<T>(
     );
   return data;
 }
-export const FamilyVault = registerPlugin<{
+const NativeFamilyVault = registerPlugin<{
   read(): Promise<{ token: string }>;
   write(options: { token: string }): Promise<void>;
   clear(): Promise<void>;
@@ -128,3 +144,12 @@ export const exampleFamily: Dashboard = {
   ],
   requests: [],
 };
+
+export const FamilyVault =
+  typeof window !== "undefined" && window.blueyFamily
+    ? {
+        read: window.blueyFamily.vaultRead,
+        write: window.blueyFamily.vaultWrite,
+        clear: window.blueyFamily.vaultClear,
+      }
+    : NativeFamilyVault;

@@ -13,6 +13,44 @@ defaults:
   run:
     shell: bash
 jobs:
+  postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: bluey_test
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: bluey_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U bluey_test -d bluey_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt pytest
+      - name: Durable database and hosted API regressions
+        env:
+          BLUEY_TEST_POSTGRES_URL: postgresql://bluey_test:ci-only-password@127.0.0.1:5432/bluey_test?sslmode=disable
+          BLUEY_REQUIRE_POSTGRES_TESTS: "1"
+        run: python -m pytest backend/tests/test_family_postgres.py backend/tests/test_family_serverless.py -q --junitxml=artifacts/postgres.xml
+      - name: Expose bounded test failures
+        if: failure()
+        run: |
+          python - <<'PYCODE'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          path=Path('artifacts/postgres.xml')
+          if path.exists():
+              for node in ET.parse(path).getroot().iter():
+                  if node.tag in {'failure','error'}:
+                      text=((node.get('message',''))+'\n'+(node.text or ''))[-6000:]
+                      print('::error::'+text.replace('%','%25').replace('\r','%0D').replace('\n','%0A'))
+          PYCODE
   test:
     runs-on: ubuntu-24.04
     steps:
@@ -27,7 +65,7 @@ jobs:
       - run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
-      - run: npm run build && npm test
+      - run: npm run build && npm test && node --test scripts/family-bridge-checks.cjs
       - run: pip install -r backend/requirements-dev.txt
       - run: python -m pytest backend/tests -q
       - name: Verify scratch-training math and curriculum
@@ -74,7 +112,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
-    needs: test
+    needs: [test, postgres]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -126,10 +164,10 @@ jobs:
       - name: Verify signed APK and create download files
         run: |
           mkdir -p release/android
-          cp android/app/build/outputs/apk/debug/app-debug.apk release/android/Bluey-0.4.0-Android.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs release/android/Bluey-0.4.0-Android.apk | tee release/android/APK-verification.txt
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging release/android/Bluey-0.4.0-Android.apk > release/android/APK-manifest.txt
-          (cd release/android && sha256sum Bluey-0.4.0-Android.apk > SHA256SUMS.txt)
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/android/Bluey-0.5.0-Android.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs release/android/Bluey-0.5.0-Android.apk | tee release/android/APK-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging release/android/Bluey-0.5.0-Android.apk > release/android/APK-manifest.txt
+          (cd release/android && sha256sum Bluey-0.5.0-Android.apk > SHA256SUMS.txt)
           cp docs/ANDROID_RELEASE.md release/android/Android-Setup-Instructions.md
       - uses: actions/upload-artifact@v4
         with:
@@ -155,7 +193,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
-    needs: test
+    needs: [test, postgres]
     strategy:
       fail-fast: false
       matrix:
@@ -187,7 +225,8 @@ jobs:
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --no-daemon --stacktrace
+          set -o pipefail
+          ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --no-daemon --stacktrace 2>&1 | tee ../android-build.log
       - name: Enable emulator access
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -201,13 +240,13 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: cd android && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.bluey.companion.FamilyAppSmokeTest --no-daemon --stacktrace
+          script: bash -o pipefail -c "cd android && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.bluey.companion.FamilyAppSmokeTest --no-daemon --stacktrace 2>&1 | tee ../android-native-test.log"
       - name: Verify separate package and create download
         run: |
           mkdir -p release/family
           label=Home
           if [ "$BLUEY_VARIANT" = kids ]; then label=Kids; fi
-          apk="release/family/Bluey-$label-0.4.0-Android.apk"
+          apk="release/family/Bluey-$label-0.5.0-Android.apk"
           cp android/app/build/outputs/apk/debug/app-debug.apk "$apk"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | grep "package: name='app.bluey.$BLUEY_VARIANT'"
@@ -217,6 +256,9 @@ jobs:
           name: Bluey-family-${{ matrix.variant }}
           path: release/family/*.apk
           if-no-files-found: error
+      - name: Publish family failure diagnostics
+        if: failure()
+        run: python scripts/ci_android_diagnostics.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -224,11 +266,24 @@ jobs:
           path: |
             android/app/build/reports/
             android/app/build/outputs/androidTest-results/
+            android-*.log
+  guardian-check:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Real Windows Guardian service and permission checks
+        run: |
+          python -m pip install -r guardian/requirements.txt
+          python scripts/guardian-windows-check.py
   windows-installer:
     if: "github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[release-android]')"
     timeout-minutes: 25
     runs-on: windows-latest
-    needs: test
+    needs: [test, postgres, guardian-check]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -263,9 +318,35 @@ jobs:
             release/SHA256SUMS.txt
             release/Windows-Setup-Instructions.md
           if-no-files-found: error
+  family-windows:
+    if: github.event_name != 'pull_request'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    needs: [test, postgres]
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [home, kids]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run package:win:${{ matrix.variant }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Packaged desktop smoke test
+        run: node scripts/family-desktop-smoke.mjs ${{ matrix.variant }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bluey-family-windows-${{ matrix.variant }}
+          path: release/${{ matrix.variant }}/*.exe
+          if-no-files-found: error
   publish-preview:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/e8d2ea05-bluey' && contains(github.event.head_commit.message, '[release-preview]')
-    needs: [android-apk, family-apks, windows-installer]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/4345ad69-bluey' && contains(github.event.head_commit.message, '[release-preview]')
+    needs: [android-apk, family-apks, windows-installer, family-windows]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -302,15 +383,15 @@ jobs:
           mkdir -p release/combined
           cp release/windows/*.exe release/windows/*Instructions.md release/combined/
           cp release/android/*.apk release/android/*Instructions.md release/android/APK-*.txt release/combined/
-          cp release/family/*.apk release/combined/
+          cp release/family/*.apk release/family/*.exe release/combined/
           cp docs/BLUEY_HOME.md release/combined/Family-Setup-Instructions.md
           (cd release/combined && sha256sum *.exe *.apk > SHA256SUMS.txt)
-          tag="v0.4.0-preview.1"
+          tag="v0.5.0-preview.2"
           if gh release view "$tag" >/dev/null 2>&1; then
             test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA"
             gh release upload "$tag" release/combined/* --clobber
           else
             gh release create "$tag" release/combined/* \
-              --target "$GITHUB_SHA" --title "Bluey 0.4.0 — Privacy & family foundation (not enforcement)" \
-              --prerelease --notes-file docs/RELEASE_0.4.0.md
+              --target "$GITHUB_SHA" --title "Bluey 0.5.0 — Deterministic Kids rules and family desktop preview" \
+              --prerelease --notes-file docs/RELEASE_0.5.0.md
           fi

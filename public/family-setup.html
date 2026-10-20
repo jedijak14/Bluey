@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Bluey · Family database setup</title>
+    <link rel="icon" href="./favicon.svg" />
+    <style>
+      body {
+        margin: 0;
+        background: #f8f7fc;
+        color: #343347;
+        font:
+          16px/1.7 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 820px;
+        margin: auto;
+        padding: 40px 24px;
+      }
+      a {
+        color: #7055b4;
+      }
+      h1 {
+        font-size: 34px;
+        line-height: 1.2;
+      }
+      article {
+        font: inherit;
+
+        overflow-wrap: anywhere;
+      }
+      article h1 {
+        display: none;
+      }
+      article h2 {
+        font-size: 24px;
+        margin-top: 32px;
+      }
+      article li {
+        margin: 14px 0;
+      }
+      code {
+        font-size: 13px;
+        background: #eee9f8;
+        padding: 2px 4px;
+        border-radius: 4px;
+      }
+      .note {
+        padding: 18px;
+        border: 1px solid #dfcfae;
+        border-radius: 12px;
+        background: #fffaf0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a href="/#account">← Bluey Account</a>
+      <h1>Connect your family database.</h1>
+      <p class="note">
+        This enables accounts and remote management. It does not install device
+        protection. No credentials should be pasted into chat.
+      </p>
+      <p>
+        <a
+          href="https://vercel.com/jedijak15-8367s-projects/bluey"
+          target="_blank"
+          rel="noreferrer"
+          >Open the Bluey Vercel project ↗</a
+        >
+        · <a href="./downloads.html">Downloads</a>
+      </p>
+      <article>
+        <h1>Bluey Home on Vercel + PostgreSQL</h1>
+        <p>
+          Vercel can now run the family API itself. A separate Python server is
+          <strong>not required</strong> in this mode. A persistent PostgreSQL
+          database is required: the API refuses SQLite/temporary files on
+          Vercel. Connecting the database enables accounts and remote policy
+          management, not OS enforcement.
+        </p>
+        <h2>One-time account setup</h2>
+        <ol>
+          <li>
+            In the <strong>Bluey</strong> Vercel project, open
+            <strong>Storage</strong> and connect a PostgreSQL provider such as
+            Neon. Review the provider's plan, region, retention and billing
+            before approving. The agent's Vercel connector cannot provision a
+            database. Use a dedicated database; existing unrelated application
+            data should not share these credentials.
+          </li>
+          <li>
+            Connect it to <strong>Production</strong>. The API reads
+            <code>BLUEY_FAMILY_DATABASE_URL</code>, <code>DATABASE_URL</code>,
+            or <code>POSTGRES_URL</code>, in that order. Use the provider's
+            encrypted/pooled connection URL in Vercel's environment settings—not
+            in chat, Git, <code>VITE_</code> variables, or the browser. Remote
+            PostgreSQL connections require TLS. A dedicated
+            <code>bluey_family</code> schema is initialized transactionally. The
+            database role needs permission to create that schema/tables.
+          </li>
+          <li>
+            Add a private, random <code>BLUEY_FAMILY_SETUP_INVITE</code> in the
+            project's Production environment settings. Keep it in your password
+            manager. This is a registration invite, not a default password.
+            Registration stays closed without it; existing account sign-in does
+            not require it. Never paste database credentials or the invite into
+            chat.
+          </li>
+          <li>
+            Redeploy the latest production source so the database/environment
+            connection takes effect. No gateway token is required in the direct
+            PostgreSQL mode: the public API validates requests and retains the
+            separate parent, Kids and Windows-agent bearer sessions.
+          </li>
+          <li>
+            Open <code>/#account</code>. Create a parent account using your
+            chosen username, a unique password of at least 12 characters, and
+            the invite. Add a child nickname. Create a Kids enrollment and a
+            <strong>separate Windows agent enrollment</strong>. Test signing in
+            from another device; do not place real child information in a test
+            profile.
+          </li>
+          <li>
+            After intended parents register, clear/rotate the invite and
+            redeploy. Existing accounts continue to work. Configure provider
+            backups and verify restoration before relying on stored rules.
+            Account recovery/MFA/email verification and production
+            security/privacy review are still required before wider use.
+          </li>
+        </ol>
+        <p>
+          <code>/api/family/status</code> checks an actual database query.
+          <code>ready</code> means the account/control plane is reachable,
+          <strong>not that a device is protected</strong>.
+          <code>registration_available</code> reports whether an operator invite
+          is configured. Missing storage returns
+          <code>setup_required: database</code>; connection errors return 503,
+          never demo accounts or synthetic success.
+        </p>
+        <h2>Existing standalone host</h2>
+        <p>
+          The previous <code>BLUEY_FAMILY_SERVICE_URL</code> +
+          <code>BLUEY_FAMILY_GATEWAY_TOKEN</code> mode remains supported when no
+          PostgreSQL URL is configured. Its persistent SQLite deployment recipe
+          is in <code>deploy/family/README.md</code>. Configuring PostgreSQL
+          takes precedence and does <strong>not</strong> migrate existing SQLite
+          data. Back up and explicitly plan a migration before changing storage
+          for an existing family.
+        </p>
+        <h2>Validation / limits</h2>
+        <p>
+          Tests use an isolated real PostgreSQL service in CI: account/role
+          isolation, persistent sessions across app instances, one-use
+          enrollment races, policy version races, exactly-once time grants,
+          timestamp precision, agent reports and safety inbox acknowledgements.
+          No production test accounts or private user data are created
+          automatically. Transactions serialize per schema with bounded
+          lock/query timeouts; this is an invite-only, modest-scale control
+          plane, not a multi-region high-throughput service. Use a pooled
+          provider URL and monitor capacity.
+        </p>
+        <p>
+          Guardian remains separate parent-administrator software. Saving
+          policies does not prove they were applied. Edge-only rules, Android
+          enforcement gaps, lack of a non-bypassable logon barrier, no automatic
+          blocked-site collector, and no background push remain unchanged. Keep
+          existing parental controls enabled.
+        </p>
+      </article>
+    </main>
+  </body>
+</html>

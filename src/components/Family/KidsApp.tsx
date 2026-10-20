@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { ArrowRight, Clock3, Heart, Shield } from "lucide-react";
+import { GuardianStatus } from "./GuardianStatus";
 import { SafetyMessage } from "./SafetyMessage";
 import type { SafetyAlert } from "../../lib/family";
 import { Avatar } from "../FloatingWidget/Avatar";
@@ -28,7 +29,7 @@ export function KidsApp() {
   const session = useRef({ token: "", generation: 0 });
   session.current.token = token;
   const dialog = useRef<HTMLDialogElement>(null),
-    native = Capacitor.isNativePlatform();
+    native = Capacitor.isNativePlatform() || Boolean(window.blueyFamily);
   useEffect(() => {
     let alive = true;
     const generation = session.current.generation;
@@ -143,6 +144,7 @@ export function KidsApp() {
             : "Ask your parent to set up your space in Bluey Home."}
         </p>
       </section>
+      {window.blueyFamily && <GuardianStatus />}
       <div className="kids-card">
         <p className="home-warning">
           <Shield size={20} />

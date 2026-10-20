@@ -1,6 +1,6 @@
 # Durable family backend
 
-The account UI needs this separate persistent service. Vercel does not supply a SQLite disk. No server has been provisioned automatically.
+For Vercel + PostgreSQL without a separate server, use [the Vercel setup](../../docs/VERCEL_FAMILY.md). This page describes the optional standalone host. Vercel does not supply a SQLite disk. No server has been provisioned automatically.
 
 On a Linux host with Docker, from this directory:
 

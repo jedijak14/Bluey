@@ -36,10 +36,14 @@ function ChildRules({
   onRemove: () => void;
   disabled: boolean;
 }) {
+  const [allowed, setAllowed] = useState(
+    (child.policy.allowed_domains || []).join("\n"),
+  );
   const [policy, setPolicy] = useState(child.policy),
     [domains, setDomains] = useState(child.policy.blocked_domains.join("\n"));
   useEffect(() => {
     setPolicy(child.policy);
+    setAllowed((child.policy.allowed_domains || []).join("\n"));
     setDomains(child.policy.blocked_domains.join("\n"));
   }, [child.id, child.policy.version]);
   return (
@@ -56,6 +60,10 @@ function ChildRules({
           e.preventDefault();
           void onSave({
             ...policy,
+            allowed_domains: allowed
+              .split("\n")
+              .map((v) => v.trim())
+              .filter(Boolean),
             blocked_domains: domains
               .split("\n")
               .map((s) => s.trim())
@@ -126,11 +134,32 @@ function ChildRules({
             placeholder={"example.com\nanother-site.com"}
           />
         </label>
+        <label>
+          Parent allowlist exceptions
+          <textarea
+            rows={3}
+            value={allowed}
+            onChange={(e) => setAllowed(e.target.value)}
+            placeholder="x.com"
+          />
+        </label>
         <p className="home-fine">
-          One domain per line. These are parent-entered rules, not a
-          comprehensive unsafe-site detector. Rules are not applied to Windows
-          or browsers by this preview.
+          Deterministic rules—not AI decisions. X/Twitter and a starter list of
+          adult services are blocked by default. Your allowlist overrides
+          matching blocks; each domain includes its subdomains. Allowing x.com
+          does not also allow twitter.com. Unlisted websites are not certified
+          safe. Requires an updated, enrolled Guardian and managed Edge.
         </p>
+        <details>
+          <summary>
+            Effective blocklist ·{" "}
+            {child.website_rules?.version || "awaiting updated service"}
+          </summary>
+          <p className="home-fine">
+            {child.website_rules?.blocked.join(", ") ||
+              "Connect to the updated family service to retrieve the effective blocklist."}
+          </p>
+        </details>
         <button className="home-primary" disabled={disabled}>
           Save rules <ArrowRight size={16} />
         </button>
@@ -174,12 +203,31 @@ export function HomeApp() {
   const active = demo ? exampleFamily : data,
     child =
       active.children.find((c) => c.id === selected) || active.children[0];
+  const [serviceDetail, setServiceDetail] = useState("");
+  const [registrationAvailable, setRegistrationAvailable] = useState<
+    boolean | undefined
+  >();
   async function check() {
     try {
-      const r = await familyRequest<{ status: string }>("status");
+      const r = await familyRequest<{
+        status: string;
+        error?: string;
+        registration_available?: boolean;
+      }>("status");
       setService(r.status === "ready" ? "ready" : "unavailable");
-    } catch {
+      setServiceDetail(
+        typeof r.error === "string"
+          ? r.error
+          : "The family service is not connected yet.",
+      );
+      setRegistrationAvailable(r.registration_available);
+    } catch (error) {
       setService("unavailable");
+      setServiceDetail(
+        error instanceof Error
+          ? error.message
+          : "The family service could not be reached.",
+      );
     }
   }
   async function refresh() {
@@ -351,7 +399,11 @@ export function HomeApp() {
               )}
               <button
                 className="home-primary"
-                disabled={busy || service !== "ready"}
+                disabled={
+                  busy ||
+                  service !== "ready" ||
+                  (register && registrationAvailable === false)
+                }
               >
                 {register ? "Create parent account" : "Sign in"}
                 <ArrowRight size={16} />
@@ -365,10 +417,27 @@ export function HomeApp() {
                   ? "Already have an account?"
                   : "Create a Bluey Account"}
               </button>
+              {register && registrationAvailable === false && (
+                <p className="home-fine">
+                  Account creation is disabled until the operator configures a
+                  private setup invite. Existing accounts can still sign in.
+                </p>
+              )}
+              {!window.blueyFamily && (
+                <a
+                  className="home-text"
+                  href="https://bluey-plum.vercel.app/family-setup.html"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Connect the family database · setup instructions
+                </a>
+              )}
               {service !== "ready" && (
                 <p className="home-fine">
-                  A persistent family backend has not been connected. Sign-in
-                  and remote management are unavailable.{" "}
+                  {service === "checking"
+                    ? "Checking the family service…"
+                    : serviceDetail}{" "}
                   <button
                     type="button"
                     className="home-text"
