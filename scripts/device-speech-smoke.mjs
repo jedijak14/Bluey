@@ -164,6 +164,9 @@ try {
   );
   if (process.env.BLUEY_SCREENSHOTS)
     await page.screenshot({ path: "artifacts/quiet-phone.png" });
+  expect(
+    (await page.locator(".phone-caption").boundingBox()).height,
+  ).toBeLessThan(100);
   const question = packets.find((p) => p.type === "chat");
   expect(question.voice).toBe(false);
   expect(question.messages[0].content).toContain("ship Friday");

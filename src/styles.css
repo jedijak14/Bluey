@@ -4257,9 +4257,6 @@ label > input::placeholder {
   padding: 10px;
   border-radius: 10px;
 }
-.phone-face:has(.session-status) .phone-caption {
-  bottom: 150px;
-}
 .phone-caption.speech-bubble {
   background: #f1eaff;
   color: #292039;
