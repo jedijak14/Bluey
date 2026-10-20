@@ -30,7 +30,10 @@ export class SessionRecorder {
       );
     return Date.now() - this.started > 8000;
   }
-  async cut(): Promise<string> {
+  snapshot(): Promise<string> | undefined {
+    return this.native ? undefined : this.mic.drain();
+  }
+  async cut(snapshot?: Promise<string>): Promise<string> {
     this.started = Date.now();
     if (this.native) {
       const id = this.id;
@@ -42,7 +45,7 @@ export class SessionRecorder {
         throw e;
       }
     }
-    return this.transcribe(await this.mic.drain());
+    return this.transcribe(await (snapshot ?? this.mic.drain()));
   }
   async restart() {
     if (this.native) await this.start();

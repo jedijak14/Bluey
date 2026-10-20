@@ -1,4 +1,4 @@
-# Bluey 0.2.0 — Windows preview
+# Bluey 0.3.0 — Windows preview
 
 Windows 10/11, x64. Two versions of the same application:
 
@@ -9,7 +9,7 @@ Windows 10/11, x64. Two versions of the same application:
 
 These executables are **unsigned preview builds**. Windows SmartScreen may warn about an unknown publisher. No certificate or production signing is included. Verify downloaded files against `SHA256SUMS.txt`.
 
-**The Python engine is not bundled.** Chat, voice and Windows control need Python 3.11, the backend requirements, a configured model, and (for voice) downloaded Whisper/Piper models. The companion playground and local code scratchpad can be used without these. This is not a fully validated production release.
+**The Python engine is not bundled.** Chat, voice and Windows control need Python 3.11, the backend requirements, a configured model, and (for Windows microphone transcription) a downloaded Whisper model. The companion playground and local code scratchpad can be used without these. This is not a fully validated production release.
 
 ### Set up the backend interpreter (PowerShell)
 
@@ -27,10 +27,12 @@ Launch Bluey from this PowerShell session, or sign out and back into Windows so 
 
 For Android pairing also set `BLUEY_LAN=1` before launch and allow port 8765 only on a trusted private network. Pairing transport is HTTP unless you configure TLS. No cloud pairing service is involved.
 
-Model API keys are configured in Settings. Local Ollama and downloaded voice models are external requirements. See `README.md` in the source for complete setup and native-platform limitations.
+Model API keys are configured in Settings. Local Ollama and downloaded transcription models are external requirements. See `README.md` in the source for complete setup and native-platform limitations.
 
 Web builds and automated tests are checked before packaging. Packaging does not establish that all UIA interactions, audio devices, games, or display configurations work on a physical Windows PC. Native OS calls in progress cannot be forcibly undone by Stop. Review every proposed desktop action.
 
-## 0.2.0 features
+## Quiet sessions and meeting notes
 
-See RELEASE_0.2.0.md in the source repository for research cards, desktop tools, visible typing/click feedback, microphone selection and their limits. The companion starts silent; desktop spoken replies remain an explicit opt-in requiring Piper. Research queries require one-time approval. Windows app/media/extension behavior still needs validation on your PC.
+Ctrl+Shift+Space starts/ends a session on the single paired phone, or this PC if none is paired. Initial recording requires informed consent. Hold the phone screen (or the workspace Hold to ask control for a PC session) and release to ask. Replies are text only, with a brief phone chirp. The legacy one-shot microphone button still transcribes to a draft.
+
+Meeting detection is a best-effort Windows window heuristic, not a guaranteed meeting integration. Use manual Start/End controls when needed. Only microphone-audible voices are captured; headphone participants are not automatically transcribed. Review summaries and explicitly save notes/transcripts. Context and unsaved drafts are temporary. Read docs/QUIET_SESSIONS.md for bounds and privacy details. Update the APK and engine together.

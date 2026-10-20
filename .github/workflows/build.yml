@@ -210,7 +210,7 @@ jobs:
           cp release/windows/*.exe release/windows/*Instructions.md release/combined/
           cp release/android/*.apk release/android/*Instructions.md release/android/APK-*.txt release/combined/
           (cd release/combined && sha256sum *.exe *.apk > SHA256SUMS.txt)
-          tag="v0.3.0-preview.1"
+          tag="v0.3.0-preview.2"
           if gh release view "$tag" >/dev/null 2>&1; then
             test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA"
             gh release upload "$tag" release/combined/* --clobber

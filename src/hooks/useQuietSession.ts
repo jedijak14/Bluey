@@ -119,11 +119,15 @@ export function useQuietSession(
       });
     return s.queue;
   }
-  async function cut(generation: number, restart = true) {
+  async function cut(
+    generation: number,
+    restart = true,
+    snapshot?: Promise<string>,
+  ) {
     const s = state.current,
       asking = s.asking;
     if (native) patch({ listening: false });
-    const text = await recorder.current!.cut();
+    const text = await recorder.current!.cut(snapshot);
     if (generation !== s.generation) return;
     if (asking) s.question = (s.question + " " + text).trim().slice(0, 8000);
     const full = s.memory.add(text);
@@ -188,6 +192,10 @@ export function useQuietSession(
   function stop() {
     const s = state.current;
     if (!s.active || s.ending) return;
+    if (s.pending) {
+      cancel("Session stopped; the unfinished utterance may be missing.");
+      return;
+    }
     s.ending = true;
     patch({ transitioning: true, listening: false });
     void serial(async (generation) => {
@@ -230,8 +238,9 @@ export function useQuietSession(
     const s = state.current;
     if (!s.active || s.ending || s.asking || s.request) return;
     patch({ transitioning: true });
+    const snapshot = recorder.current!.snapshot();
     void serial(async (generation) => {
-      await cut(generation, false);
+      await cut(generation, false, snapshot);
       if (generation !== s.generation || s.ending) return;
       s.asking = true;
       s.question = "";
@@ -243,9 +252,10 @@ export function useQuietSession(
   function release(cancelled = false) {
     const s = state.current;
     if (!s.active || s.ending) return;
+    const snapshot = recorder.current!.snapshot();
     void serial(async (generation) => {
       if (!s.asking) return;
-      await cut(generation, false);
+      await cut(generation, false, snapshot);
       if (generation !== s.generation) return;
       s.asking = false;
       const question = s.question;

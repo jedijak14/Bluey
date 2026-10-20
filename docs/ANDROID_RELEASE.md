@@ -1,44 +1,25 @@
-# Android 0.3.0 preview
+# Bluey 0.3.0 — Quiet Android sessions
 
-This source version introduces quiet sessions; the old 0.2.0 instructions below are historical and do not describe the new controls. Update the APK **and Windows Python engine** together. Double-tap to start/end a consented session, hold and release to ask, and use text replies with optional chirps—not TTS. Keep the app foregrounded. Meeting notes require consent and are best-effort; save through the Android file picker. See [full controls, setup, recording limits and meeting privacy](QUIET_SESSIONS.md).
+Install the matching **Bluey-0.3.0-Android.apk** and update the Windows engine. This is a debug-signed sideload preview, not a Play Store release. Publication requires compilation, lint, emulator integration checks and APK signature verification. See the release's checksums.
 
-# Bluey 0.2.0 — Android device speech, silent by default
+## Pair and start
 
-Install **Bluey-0.2.0-Android.apk** on your Android phone. This is a universal, debug-signed sideload preview, not a Play Store release. The release workflow publishes the APK only after compilation, lint, tests, emulator checks and signature verification pass. Checksums and verification reports accompany the download.
+1. Configure the Windows Python engine and companion model. Set `BLUEY_LAN=1` before launch; allow port 8765 only on trusted private Wi-Fi.
+2. On Windows, generate a code in **Connected devices**. In Android, enter the PC address (e.g. `192.168.1.10:8765`) and fresh six-digit code. Pairing alone does not install a model or locate the PC automatically.
+3. Double-tap Bluey. Read the session disclosure and confirm everyone recorded has consented. **Allow & start session** requests microphone permission.
+4. Ambient speech becomes temporary context; Bluey stays quiet. Hold the screen, wait for **Release to ask**, say your question, and release. He replies in a text bubble with a brief chirp. Mute chirps with the speaker icon. There is no spoken-output switch.
+5. Double-tap again to end and return to follow mode. Ctrl+Shift+Space on Windows controls the single paired phone's session.
 
-## Bluey is silent by default
+Keep Android in the foreground. The native recognizer keeps the screen awake while active. Hiding the app, disconnecting or cancelling stops capture; it does not resume automatically. Recognition restarts between utterances and may miss words. On-device recognition is preferred, but an Android provider may use the internet. Android sends recognized text, not microphone WAVs, to Windows. Windows Whisper/Piper are not needed for Android input/output; a configured PC model is still required for answers.
 
-Replies appear as captions. **Speak replies is OFF each time the app launches.** There is no automatic greeting, no startup TTS initialization and no continuous/background listening. Expressions—including the visual “talking” expression—do not mean spoken audio is enabled.
+## Meetings and saving
 
-- **Voice input on Android:** in Companion options, explicitly enable **Use device speech recognition** and review the provider notice. Double-tap to wake Bluey, hold to speak, then release to send the recognized text. Grant microphone permission when prompted; hold again if the permission prompt interrupted the gesture.
-- **Optional spoken output:** enable **Speak replies using Android voice** (or tap the muted speaker). Only replies requested after opting in are read aloud. Turning it off cancels active/pending speech. It is not remembered across app restarts.
-- **Device services:** Android's SpeechRecognizer handles input; TextToSpeech handles optional output. No audio WAV, PC transcription request, or PC speech-synthesis request is sent by the Android companion. The PC still supplies AI text responses.
-- **Privacy:** Android 12+ on-device recognition is preferred when available. Otherwise the configured Android recognition provider is used with an offline preference; a provider may ignore that preference or require internet. This is **not an offline-only guarantee**. Manage installed languages, voice engines and offline voice packs in Android Settings. The optional TTS engine may also use network services depending on its selected voice.
-- If a service, permission or language is unavailable, Bluey displays an actionable error and keeps typed questions/captions available. It never silently falls back to sending microphone audio to the PC.
-- Stop, mute, leaving the app and disconnecting cancel device speech as appropriate. Microphone sessions have a native 60-second limit; finishing recognition has a 10-second timeout.
+Automatic meeting detection checks a narrow set of Windows window patterns during an explicitly started session. It is an estimate; manual **Take meeting notes / End meeting** controls are available. It cannot capture headphone participants or identify speakers. Meeting summaries use the configured model (possibly cloud), with desktop tools disabled. Review/edit them before relying on them.
 
-Browser companions still use the Windows voice pipeline when explicitly enabled; the Android system bridge only exists in the APK. Browser spoken output is also off by default.
+At the end, choose **Save notes & transcription** and pick a document location in Android's file picker. Cancel/failure retains the draft. Nothing is saved automatically; closing/reloading loses unsaved drafts. See [limits and full privacy contract](QUIET_SESSIONS.md).
 
-## Pair with Windows
+## Verification and preview limitations
 
-1. Start Bluey on Windows with its Python backend configured. Set `BLUEY_LAN=1` before launching it (or run `python -m backend.server --lan`).
-2. Connect the PC and phone to the same trusted private Wi-Fi. Allow Python TCP port 8765 in Windows Firewall for private networks only.
-3. On Windows, open **Connected devices → Generate pairing code**.
-4. In the Android APK, enter the PC's Wi-Fi address, e.g. `192.168.1.10:8765`, and the six-digit code within two minutes. Do not use localhost on the phone.
-5. Type a question in Companion options, or enable device speech recognition as described above.
+Native instrumentation uses a test-only Android recognition service with real pairing/WebSocket transport. It checks quiet input, text replies and lifecycle cleanup, not physical recognition accuracy or audible chirp quality. The browser fixture additionally checks meeting review/save API behavior. Physical device file-picker/recognizer behavior still needs checking on your phone.
 
-Android input/output no longer requires Whisper or Piper on Windows. You still need a configured AI model/backend on the PC. These models and a Python interpreter are not bundled in the Windows preview. The APK is not a standalone offline AI assistant.
-
-Pairing uses unencrypted HTTP by default: trusted private Wi-Fi only; never expose port 8765 to the internet. Desktop actions require approval on Windows. Only the endpoint is remembered by the phone; pairing credentials stay in memory. Pair again after restarting the backend or app.
-
-## Verification scope
-
-Client tests cover silent defaults, Android text-only requests, optional native speech chunking/cancellation and error handling. Native emulator tests exercise the registered Capacitor plugin with **test-APK-only Android recognition/TTS service fixtures**, real HTTP pairing/authenticated WebSocket transport, captions, silent defaults, explicit output opt-in and lifecycle cleanup. The backend fixture rejects any attempt to use PC transcription or synthesis. Recognition fixtures return deterministic text; TTS fixtures return silent PCM. These tests validate integration, **not real speech accuracy, pronunciation, audible output quality or physical-device behavior**. Real speech services vary by phone and installed language packs.
-
-The app remains landscape-oriented with seven expressions and a separate Windows pointer character. Keep Android System WebView current; Android 10+ is recommended (minimum API 23).
-
-If Android reports a signature mismatch when updating a debug preview, uninstall the previous APK first (this clears its app data). Production signing and Play Store distribution are not configured. The previous published APK does not acquire these changes automatically; install the new version.
-
-## Research notes
-
-Enable Research in companion options for an explicitly approved web search. The PC must approve the query. Tap **Read notes** after the response to see the paper-style answer and source snippets. Android supports copying notes; Markdown file downloads are a desktop/browser feature.
+Android 10+ is recommended (minimum API 23); keep System WebView current. A different CI debug signing key can require uninstalling an older preview before installation, which clears its data. The APK is not standalone AI. Pairing credentials stay in memory; re-pair after restarting the app or engine. Never expose the unencrypted LAN engine publicly. All desktop actions still require Windows approval.
