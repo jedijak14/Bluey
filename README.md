@@ -2,7 +2,20 @@
 
 A local-first desktop companion with a Windows workspace, a separate animated desktop pointer, and a paired Android face. Built with Electron, React, TypeScript, Tailwind, FastAPI, `windows-use`, faster-whisper, and Piper.
 
-**Status: working application foundation, not a validated production release.** The web build, client tests, backend tests, and browser interaction smoke tests pass. Windows UI Automation, microphone/Piper playback on physical devices, Electron packaging, and Android installation require target-device validation. No APK or Windows installer was built in the development sandbox: Java/Android SDK were unavailable and the Electron binary download was blocked. Build workflows are included, but have not been run remotely.
+**Status: installable preview builds, not a production-certified release.** GitHub Actions has built and published the Windows executables and Android APK. The Android release passed compilation, lint/unit checks, signature verification, and native Android emulator tests for launch, expressions, authenticated pairing, typed requests, and microphone WAV transport. Model/STT/TTS in those native tests are deterministic fixtures; physical-device voice quality and Windows UI Automation still require testing with your actual PC and models.
+
+## Downloads
+
+- **[Android companion APK 0.1.1](https://github.com/jedijak14/Bluey/releases/download/v0.1.1-android-preview.1/Bluey-0.1.1-Android.apk)** — universal, debug-signed sideload build (9.2 MB).
+- [Android setup, checksums and verification](https://github.com/jedijak14/Bluey/releases/tag/v0.1.1-android-preview.1).
+- [Windows installer 0.1.0](https://github.com/jedijak14/Bluey/releases/download/v0.1.0-preview.1/Bluey-0.1.0-Windows-x64-Setup.exe).
+- [Windows portable 0.1.0](https://github.com/jedijak14/Bluey/releases/download/v0.1.0-preview.1/Bluey-0.1.0-Windows-x64-Portable.exe).
+
+**The APK is a Windows-paired companion, not a standalone offline AI.** It needs the Windows backend for chat, voice, and desktop actions. Offline expression play does not need a PC. Windows builds require an external Python environment; models and speech voices are not bundled.
+
+Android build and emulator verification: [successful run 39348558421](https://github.com/jedijak14/Bluey/actions/runs/39348558421), source `23f68deb30d37b1df4eb8b03869857b653089b19`.
+
+APK SHA-256: `1e0b570143e57bfacfc228f199e498be97682c258a3cbd249cb0cc3ec82fc742`.
 
 ## The reference, faithfully adapted
 
@@ -93,7 +106,7 @@ npm run desktop
 
 The Whisper path must be an already-downloaded CTranslate2/faster-whisper model directory. The Piper path must point to a valid voice `.onnx` plus its configuration file. Respect model licenses.
 
-Desktop mic: click to start, click again to stop; review the resulting transcript before sending. Android: double tap to wake, hold to record, release to send the transcription. Maximum recording length is 60 seconds. Turn on **Read responses aloud** for desktop audio. Phone voice requests opt into Piper output.
+Desktop mic: click to start, click again to stop; review the resulting transcript before sending. Android: double tap to wake, hold to record, release to send the transcription. Maximum recording length is 60 seconds. Turn on **Read responses aloud** for desktop audio. Phone options include typed questions and a **Speak replies** checkbox; disable it for text-only use without Piper. The phone cancels microphone capture when backgrounded.
 
 First model load and CPU transcription/synthesis are **not zero-latency**. Whisper runs CPU/int8 in this implementation. Recordings are uploaded to the paired PC, temporary WAVs are deleted after transcription, and generated speech is sent as complete sentence-sized WAV chunks, not low-level streaming PCM.
 
@@ -121,7 +134,7 @@ npm run desktop
 
 Or run `python -m backend.server --lan` for a standalone backend. Allow Python on **private networks only** in Windows Firewall; TCP port is 8765. Do not forward the port on your router.
 
-1. Install the Bluey Android debug APK built below.
+1. Install the published Bluey Android APK linked above, or build it yourself below.
 2. Keep the PC and phone on the same trusted Wi-Fi.
 3. In Windows → Connected devices, generate a pairing code.
 4. On Android, enter the displayed private PC address, e.g. `192.168.1.10:8765`, and the six-digit code within two minutes.
@@ -161,10 +174,10 @@ Output: `release/` (NSIS installer). Unsigned builds can trigger SmartScreen. Py
 
 `.github/workflows/build.yml` tests the project and builds both artifacts on push/PR or manual dispatch:
 
-- `Bluey-Android-debug-APK`
-- `Bluey-Windows-installer`
+- `Bluey-Android-APK`
+- `Bluey-Windows-executables`
 
-The workflow must first be pushed on the working branch and run successfully. It has **not** been run in this sandbox, so these artifact names are build targets, not existing downloads.
+The workflow has run successfully on GitHub. Public prerelease downloads are linked above. Android publication is gated on its native emulator tests and signed-APK verification; Windows artifacts were built in the earlier Windows release. The publication jobs are restricted to the current working branch and explicit `[release-android]` / `[release-windows]` commit markers. Other pushes run tests/builds without publishing a release.
 
 ## Validation
 
@@ -179,7 +192,7 @@ npm run test:ui
 
 `test:ui` uses Playwright and the development-only `@sparticuz/chromium` bundle. Linux needs the usual Chromium shared libraries. `BLUEY_BROWSER=/path/to/chromium` selects another installed browser. Native Windows testing should use an installed Chrome/Chromium path.
 
-Checked in the sandbox: production web build, 7 TypeScript tests, 18 backend tests, browser interaction smoke tests at desktop/phone sizes, Android asset sync. Production npm dependencies have zero reported audit advisories at validation time; eight moderate development-only advisories remain in the Electron packaging toolchain. Native integrations are source-complete adapters, **not yet hardware-verified**.
+Checked locally: production web build, 11 TypeScript tests, 18 backend tests, browser interaction smoke tests at desktop/phone sizes, Android asset sync. Checked on GitHub: Windows executable packaging and Android compilation, lint/unit checks, emulator launch/pairing/text/microphone-transport tests, and APK signature verification. The emulator uses fixture model/STT/TTS responses. Production npm dependencies have zero reported audit advisories at validation time; eight moderate development-only advisories remain in the Electron packaging toolchain. **Real Windows UI Automation and voice models are not yet physical-device-verified.**
 
 ## Layout
 
