@@ -998,3 +998,16 @@
 .bluey-kids .home-brand img {
   border-radius: 9px;
 }
+.kids-safety {
+  margin: auto;
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+}
+.kids-logo {
+  display: block;
+  margin: 0 auto;
+}
+.kids-safety > svg {
+  margin: 0 auto;
+  display: block;
+}

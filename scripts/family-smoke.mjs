@@ -36,6 +36,7 @@ try {
     .toBe(true);
   await fs.mkdir("artifacts", { recursive: true });
   await page.screenshot({ path: "artifacts/account-gate.png", fullPage: true });
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(base + "/#kids");
   await page
     .getByRole("button", { name: "Preview safety message (not enforcement)" })
