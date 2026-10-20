@@ -82,6 +82,31 @@ class Database:
         if not self.postgres:
             Path(self.location).parent.mkdir(parents=True, exist_ok=True)
 
+    def harden(self):
+        """Keep account tables private even if a Supabase schema is exposed later.
+
+        Only this server's database owner may access rows. No anonymous/client
+        role receives a policy. Parent/kid/agent scope is checked by the API.
+        """
+        if not self.postgres:
+            return
+        from psycopg import sql
+        tables = ('parents', 'sessions', 'children', 'enrollments', 'requests',
+                  'grants', 'attempts', 'agent_codes', 'agents', 'safety_events')
+        with self.connect() as connection:
+            db = connection.db
+            db.execute(sql.SQL('REVOKE ALL ON SCHEMA {} FROM PUBLIC').format(sql.Identifier(self.schema)))
+            client_roles = [row['rolname'] for row in db.execute(
+                "SELECT rolname FROM pg_roles WHERE rolname IN ('anon','authenticated','service_role')").fetchall()]
+            for role in client_roles:
+                db.execute(sql.SQL('REVOKE ALL ON SCHEMA {} FROM {}').format(sql.Identifier(self.schema), sql.Identifier(role)))
+            for table in tables:
+                identifier = sql.Identifier(self.schema, table)
+                db.execute(sql.SQL('ALTER TABLE {} ENABLE ROW LEVEL SECURITY').format(identifier))
+                db.execute(sql.SQL('REVOKE ALL ON TABLE {} FROM PUBLIC').format(identifier))
+                for role in client_roles:
+                    db.execute(sql.SQL('REVOKE ALL ON TABLE {} FROM {}').format(identifier, sql.Identifier(role)))
+
     @contextmanager
     def connect(self):
         if self.postgres:

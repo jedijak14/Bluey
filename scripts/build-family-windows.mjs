@@ -11,7 +11,7 @@ const config = {
   win: {
     target: [{ target: "nsis", arch: ["x64"] }],
     requestedExecutionLevel: "asInvoker",
-    icon: "electron/assets/icon.ico",
+    icon: `electron/assets/${variant}.ico`,
   },
   nsis: {
     oneClick: false,

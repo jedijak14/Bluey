@@ -1,4 +1,4 @@
-"""Experimental Windows service: session disconnection + per-user Edge policies.
+"""Experimental Windows service: session disconnection + per-user Edge/Chrome policies.
 
 No HTTP listener, arbitrary commands, hidden installation, or child-facing admin
 credentials. Install/recover only with the explicit administrator setup script.
@@ -62,27 +62,41 @@ def sessions(sid):
     return found
 
 
-def edge_path(sid, kind="URLBlocklist"):
+BROWSER_KEYS = {"edge": r"Software\Policies\Microsoft\Edge", "chrome": r"Software\Policies\Google\Chrome"}
+
+
+def managed_browsers(config):
+    names = config.get('browsers', ['edge'])
+    if not isinstance(names, list) or not names or any(not isinstance(name, str) or name not in BROWSER_KEYS for name in names) or len(names) != len(set(names)):
+        raise ValueError('Unsupported browser configuration; administrator repair required.')
+    return names
+
+
+def browser_path(sid, browser, kind="URLBlocklist"):
+    if browser not in BROWSER_KEYS: raise ValueError("Unsupported managed browser.")
     if kind not in {"URLBlocklist", "URLAllowlist"}: raise ValueError("Unsupported policy key.")
-    return sid + "\\Software\\Policies\\Microsoft\\Edge\\" + kind
+    return sid + "\\" + BROWSER_KEYS[browser] + "\\" + kind
 
 
-def write_edge_list(sid, domains, kind):
+def write_browser_list(sid, domains, kind, browser):
     import winreg
     import win32security
     # Never load an arbitrary hive or apply a machine-wide rule affecting parents.
     # An unloaded child's hive is retried when that child logs in.
     with winreg.OpenKey(winreg.HKEY_USERS, sid): pass
-    with winreg.CreateKeyEx(winreg.HKEY_USERS, edge_path(sid, kind), 0, winreg.KEY_ALL_ACCESS) as key:
+    with winreg.CreateKeyEx(winreg.HKEY_USERS, browser_path(sid, browser, kind), 0, winreg.KEY_ALL_ACCESS | winreg.KEY_WOW64_64KEY) as key:
         system = win32security.ConvertStringSidToSid('S-1-5-18')
         administrators = win32security.ConvertStringSidToSid('S-1-5-32-544')
         child = win32security.ConvertStringSidToSid(sid)
         acl = win32security.ACL()
         for principal, access in [(system,winreg.KEY_ALL_ACCESS),(administrators,winreg.KEY_ALL_ACCESS),(child,winreg.KEY_READ)]:
             acl.AddAccessAllowedAce(win32security.ACL_REVISION, access, principal)
-        win32security.SetSecurityInfo(int(key), win32security.SE_REGISTRY_KEY,
-            win32security.DACL_SECURITY_INFORMATION | win32security.OWNER_SECURITY_INFORMATION | win32security.PROTECTED_DACL_SECURITY_INFORMATION,
-            system, None, acl, None)
+        try:
+            win32security.SetSecurityInfo(int(key), win32security.SE_REGISTRY_KEY,
+                win32security.DACL_SECURITY_INFORMATION | win32security.OWNER_SECURITY_INFORMATION | win32security.PROTECTED_DACL_SECURITY_INFORMATION,
+                system, None, acl, None)
+        except win32security.error as error:
+            raise OSError('Could not secure browser policy key.') from error
         wanted = {str(i+1): name for i,name in enumerate(domains)}
         actual = {}
         for i in range(winreg.QueryInfoKey(key)[1]):
@@ -92,6 +106,32 @@ def write_edge_list(sid, domains, kind):
         for name,value in wanted.items():
             if actual.get(name)!=value: winreg.SetValueEx(key,name,0,winreg.REG_SZ,value)
         return True
+
+
+def edge_path(sid, kind="URLBlocklist"):
+    return browser_path(sid, "edge", kind)
+
+
+def write_edge_list(sid, domains, kind):
+    return write_browser_list(sid, domains, kind, "edge")
+
+
+def browser_rules(sid, policy, browser):
+    rules = build_rules(policy)
+    write_browser_list(sid, [], "URLAllowlist", browser)
+    write_browser_list(sid, rules['blocked'], "URLBlocklist", browser)
+    write_browser_list(sid, rules['allowed'], "URLAllowlist", browser)
+    return True
+
+
+def apply_browser_rules(sid, policy, browsers):
+    results = {}
+    for browser in browsers:
+        try:
+            results[browser] = browser_rules(sid, policy, browser)
+        except OSError:
+            results[browser] = False
+    return results
 
 
 def edge_rules(sid, policy):
@@ -132,7 +172,8 @@ def run(config_path, stop):
     import threading
     lock=threading.RLock()
     previous=time.monotonic(); last_reason=''
-    health={'edge_rules':False, 'applied_version':None}
+    browsers = managed_browsers(config)
+    health={'edge_rules':False, 'browser_rules':{b:False for b in browsers}, 'applied_version':None}
     import win32com.shell.shell as shell
     import win32com.shell.shellcon as shellcon
     status_path=Path(shell.SHGetFolderPath(0,shellcon.CSIDL_COMMON_APPDATA,0,0))/'Bluey Guardian Status'/'status.json'
@@ -140,7 +181,7 @@ def run(config_path, stop):
     def sync_worker():
         # Network failures never block the independent session-enforcement loop.
         while not stop(0):
-            error='';edge_ok=False
+            error='';results={b:False for b in browsers}
             try:
                 bundle=gateway.call('agent/policy')
                 with lock:
@@ -150,13 +191,13 @@ def run(config_path, stop):
             with lock:
                 policy=dict(budget.bundle['policy']) if budget.bundle else None
             if policy is not None:
-                try: edge_ok=edge_rules(config['sid'],policy)
-                except OSError: error='Child hive unavailable or Edge policy write failed.'
+                results = apply_browser_rules(config['sid'], policy, browsers)
+                if not all(results.values()): error='Child hive unavailable or browser policy write failed.'
             with lock:
-                health.update(edge_rules=edge_ok,applied_version=policy['version'] if edge_ok and policy else None)
+                health.update(edge_rules=results.get('edge',False), browser_rules=results, applied_version=policy['version'] if all(results.values()) and policy else None)
                 report={'policy_version':budget.bundle['policy']['version'] if budget.bundle else 0,
                     'day':budget.state['day'] or '1970-01-01','used_seconds':min(172800,int(budget.state['used_seconds'])),
-                    'time_service':True,'edge_rules':edge_ok,'blocklist_version':BLOCKLIST_VERSION if edge_ok else '', 'error':error}
+                    'time_service':True,'edge_rules':results.get('edge',False), 'browser_rules':results, 'blocklist_version':BLOCKLIST_VERSION if all(results.values()) else '', 'error':error}
                 pending=list(events[:10])
             try:
                 gateway.call('agent/report',report)
@@ -179,7 +220,7 @@ def run(config_path, stop):
                 events[:]=(events+[{'id':str(uuid.uuid4()),'kind':reason}])[-100:];save(event_path,events)
             last_reason=reason
             save(status_path,{'updated_at':time.time(), 'child_sid':config['sid'], 'restriction':reason,
-                'edge_rules':health['edge_rules'], 'applied_version':health['applied_version'],
+                'edge_rules':health['edge_rules'], 'browser_rules':health['browser_rules'], 'applied_version':health['applied_version'],
                 'blocklist_version':BLOCKLIST_VERSION, 'verified':False})
         if reason:
             for identifier in active: win32ts.WTSDisconnectSession(None,identifier,False)
@@ -209,21 +250,23 @@ def main():
         sid=standard_local_user(args.username)
         # Child must have logged in once; refuse to overwrite existing managed rules.
         with winreg.OpenKey(winreg.HKEY_USERS,sid): pass
-        for kind in ['URLBlocklist','URLAllowlist']:
-            try:
-                with winreg.OpenKey(winreg.HKEY_USERS,edge_path(sid,kind)): pass
-            except FileNotFoundError: pass
-            else: raise SystemExit('Existing managed Edge rules found. No settings were changed.')
+        browsers = list(BROWSER_KEYS)
+        for browser in browsers:
+            for kind in ['URLBlocklist','URLAllowlist']:
+                try:
+                    with winreg.OpenKey(winreg.HKEY_USERS,browser_path(sid,browser,kind)): pass
+                except FileNotFoundError: pass
+                else: raise SystemExit(f'Existing managed {browser} rules found. No settings were changed.')
         gateway=Gateway(args.origin)
         try: identity=gateway.call('agent/enroll',{'code':getpass.getpass('One-use WINDOWS enrollment code from Bluey Home: ')})
         finally: gateway.client.close()
-        save(args.config,{'sid':sid,'username':args.username,'origin':args.origin,'token':identity['token']})
+        save(args.config,{'sid':sid,'username':args.username,'origin':args.origin,'token':identity['token'],'browsers':browsers})
     elif args.command=='install':
         entry=Path(__file__).resolve().parent.parent/'service_entry.py'
         win32serviceutil.InstallService('backend.guardian_windows.Guardian',SERVICE,'Bluey Guardian (experimental)',
             startType=win32service.SERVICE_AUTO_START,exeName=sys.executable,
             exeArgs=f'-I "{entry}" service --config "{args.config}"',
-            description='Parent-installed session budget and managed Edge rules for one standard child account.')
+            description='Parent-installed session budget and managed Edge/Chrome rules for one standard child account.')
         win32serviceutil.StartService(SERVICE)
     elif args.command=='recover':
         try: win32serviceutil.StopService(SERVICE);win32serviceutil.WaitForServiceStatus(SERVICE,win32service.SERVICE_STOPPED,30)
@@ -236,9 +279,14 @@ def main():
         if args.config.exists():
             import winreg
             config=json.loads(args.config.read_text())
-            for kind in ['URLAllowlist','URLBlocklist']:
-                try: winreg.DeleteKey(winreg.HKEY_USERS,edge_path(config['sid'],kind))
-                except FileNotFoundError: pass
+            try:
+                with winreg.OpenKey(winreg.HKEY_USERS,config['sid']): pass
+            except FileNotFoundError:
+                raise SystemExit('Child profile is unloaded. Service stopped; configuration retained. Load the child profile under parent supervision and run recovery again.')
+            for browser in managed_browsers(config):
+                for kind in ['URLAllowlist','URLBlocklist']:
+                    try: winreg.DeleteKeyEx(winreg.HKEY_USERS,browser_path(config['sid'],browser,kind),winreg.KEY_WOW64_64KEY)
+                    except FileNotFoundError: pass
             args.config.unlink()
         try: win32serviceutil.RemoveService(SERVICE)
         except win32service.error as e:

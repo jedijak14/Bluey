@@ -36,7 +36,7 @@ import win32serviceutil
 import winreg
 
 sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
-from backend.guardian_windows import standard_local_user,edge_rules,edge_path,SERVICE
+from backend.guardian_windows import standard_local_user,apply_browser_rules,browser_path,SERVICE
 from backend.enforcement_policy import Budget
 from backend.family_service import Policy
 from datetime import datetime,timezone
@@ -69,17 +69,18 @@ try:
     token=win32security.LogonUser(name,'.',password,win32con.LOGON32_LOGON_INTERACTIVE,win32con.LOGON32_PROVIDER_DEFAULT)
     profile=win32profile.LoadUserProfile(token,{'UserName':name})
     policy=Policy(version=1,daily_minutes=720,timezone='UTC',bedtime_start='00:00',bedtime_end='00:00',allowed_domains=['x.com']).model_dump()
-    edge_rules(sid_text,policy)
-    with winreg.OpenKey(winreg.HKEY_USERS,edge_path(sid_text,'URLAllowlist')) as key:
-        assert winreg.QueryValueEx(key,'1')[0]=='x.com'
-    # Prove a standard child cannot edit the managed registry rule itself.
-    win32security.ImpersonateLoggedOnUser(token)
-    try:
+    assert apply_browser_rules(sid_text,policy,['edge','chrome']) == {'edge':True,'chrome':True}
+    for browser in ['edge','chrome']:
+        with winreg.OpenKey(winreg.HKEY_USERS,browser_path(sid_text,browser,'URLAllowlist')) as key:
+            assert winreg.QueryValueEx(key,'1')[0]=='x.com'
+        # Prove a standard child cannot edit either managed registry rule.
+        win32security.ImpersonateLoggedOnUser(token)
         try:
-            key=winreg.OpenKey(winreg.HKEY_USERS,edge_path(sid_text),0,winreg.KEY_SET_VALUE)
-        except PermissionError: pass
-        else: key.Close();raise AssertionError('Child could write the managed policy key')
-    finally: win32security.RevertToSelf()
+            try:
+                key=winreg.OpenKey(winreg.HKEY_USERS,browser_path(sid_text,browser),0,winreg.KEY_SET_VALUE)
+            except PermissionError: pass
+            else: key.Close();raise AssertionError(f'Child could write {browser} policy')
+        finally: win32security.RevertToSelf()
     root.mkdir();data.mkdir();status.mkdir()
     for folder in (root,data,status):
         grants=['*S-1-5-18:(OI)(CI)F','*S-1-5-32-544:(OI)(CI)F']
@@ -93,7 +94,7 @@ try:
     command([sys.executable,'-I','-m','venv','--system-site-packages',str(root/'runtime')])
     runtime_python=str(root/'runtime'/'Scripts'/'python.exe')
     config=data/'config.json'
-    config.write_text(json.dumps({'sid':sid_text,'username':name,'origin':'https://127.0.0.1:9','token':'ci-only-invalid-token'}))
+    config.write_text(json.dumps({'sid':sid_text,'username':name,'origin':'https://127.0.0.1:9','token':'ci-only-invalid-token','browsers':['edge','chrome']}))
     now=time.time();budget=Budget();budget.sync({'policy':policy,'day':datetime.now(timezone.utc).date().isoformat(),'extra_minutes_today':0,'server_time':now,'valid_until':now+86400},now)
     (data/'usage.json').write_text(json.dumps(budget.state))
     installed=True
@@ -102,7 +103,7 @@ try:
     while time.monotonic()<deadline:
         try:
             report=json.loads((status/'status.json').read_text())
-            if report['edge_rules'] and report['applied_version']==1:break
+            if report.get('browser_rules') == {'edge':True,'chrome':True} and report['applied_version']==1:break
         except (OSError,ValueError):pass
         time.sleep(.5)
     else:raise AssertionError('No applied policy heartbeat from the actual Windows service')
@@ -123,10 +124,17 @@ finally:
     if installed:
         command([runtime_python,'-I',str(root/'service_entry.py'),'recover','--config',str(data/'config.json')])
         assert not (data/'config.json').exists()
+        for browser in ['edge','chrome']:
+            for kind in ('URLAllowlist','URLBlocklist'):
+                try:
+                    with winreg.OpenKey(winreg.HKEY_USERS,browser_path(sid_text,browser,kind)): pass
+                except FileNotFoundError: pass
+                else: raise AssertionError(f'Recovery left {browser} rules installed')
     elif profile:
-        for kind in ('URLAllowlist','URLBlocklist'):
-            try:winreg.DeleteKey(winreg.HKEY_USERS,edge_path(sid_text,kind))
-            except FileNotFoundError:pass
+        for browser in ['edge','chrome']:
+            for kind in ('URLAllowlist','URLBlocklist'):
+                try:winreg.DeleteKeyEx(winreg.HKEY_USERS,browser_path(sid_text,browser,kind),winreg.KEY_WOW64_64KEY)
+                except FileNotFoundError:pass
     if profile:win32profile.UnloadUserProfile(token,profile)
     if token:token.Close()
     if created:win32net.NetUserDel(None,name)

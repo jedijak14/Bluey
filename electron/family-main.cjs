@@ -165,7 +165,7 @@ app.whenReady().then(() => {
     minWidth: 390,
     minHeight: 600,
     title: variant === "kids" ? "Bluey for Kids" : "Bluey Home",
-    icon: path.join(__dirname, "assets", "icon.png"),
+    icon: path.join(__dirname, "..", "dist", `bluey-${variant}-logo.png`),
     backgroundColor: "#f7f9fc",
     webPreferences: {
       preload: path.join(__dirname, "family-preload.cjs"),

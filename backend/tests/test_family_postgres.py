@@ -88,3 +88,36 @@ def test_hosted_api_full_agent_and_parent_inbox_flow(store):
     assert first.get('/api/family/alerts',headers=other).json() == []
     assert first.delete(f"/api/family/children/{child['id']}",headers=parent).status_code == 200
     assert second.get('/api/family/agent/policy',headers=agent).status_code == 401
+
+
+def test_private_schema_and_rls_deny_supabase_client_roles(store):
+    import psycopg
+    from psycopg import sql
+    db, worker, schema = store
+    api = worker()
+    parent = cases.parent(api)
+    cases.child(api, parent)
+    # This fixture is disposable PostgreSQL CI, never the live Supabase project.
+    with psycopg.connect(URL, autocommit=True) as admin:
+        if admin.execute("SELECT 1 FROM pg_roles WHERE rolname='anon'").fetchone():
+            pytest.skip('Refusing to modify a pre-existing client role')
+        admin.execute('CREATE ROLE anon NOLOGIN NOSUPERUSER')
+    try:
+        with db.connect() as connection:
+            raw = connection.db
+            raw.execute(sql.SQL('GRANT USAGE ON SCHEMA {} TO anon').format(sql.Identifier(schema)))
+            raw.execute(sql.SQL('GRANT SELECT ON TABLE {} TO anon').format(sql.Identifier(schema,'parents')))
+            raw.execute('SET LOCAL ROLE anon')
+            # Even an accidental SELECT grant cannot expose password/session rows.
+            assert raw.execute(sql.SQL('SELECT * FROM {}').format(sql.Identifier(schema,'parents'))).fetchall() == []
+        restarted = worker()  # Idempotently removes accidental client grants.
+        assert len(restarted.get('/api/family/dashboard', headers=parent).json()['children']) == 1
+        with db.connect() as connection:
+            raw = connection.db
+            assert not raw.execute('SELECT has_schema_privilege(%s,%s,%s) AS granted',('anon',schema,'USAGE')).fetchone()['granted']
+            rows = raw.execute('SELECT relrowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=%s AND c.relkind=%s',(schema,'r')).fetchall()
+            assert len(rows) == 10 and all(row['relrowsecurity'] for row in rows)
+    finally:
+        with psycopg.connect(URL, autocommit=True) as admin:
+            admin.execute('DROP OWNED BY anon')
+            admin.execute('DROP ROLE anon')

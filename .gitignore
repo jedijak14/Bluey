@@ -26,3 +26,6 @@ playwright-report/
 .venv-gemma/
 *.safetensors
 *.weights.h5
+
+# Unselected design candidates are not release assets.
+Unselected files/

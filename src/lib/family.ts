@@ -26,6 +26,7 @@ export type ChildProfile = {
       policy_version: number;
       time_service: boolean;
       edge_rules: boolean;
+      browser_rules?: Partial<Record<"edge" | "chrome", boolean>>;
       error: string;
     } | null;
   };
