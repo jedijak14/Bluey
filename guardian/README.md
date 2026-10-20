@@ -2,6 +2,8 @@
 
 **Test-PC implementation, not certified parental protection. Do not replace existing family controls.** This source contains real Windows calls, not a simulated fullscreen lock. It has not been validated on a physical Windows machine in this Linux workspace.
 
+Native Windows CI now checks real service start/stop/recovery, a loaded disposable child profile, policy-key write denial, child service-stop denial, and cached-policy heartbeat. It does **not** validate an interactive child disconnect, Edge’s actual navigation behavior, or the complete PowerShell installer on a physical family PC.
+
 ## What it enforces
 
 - A LocalSystem service polls one explicitly enrolled **local standard account SID**. It counts logged-in active-session time (not mouse activity), stores the usage ledger in an administrator-only directory, and disconnects that child's Windows session at the daily allowance or bedtime. Disconnect preserves applications; it does not log off or destroy unsaved work. Reconnecting is checked on the next loop; this is not a Winlogon credential-provider barrier. Locked-but-connected sessions can count toward the allowance.

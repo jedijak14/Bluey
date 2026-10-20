@@ -8,7 +8,9 @@ export type GuardianHealth = {
 };
 export function GuardianStatus() {
   const [health, setHealth] = useState<GuardianHealth>({ state: "checking" });
+  const [setupError, setSetupError] = useState("");
   useEffect(() => {
+    if (!window.blueyFamily) return;
     let alive = true;
     const refresh = async () => {
       try {
@@ -55,10 +57,19 @@ export function GuardianStatus() {
         )}
         <button
           className="home-text"
-          onClick={() => void window.blueyFamily!.openSetupGuide()}
+          onClick={async () => {
+            try {
+              setSetupError(await window.blueyFamily!.openSetupGuide());
+            } catch {
+              setSetupError(
+                "Could not open the setup instructions. Open the guardian folder in the app’s installation resources.",
+              );
+            }
+          }}
         >
           Parent administrator setup & recovery
         </button>
+        {setupError && <p role="alert">{setupError}</p>}
       </div>
     </section>
   );

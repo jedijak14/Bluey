@@ -348,7 +348,7 @@ jobs:
           cp release/family/*.apk release/family/*.exe release/combined/
           cp docs/BLUEY_HOME.md release/combined/Family-Setup-Instructions.md
           (cd release/combined && sha256sum *.exe *.apk > SHA256SUMS.txt)
-          tag="v0.5.0-preview.1"
+          tag="v0.5.0-preview.2"
           if gh release view "$tag" >/dev/null 2>&1; then
             test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA"
             gh release upload "$tag" release/combined/* --clobber

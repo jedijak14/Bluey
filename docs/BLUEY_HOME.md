@@ -2,12 +2,12 @@
 
 **Not parental protection. Do not replace Microsoft Family Safety or existing controls with this preview.**
 
-Home is an Android parent app **and** web dashboard (sign in at `/#account` before accessing `/#home`). Bluey for Kids is a separate Android app (`app.bluey.kids`). The ordinary Bluey Android companion remains `app.bluey.companion`. All three can coexist.
+Home is an Android parent app **and** web dashboard (sign in at `/#account` before accessing `/#home`). Bluey for Kids is a separate Android app (`app.bluey.kids`) and Windows desktop app. Home also has a separate Windows installer. The ordinary Bluey Android companion remains `app.bluey.companion`. All three can coexist.
 
 ## Implemented
 
 - Parent sign-in and operator-invite registration; separate child profiles (use nicknames).
-- Per-child, versioned rule storage: daily minutes, bedtime, timezone, and explicit blocked domains. Saving a rule does **not** enforce it.
+- Per-child, versioned rule storage: daily minutes, bedtime, timezone, parent block/allow domains and a versioned default blocklist (including X/Twitter). Saving a rule does **not** enforce it.
 - Single-use, ten-minute enrollment codes. Creating a new enrollment and redeeming it revokes the previous Kids session for that profile.
 - Kids request extra minutes; parents approve/decline in Home. One pending request per child. Requests expire after an hour; approvals are associated with the child's policy-local day and cannot be applied twice.
 - Remote-capable authenticated HTTPS gateway, so devices need not be on the same Wi-Fi **when a persistent backend has been hosted**.
@@ -50,12 +50,16 @@ Java 21 + Android SDK 35:
 
 ```sh
 npm ci
-npm run android:home  # release/family/Bluey-Home-0.4.0-Android.apk
-npm run android:kids  # release/family/Bluey-Kids-0.4.0-Android.apk
+npm run android:home  # release/family/Bluey-Home-0.5.0-Android.apk
+npm run android:kids  # release/family/Bluey-Kids-0.5.0-Android.apk
 npm run android:apk   # original companion, separate app ID
 ```
 
 Each build rebuilds the bundled web UI and syncs Capacitor with its matching variant before Gradle. Do not run these builds concurrently in one checkout. Family apps permit HTTPS only and do not request microphone permission. Preview APKs are debug-signed, not Play Store releases; signing continuity across CI machines is not guaranteed. Uninstalling an old debug build may be necessary and deletes local enrollment.
+
+## Windows Home and Kids
+
+On Windows, run `npm run package:win:home` or `npm run package:win:kids`. These produce separate per-machine, administrator-consented installers in `release/home` and `release/kids`. Kids keeps the blueberry mascot and uses an isolated family-only bridge, not the normal desktop automation engine. General Kids AI chat is not implemented. The Guardian service requires separate parent setup; installing or closing the companion does not install or stop enforcement. Missing Guardian displays **Admin Permissions is needed**. Setup/recovery instructions are bundled as a plain-text file.
 
 ## Windows microphone and privacy
 

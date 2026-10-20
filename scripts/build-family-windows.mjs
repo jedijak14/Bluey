@@ -22,6 +22,7 @@ const config = {
   },
   directories: { output: `release/${variant}` },
   extraResources: [
+    { from: "guardian/README.md", to: "guardian/Setup-Instructions.txt" },
     { from: "backend", to: "backend", filter: ["*.py", "*.txt"] },
     {
       from: "guardian",

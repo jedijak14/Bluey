@@ -1,9 +1,18 @@
 import { _electron, expect } from "@playwright/test";
 import path from "node:path";
+import fs from "node:fs/promises";
 const variant = process.argv[2];
 const name = variant === "kids" ? "Bluey for Kids" : "Bluey Home";
 const executablePath = path.resolve(
   `release/${variant}/win-unpacked/${name}.exe`,
+);
+await fs.access(
+  path.join(
+    path.dirname(executablePath),
+    "resources",
+    "guardian",
+    "Setup-Instructions.txt",
+  ),
 );
 const app = await _electron.launch({ executablePath, timeout: 30000 });
 try {

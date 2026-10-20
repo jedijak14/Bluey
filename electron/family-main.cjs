@@ -31,7 +31,9 @@ const authorized =
     if (!own(event)) throw Error("Untrusted window.");
     return fn(...args);
   };
+let cachedIdentity;
 const identity = async () => {
+  if (cachedIdentity) return cachedIdentity;
   if (process.platform !== "win32") return null;
   // Fixed command, no renderer-provided shell arguments. Uses Windows Known
   // Folders rather than trusting child-controlled environment path overrides.
@@ -53,7 +55,8 @@ const identity = async () => {
     ],
     { timeout: 5000, windowsHide: true, maxBuffer: 8192 },
   );
-  return JSON.parse(stdout);
+  cachedIdentity = JSON.parse(stdout);
+  return cachedIdentity;
 };
 const stored = () => path.join(app.getPath("userData"), "kid-enrollment.bin");
 ipcMain.handle(
@@ -105,7 +108,9 @@ ipcMain.handle(
 ipcMain.handle(
   "guardian-guide",
   authorized(() =>
-    shell.openPath(path.join(process.resourcesPath, "guardian", "README.md")),
+    shell.openPath(
+      path.join(process.resourcesPath, "guardian", "Setup-Instructions.txt"),
+    ),
   ),
 );
 ipcMain.handle(
