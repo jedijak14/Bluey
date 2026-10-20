@@ -34,7 +34,7 @@ def standard_local_user(name):
         raise ValueError('Choose a local standard Windows account name.')
     info = win32net.NetUserGetInfo(None, name, 1)
     sid, _, _ = win32security.LookupAccountName(None, win32api.GetComputerName()+'\\'+name)
-    groups = win32net.NetUserGetLocalGroups(None, name, 0, 1)
+    groups = win32net.NetUserGetLocalGroups(None, name, 1)
     admin_sid = win32security.ConvertStringSidToSid('S-1-5-32-544')
     for group in groups:
         group_sid, _, _ = win32security.LookupAccountName(None, group)

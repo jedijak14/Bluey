@@ -58,3 +58,24 @@ def test_edge_adapter_orders_updates_fail_closed(monkeypatch):
     assert calls[1][0]=='URLBlocklist' and 'x.com' in calls[1][1]
     assert calls[2]==('URLAllowlist',['safe.x.com'])
     assert windows.edge_path('S-1-5-test','URLAllowlist').endswith('Edge\\URLAllowlist')
+
+
+def test_standard_account_uses_real_pywin32_signature(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    from backend.guardian_windows import standard_local_user
+    groups = ['Users']
+    def local_groups(server, name, flags):
+        assert (server, name, flags) == (None, 'Child', 1)
+        return groups
+    monkeypatch.setitem(sys.modules, 'win32net', SimpleNamespace(
+        NetUserGetInfo=lambda server,name,level: {'priv': 1},
+        NetUserGetLocalGroups=local_groups))
+    monkeypatch.setitem(sys.modules, 'win32api', SimpleNamespace(GetComputerName=lambda: 'PC'))
+    monkeypatch.setitem(sys.modules, 'win32security', SimpleNamespace(
+        LookupAccountName=lambda server,name: ({'PC\\Child':'child-sid','Users':'users-sid','Administrators':'S-1-5-32-544'}[name], '', 1),
+        ConvertStringSidToSid=lambda value: value, ConvertSidToStringSid=lambda value:value))
+    assert standard_local_user('Child') == 'child-sid'
+    groups.append('Administrators')
+    with pytest.raises(ValueError, match='must NOT be an administrator'):
+        standard_local_user('Child')

@@ -12,11 +12,13 @@ if (!(New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Secur
   throw 'Admin Permissions is needed'
 }
 if (!$AcceptExperimentalEnforcement) { throw 'Read guardian/README.md. Use a test PC and pass -AcceptExperimentalEnforcement only after arranging parent recovery.' }
+$programFiles = [Environment]::GetFolderPath('ProgramFiles')
+$programData = [Environment]::GetFolderPath('CommonApplicationData')
 $Python = (Resolve-Path $Python).Path
-if (!$Python.StartsWith($env:ProgramFiles + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Install a system-wide Python 3.11+ under Program Files. User-writable runtimes cannot run as SYSTEM.' }
-$root = Join-Path $env:ProgramFiles 'Bluey Guardian'
-$data = Join-Path $env:ProgramData 'Bluey Guardian'
-$status = Join-Path $env:ProgramData 'Bluey Guardian Status'
+if (!$Python.StartsWith($programFiles + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Install a system-wide Python 3.11+ under Program Files. User-writable runtimes cannot run as SYSTEM.' }
+$root = Join-Path $programFiles 'Bluey Guardian'
+$data = Join-Path $programData 'Bluey Guardian'
+$status = Join-Path $programData 'Bluey Guardian Status'
 if ((Test-Path $root) -or (Test-Path $data) -or (Test-Path $status)) { throw 'Guardian directory already exists. Recover and remove the previous installation first.' }
 New-Item -ItemType Directory -Path $root,$data -Force | Out-Null
 foreach ($path in @($root,$data)) {
@@ -31,7 +33,7 @@ Copy-Item (Join-Path $PSScriptRoot 'service_entry.py') $root
 & $Python -I -m venv (Join-Path $root 'runtime')
 if ($LASTEXITCODE) { throw 'Could not create trusted runtime.' }
 $runtime = Join-Path $root 'runtime\Scripts\python.exe'
-& $runtime -I -m pip install -r (Join-Path $PSScriptRoot 'requirements.txt')
+& $runtime -I -m pip --isolated install --index-url https://pypi.org/simple -r (Join-Path $PSScriptRoot 'requirements.txt')
 if ($LASTEXITCODE) { throw 'Runtime dependencies failed; service was not installed.' }
 $config = Join-Path $data 'config.json'
 & $runtime -I (Join-Path $root 'service_entry.py') enroll --config $config --username $ChildAccount --origin $FamilyOrigin
