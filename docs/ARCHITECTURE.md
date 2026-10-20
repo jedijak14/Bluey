@@ -78,3 +78,9 @@ Conversation history and appearance preferences use localStorage. Scratchpad edi
 - Audio is recorded through browser/WebView Web Audio. Microphone capture runs in the frontend, not a Python system-wide microphone daemon. It only starts after an explicit gesture.
 - Android contains no background service or PC automation engine. The PC hosts inference, permissions, and automation.
 - The build workflow produces unsigned Windows and debug-signed Android artifacts. Production signing and distribution are not configured.
+
+## Android device speech (0.1.2)
+
+`DeviceSpeechPlugin` is a locally registered Capacitor bridge to Android SpeechRecognizer and TextToSpeech. No speech service starts at launch. Replies default to captions; optional device TTS requires explicit session opt-in. Android always sends `chat` with `voice: false`, even when device TTS is enabled, and never sends microphone WAVs or a `transcribe` packet. Browser/Windows audio paths are unchanged except the companion's silent default.
+
+Recognition needs both informed UI opt-in and Android microphone permission. Prefer on-device recognition on API 31+ when available; otherwise use the configured system provider with an offline preference. That preference is not a guarantee: provider speech/voice packs may use the network. Typed input remains available without speech services. Native sessions are bounded, cancel on Activity pause/destruction, and reject stale session IDs. Optional output is lazy-initialized, chunked, cancelled on mute/stop/backgrounding and never replayed automatically after cancellation. Test speech services exist only in the instrumentation APK, not the shipped APK.

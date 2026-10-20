@@ -35,6 +35,12 @@ import {
 import { Avatar } from "./components/FloatingWidget/Avatar";
 import { Playground } from "./components/Playground";
 import { CodeWorkspace } from "./components/AppWindow/CodeWorkspace";
+import { DesktopTools } from "./components/DesktopTools";
+import {
+  ResponseCard,
+  AnswerText,
+  type CompanionResponse,
+} from "./components/ResponseCard";
 import { client } from "./lib/client";
 import { ConnectedDevices, openPairing } from "./components/ConnectedDevices";
 import { connectionEndpoint } from "./lib/pairing";
@@ -59,7 +65,7 @@ const initialFace: FaceState = {
   gazeY: 0,
   talk: 0,
 };
-type Page = "chat" | "companion" | "devices";
+type Page = "chat" | "companion" | "devices" | "tools";
 const quickActions = [
   {
     icon: Monitor,
@@ -94,6 +100,9 @@ export default function App() {
     token: "",
   }));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [researchMode, setResearchMode] = useState(false);
+  const [report, setReport] = useState<CompanionResponse | null>(null);
+  const micAction = useRef<() => void>(() => {});
   const [help, setHelp] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>(() =>
     load("bluey.chats", []),
@@ -177,8 +186,30 @@ export default function App() {
         setNotice("Your browser blocked audio. Enable voice and try again.");
       });
     };
-    client.onStatus = setStatus;
+    client.onStatus = (state) => {
+      setStatus(state);
+      if (state === "offline") window.bluey?.window("resume-overlay");
+    };
     client.onPacket = (p: Packet) => {
+      if (p.type === "approval_resolved" || p.type === "stopped")
+        window.bluey?.window("resume-overlay");
+      if (
+        p.type === "response" &&
+        flight.current &&
+        flight.current.request === p.request
+      ) {
+        const response = p as unknown as CompanionResponse;
+        const targetMessage = flight.current.message;
+        setConversations((cs) =>
+          cs.map((c) => ({
+            ...c,
+            messages: c.messages.map((m) =>
+              m.id === targetMessage ? { ...m, sources: response.sources } : m,
+            ),
+          })),
+        );
+        if (response.format === "research") setReport(response);
+      }
       if (p.type === "face") {
         const incoming = p.face as FaceState;
         setFace(
@@ -278,11 +309,15 @@ export default function App() {
           playNext();
       }
     };
+    const offCommand = window.bluey?.onCommand?.((command) => {
+      if (command === "microphone") micAction.current();
+    });
     window.bluey?.connection().then((c) => {
       setSettings((s) => ({ ...s, ...c }));
       client.connect(c.endpoint, c.token);
     });
     return () => {
+      offCommand?.();
       client.disconnect();
       audio.current?.pause();
       audioQueue.current = [];
@@ -312,6 +347,7 @@ export default function App() {
       if (e.key === "Escape") {
         if (window.matchMedia("(max-width: 700px)").matches) closeSidebar();
         setSettingsOpen(false);
+        setReport(null);
         setHelp(false);
         setSearchOpen(false);
       }
@@ -365,6 +401,7 @@ export default function App() {
           content: text,
         })),
         voice: settings.voice,
+        mode: researchMode ? "research" : "chat",
       });
     } catch (e) {
       setBusy(false);
@@ -385,7 +422,7 @@ export default function App() {
         client.send({ type: "transcribe", audio: wav });
         setFace({ ...initialFace, mood: "thinking" });
       } else {
-        await mic.current.start(setLevel);
+        await mic.current.start(setLevel, settings.microphoneId);
         setRecording(true);
         setFace({ ...initialFace, mood: "listening" });
       }
@@ -400,6 +437,7 @@ export default function App() {
     const t = setTimeout(() => void toggleMic(), 59000);
     return () => clearTimeout(t);
   }, [recording]);
+  micAction.current = () => void toggleMic();
   async function connect(s: Settings, key: string) {
     try {
       const endpoint = connectionEndpoint(
@@ -627,7 +665,9 @@ export default function App() {
                 )}
               </div>
               <div className="message-text">
-                {m.text || (
+                {m.text ? (
+                  <AnswerText text={m.text} />
+                ) : (
                   <span className="typing">
                     <i />
                     <i />
@@ -635,6 +675,22 @@ export default function App() {
                   </span>
                 )}
               </div>
+              {m.sources && m.sources.length > 0 && (
+                <button
+                  className="text-button"
+                  onClick={() =>
+                    setReport({
+                      request: m.id,
+                      title: conversation.title,
+                      text: m.text,
+                      format: "research",
+                      sources: m.sources ?? [],
+                    })
+                  }
+                >
+                  Open research & sources
+                </button>
+              )}
               {m.role === "assistant" && m.text && (
                 <button
                   className="message-copy icon-button"
@@ -724,6 +780,13 @@ export default function App() {
           >
             <Smartphone size={17} />
             Connected devices
+          </button>
+          <button
+            className={page === "tools" ? "selected" : ""}
+            onClick={() => setPage("tools")}
+          >
+            <Zap size={17} />
+            Desktop tools
           </button>
         </nav>
         <div className="recent-title">
@@ -826,6 +889,15 @@ export default function App() {
           </div>
         </div>
       </aside>
+      {report && (
+        <div className="response-overlay">
+          <ResponseCard
+            key={report.request}
+            response={report}
+            onClose={() => setReport(null)}
+          />
+        </div>
+      )}
       <main className="main-window">
         <header className="topbar">
           <div className="breadcrumb">
@@ -849,7 +921,9 @@ export default function App() {
                   : "Code workspace"
                 : page === "companion"
                   ? "My companion"
-                  : "Connected devices"}
+                  : page === "tools"
+                    ? "Desktop tools"
+                    : "Connected devices"}
             </strong>
           </div>
           <div className="top-actions">
@@ -905,9 +979,10 @@ export default function App() {
           </button>
           <div className="mode-switch">
             <button
-              className={mode === "chat" ? "active" : ""}
+              className={mode === "chat" && !researchMode ? "active" : ""}
               onClick={() => {
                 setMode("chat");
+                setResearchMode(false);
                 setPage("chat");
               }}
             >
@@ -923,6 +998,17 @@ export default function App() {
             >
               <Code2 size={16} />
               Code
+            </button>
+            <button
+              className={researchMode && page === "chat" ? "active" : ""}
+              onClick={() => {
+                setResearchMode(true);
+                setMode("chat");
+                setPage("chat");
+              }}
+            >
+              <Search size={15} />
+              Research
             </button>
           </div>
           <div className="subbar-right">
@@ -968,6 +1054,11 @@ export default function App() {
               if (status === "connected")
                 client.send({ type: "mood", mood: m });
             }}
+          />
+        ) : page === "tools" ? (
+          <DesktopTools
+            connected={status === "connected"}
+            onConnect={() => setSettingsOpen(true)}
           />
         ) : (
           <ConnectedDevices
@@ -1133,6 +1224,8 @@ function SettingsDialog({
   onClear: () => void;
 }) {
   const [s, setS] = useState(settings);
+  const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
+  const [micNotice, setMicNotice] = useState("");
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState("engine");
@@ -1261,6 +1354,54 @@ function SettingsDialog({
                 />
               </label>
             )}
+            <div className="microphone-settings">
+              <label>
+                Windows / computer microphone
+                <select
+                  value={s.microphoneId ?? ""}
+                  onChange={(e) => setS({ ...s, microphoneId: e.target.value })}
+                >
+                  <option value="">System default microphone</option>
+                  {microphones.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || "Microphone"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="outline-button"
+                onClick={async () => {
+                  try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                      audio: true,
+                      video: false,
+                    });
+                    stream.getTracks().forEach((track) => track.stop());
+                    setMicrophones(
+                      (await navigator.mediaDevices.enumerateDevices()).filter(
+                        (d) => d.kind === "audioinput",
+                      ),
+                    );
+                    setMicNotice(
+                      "Microphones refreshed. No recording was retained.",
+                    );
+                  } catch {
+                    setMicNotice(
+                      "Microphone unavailable. Check Windows privacy settings, your device, and permission for Bluey.",
+                    );
+                  }
+                }}
+              >
+                Find microphones
+              </button>
+              <p className="tiny muted">
+                Uses this computer’s input, never the phone microphone.
+                Recording is explicit; local Whisper is needed for desktop
+                transcription. {micNotice}
+              </p>
+            </div>
             <label className="checkbox-row">
               <input
                 type="checkbox"

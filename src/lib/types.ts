@@ -17,6 +17,7 @@ export interface Message {
   id: string;
   role: "user" | "assistant";
   text: string;
+  sources?: { title: string; url: string; snippet?: string }[];
 }
 export interface Conversation {
   id: string;
@@ -25,6 +26,7 @@ export interface Conversation {
   updated: number;
 }
 export interface Settings {
+  microphoneId?: string;
   endpoint: string;
   token: string;
   model: string;
@@ -46,8 +48,13 @@ export interface Bridge {
       | "overlay"
       | "stop"
       | "approval"
-      | "yield",
+      | "yield"
+      | "workspace"
+      | "microphone"
+      | "resume-overlay",
   ) => void;
+  openExternal?: (url: string) => Promise<void>;
+  onCommand?: (callback: (command: string) => void) => () => void;
   chooseFolder: () => Promise<string | null>;
   onPointer: (cb: (p: { x: number; y: number }) => void) => () => void;
   interactive: (value: boolean) => void;

@@ -4,6 +4,22 @@ A local-first desktop companion with a Windows workspace, a separate animated de
 
 **Status: preview, not a validated production release.** Published Windows and Android previews are available under [GitHub Releases](https://github.com/jedijak14/Bluey/releases). The current website changes are checked with production builds, client/backend tests, and browser smoke tests. Those checks do not validate Windows UI Automation, microphone/Piper quality on physical devices, or a user's private HTTPS/VPN setup. Python and model files remain external prerequisites.
 
+## Download Bluey 0.2.0
+
+Published preview: [v0.2.0-preview.3](https://github.com/jedijak14/Bluey/releases/tag/v0.2.0-preview.3).
+
+| Platform              | Download                                                                                                                                           |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Android               | [Bluey-0.2.0-Android.apk](https://github.com/jedijak14/Bluey/releases/download/v0.2.0-preview.3/Bluey-0.2.0-Android.apk)                           |
+| Windows x64 installer | [Bluey-0.2.0-Windows-x64-Setup.exe](https://github.com/jedijak14/Bluey/releases/download/v0.2.0-preview.3/Bluey-0.2.0-Windows-x64-Setup.exe)       |
+| Windows x64 portable  | [Bluey-0.2.0-Windows-x64-Portable.exe](https://github.com/jedijak14/Bluey/releases/download/v0.2.0-preview.3/Bluey-0.2.0-Windows-x64-Portable.exe) |
+
+[Checksums](https://github.com/jedijak14/Bluey/releases/download/v0.2.0-preview.3/SHA256SUMS.txt) · [Windows setup](docs/RELEASE_NOTES.md) · [Android setup](docs/ANDROID_RELEASE.md). Windows binaries are unsigned and still require the Python/model setup. Android is debug-signed; a different preview signing key can require uninstalling the previous APK (clears app data). **Bluey is silent by default.**
+
+## 0.2.0 preview additions
+
+Research cards and quick-answer bubbles; approved web research with source snippets; ChatGPT/browser and installed-app launching; media keys; Edge/Chrome extension managers; visible typing and click feedback; Windows microphone selection; silent-by-default Android device speech. See [release scope and limitations](docs/RELEASE_0.2.0.md). [Both platform build gates passed](https://github.com/jedijak14/Bluey/actions/runs/39361654895), including Bluey’s Android emulator tests.
+
 ## The reference, faithfully adapted
 
 Reviewed [rbrown101010/bluey-by-riley](https://github.com/rbrown101010/bluey-by-riley) at commit `6d84d91456f3bf7ad9b31caf31f19710b0ba8328` (Unlicense). This is a **Windows/Android adaptation**, not the original Mac/iPhone app and not wire-compatible with it.
@@ -13,7 +29,7 @@ Reviewed [rbrown101010/bluey-by-riley](https://github.com/rbrown101010/bluey-by-
 - Original blueberry colors, crown, eyes, blush, and locally bundled Fredoka / IBM Plex fonts.
 - Independent pointer eyes, cubic flight paths, comet/string/off trails, and soft glow.
 - Double tap the phone face to wake/rest. Hold an awake face to record; release to transcribe and ask.
-- Unlike the reference's always-listening OpenAI Realtime design, **recording is explicit and local transcription is used**. No background meeting recording or cloud transcription is implemented.
+- Unlike the reference's always-listening OpenAI Realtime design, **recording is explicit**. Windows uses local transcription. Android prefers on-device recognition, but its configured system provider may use a network after explicit consent. No background meeting recording is implemented.
 
 See [the reference adaptation notes](docs/REFERENCE.md) and [security / protocol notes](docs/ARCHITECTURE.md).
 
@@ -96,7 +112,7 @@ The desktop token is printed **once** in the private backend startup console. In
 
 ### Voice setup
 
-Download voice models separately to locations outside this repository. This project does not fetch models automatically.
+These model instructions apply to desktop/browser voice; Android 0.2.0 does not need these models for device input/output. Download voice models separately to locations outside this repository. This project does not fetch models automatically.
 
 ```powershell
 $env:BLUEY_WHISPER_MODEL = "C:\BlueyModels\faster-whisper-small"
@@ -107,9 +123,9 @@ npm run desktop
 
 The Whisper path must be an already-downloaded CTranslate2/faster-whisper model directory. The Piper path must point to a valid voice `.onnx` plus its configuration file. Respect model licenses.
 
-Desktop mic: click to start, click again to stop; review the resulting transcript before sending. Android: double tap to wake, hold to record, release to send the transcription. Maximum recording length is 60 seconds. Turn on **Read responses aloud** for desktop audio. Phone voice requests opt into Piper output.
+Desktop mic: click to start, click again to stop; review the resulting transcript before sending. Turn on **Read responses aloud** for desktop audio. Android 0.2.0 uses device speech recognition after explicit opt-in: double tap to wake, hold to speak, release to send recognized text. **Bluey is silent by default**; optional Android spoken replies use the device TTS engine, not Piper. See [Android device speech and privacy](docs/ANDROID_RELEASE.md).
 
-First model load and CPU transcription/synthesis are **not zero-latency**. Whisper runs CPU/int8 in this implementation. Recordings are uploaded to the paired PC, temporary WAVs are deleted after transcription, and generated speech is sent as complete sentence-sized WAV chunks, not low-level streaming PCM.
+First model load and CPU transcription/synthesis are **not zero-latency**. Whisper runs CPU/int8 in this implementation. For desktop/browser voice (not Android device speech), recordings are uploaded to the paired PC, temporary WAVs are deleted after transcription, and generated speech is sent as complete sentence-sized WAV chunks, not low-level streaming PCM.
 
 ### Desktop controls
 
@@ -175,10 +191,10 @@ Output: `release/` (NSIS installer). Unsigned builds can trigger SmartScreen. Py
 
 `.github/workflows/build.yml` tests the project and builds both artifacts on push/PR or manual dispatch:
 
-- `Bluey-Android-debug-APK`
-- `Bluey-Windows-installer`
+- `Bluey-Android-APK`
+- `Bluey-Windows-executables`
 
-The workflow must first be pushed on the working branch and run successfully. It has **not** been run in this sandbox, so these artifact names are build targets, not existing downloads.
+[Verified release run 39361654895](https://github.com/jedijak14/Bluey/actions/runs/39361654895) built source `36daa18a5bdec691463d72f425d40c30f5dd6166` and published the downloads above only after both platform jobs succeeded. Android speech tests use instrumentation-only system-service fixtures; they do not establish real speech accuracy or voice quality.
 
 ## Validation
 
@@ -189,11 +205,13 @@ python -m pip install -r backend/requirements-dev.txt
 python -m pytest backend/tests -q
 # Start npm run dev in a separate terminal first:
 npm run test:ui
+npm run test:device-speech
+npm run test:features
 ```
 
 `test:ui` uses Playwright and the development-only `@sparticuz/chromium` bundle. Linux needs the usual Chromium shared libraries. `BLUEY_BROWSER=/path/to/chromium` selects another installed browser. Native Windows testing should use an installed Chrome/Chromium path.
 
-Checked in the sandbox: production web build, 7 TypeScript tests, 18 backend tests, browser interaction smoke tests at desktop/phone sizes, Android asset sync. Production npm dependencies have zero reported audit advisories at validation time; eight moderate development-only advisories remain in the Electron packaging toolchain. Native integrations are source-complete adapters, **not yet hardware-verified**.
+Checked locally and in CI: production web build, 27 TypeScript tests, 33 backend tests, browser interaction/native-bridge/feature smoke tests. CI also passed Android compilation/lint/native emulator tests and Windows EXE packaging/header/checksum verification. Production npm dependencies have zero reported audit advisories at validation time; eight moderate development-only advisories remain in the Electron packaging toolchain. Native integrations are source-complete adapters, **not yet hardware-verified**.
 
 ## Layout
 

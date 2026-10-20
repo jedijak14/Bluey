@@ -68,40 +68,104 @@ public class CompanionSmokeTest {
         }
     }
 
-    @Test public void pairsWithRealBridgeAndSendsTextAndMicrophoneAudio() throws Exception {
-        // Grant the OS permission only in the test process, not in the application.
-        InstrumentationRegistry.getInstrumentation().getUiAutomation().executeShellCommand(
-            "pm grant app.bluey.companion android.permission.RECORD_AUDIO").close();
+    private String shell(String command) throws Exception {
+        android.os.ParcelFileDescriptor fd = InstrumentationRegistry.getInstrumentation().getUiAutomation().executeShellCommand(command);
+        try (java.io.InputStream in = new android.os.ParcelFileDescriptor.AutoCloseInputStream(fd)) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[1024]; int n;
+            while ((n = in.read(buffer)) != -1) bytes.write(buffer, 0, n);
+            return bytes.toString("UTF-8").trim();
+        }
+    }
+    private void restore(String key, String value) throws Exception {
+        shell(value.equals("null") || value.isEmpty() ? "settings delete secure " + key : "settings put secure " + key + " " + value);
+    }
+    private void status(ActivityScenario<MainActivity> s) throws Exception {
+        evaluate(s, "window.__voiceStatus=null;Capacitor.Plugins.DeviceSpeech.getStatus().then(x=>window.__voiceStatus=x)");
+        waitFor(s, "window.__voiceStatus");
+    }
+    private void typeQuestion(ActivityScenario<MainActivity> s, String question) throws Exception {
+        evaluate(s, "(()=>{const e=document.querySelector('textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e," + JSONObject.quote(question) + ");e.dispatchEvent(new Event('input',{bubbles:true}));})()");
+        evaluate(s, "document.querySelector('.phone-options form').requestSubmit()");
+        waitFor(s, "document.querySelector('.phone-caption')?.textContent.includes(" + JSONObject.quote("Message received: " + question) + ")");
+        waitFor(s, "document.querySelector('.phone-instruction')?.textContent.includes('Hold to ask')");
+    }
+
+    @Test public void deviceSpeechIsSilentByDefaultAndUsesAndroidServices() throws Exception {
+        String oldRecognizer = shell("settings get secure voice_recognition_service");
+        String oldTts = shell("settings get secure tts_default_synth");
+        shell("pm grant app.bluey.companion android.permission.RECORD_AUDIO");
+        shell("pm grant app.bluey.companion.test android.permission.RECORD_AUDIO");
+        shell("settings put secure voice_recognition_service app.bluey.companion.test/app.bluey.companion.FixtureRecognitionService");
+        shell("settings put secure tts_default_synth app.bluey.companion.test");
         try (ActivityScenario<MainActivity> s = ActivityScenario.launch(MainActivity.class)) {
+            // The emulator advertises an on-device engine. This test deliberately
+            // exercises our installed system-service fixture instead. Reflection
+            // is instrumentation-only; there is no JS or production test switch.
+            s.onActivity(activity -> {
+                try {
+                    java.lang.reflect.Field preference = DeviceSpeechPlugin.class.getDeclaredField("preferOnDevice");
+                    preference.setAccessible(true);
+                    preference.setBoolean(activity.getBridge().getPlugin("DeviceSpeech").getInstance(), false);
+                } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
+            });
             waitFor(s, "document.querySelector('.phone-pairing')");
             String pairingCode = code();
             evaluate(s, "(()=>{const inputs=document.querySelectorAll('form input');const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(inputs[0],'http://10.0.2.2:8765');inputs[0].dispatchEvent(new Event('input',{bubbles:true}));set.call(inputs[1]," + JSONObject.quote(pairingCode) + ");inputs[1].dispatchEvent(new Event('input',{bubbles:true}));})()");
             evaluate(s, "document.querySelector('form').requestSubmit()");
             waitFor(s, "document.querySelector('.phone-connection')?.textContent.includes('Connected to Windows')");
+            assertEquals("false", evaluate(s, "document.querySelector('[title=\"Enable spoken replies\"]').getAttribute('aria-pressed')==='true'"));
+            status(s);
+            assertEquals("TTS must not initialize by default", "false", evaluate(s, "window.__voiceStatus.synthesisInitialized"));
+            assertEquals("No background listening", "false", evaluate(s, "window.__voiceStatus.listening"));
             evaluate(s, "document.querySelector('[title=\"Companion options\"]').click()");
             waitFor(s, "document.querySelector('textarea')");
-            evaluate(s, "(()=>{const e=document.querySelector('textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,'android smoke test');e.dispatchEvent(new Event('input',{bubbles:true}));})()");
-            evaluate(s, "document.querySelector('.phone-options form').requestSubmit()");
-            waitFor(s, "document.querySelector('.phone-caption')?.textContent.includes('Message received: android smoke test')");
-            waitFor(s, "document.querySelector('.phone-instruction')?.textContent.includes('Hold to ask')");
-            // Real native WebView getUserMedia capture; STT/model/TTS are fixtures on CI.
-            float[] point = new float[2];
+            assertEquals("Speak replies defaults off", "false", evaluate(s, "document.querySelector('.phone-options form input[type=checkbox]').checked"));
+            evaluate(s, "document.querySelector('.phone-device-voice input').click()");
+            typeQuestion(s, "android silent test");
+            status(s);
+            assertEquals("Text reply must not initialize TTS", "false", evaluate(s, "window.__voiceStatus.synthesisInitialized"));
+            assertEquals("CI installs a system recognition fixture", "true", evaluate(s, "window.__voiceStatus.recognition"));
+            assertEquals("CI must exercise the configured fixture, not another recognizer", "false", evaluate(s, "window.__voiceStatus.onDevice"));
+            long pressed = SystemClock.uptimeMillis();
             s.onActivity(activity -> {
                 android.webkit.WebView web = activity.getBridge().getWebView();
-                int[] location = new int[2]; web.getLocationOnScreen(location);
-                point[0] = location[0] + web.getWidth() * 0.45f;
-                point[1] = location[1] + web.getHeight() * 0.65f;
+                MotionEvent down = MotionEvent.obtain(pressed, pressed, MotionEvent.ACTION_DOWN, web.getWidth() * .45f, web.getHeight() * .65f, 0);
+                web.dispatchTouchEvent(down); down.recycle();
             });
-            long pressed = SystemClock.uptimeMillis();
-            InstrumentationRegistry.getInstrumentation().sendPointerSync(MotionEvent.obtain(
-                pressed, pressed, MotionEvent.ACTION_DOWN, point[0], point[1], 0));
             waitFor(s, "document.querySelector('.phone-instruction')?.textContent.includes('Listening — release')");
-            SystemClock.sleep(1200);
-            InstrumentationRegistry.getInstrumentation().sendPointerSync(MotionEvent.obtain(
-                pressed, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, point[0], point[1], 0));
-            waitFor(s, "document.querySelector('.phone-caption')?.textContent.includes('Voice transport verified')");
-            waitFor(s, "document.querySelector('.phone-instruction')?.textContent.includes('Hold to ask')");
-            assertEquals("No voice or microphone error", "null", evaluate(s, "document.querySelector('.phone-error')"));
+            s.onActivity(activity -> {
+                android.webkit.WebView web = activity.getBridge().getWebView();
+                MotionEvent up = MotionEvent.obtain(pressed, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, web.getWidth() * .45f, web.getHeight() * .65f, 0);
+                web.dispatchTouchEvent(up); up.recycle();
+            });
+            waitFor(s, "document.querySelector('.phone-caption')?.textContent.includes('Message received: device recognition smoke test')");
+            status(s);
+            assertEquals("Recognized input must still produce silent text", "false", evaluate(s, "window.__voiceStatus.synthesisInitialized"));
+            evaluate(s, "document.querySelector('[title=\"Companion options\"]').click()");
+            waitFor(s, "document.querySelector('textarea')");
+            evaluate(s, "document.querySelector('.phone-options form input[type=checkbox]').click()");
+            typeQuestion(s, "optional device output test");
+            boolean finished = false;
+            long deadline = SystemClock.elapsedRealtime() + 15000;
+            while (SystemClock.elapsedRealtime() < deadline) {
+                status(s);
+                if ("true".equals(evaluate(s, "window.__voiceStatus.synthesisInitialized && !window.__voiceStatus.speaking"))) {
+                    finished = true; break;
+                }
+                SystemClock.sleep(100);
+            }
+            assertTrue("Explicit opt-in should complete through Android TTS", finished);
+            assertEquals("No speech-service errors", "null", evaluate(s, "document.querySelector('.phone-error')"));
+            evaluate(s, "document.querySelector('[title=\"Mute spoken replies\"]').click()");
+            s.moveToState(androidx.lifecycle.Lifecycle.State.CREATED);
+            s.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED);
+            status(s);
+            assertEquals("Backgrounding stops recognition", "false", evaluate(s, "window.__voiceStatus.listening"));
+            assertEquals("Backgrounding stops TTS", "false", evaluate(s, "window.__voiceStatus.speaking"));
+        } finally {
+            restore("voice_recognition_service", oldRecognizer);
+            restore("tts_default_synth", oldTts);
         }
     }
 }

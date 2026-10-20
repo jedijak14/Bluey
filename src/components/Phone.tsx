@@ -13,9 +13,16 @@ import {
   Wifi,
   X,
 } from "lucide-react";
+import { ResponseCard, type CompanionResponse } from "./ResponseCard";
 import { Avatar, FaceScreen } from "./FloatingWidget/Avatar";
 import { BlueyClient } from "../lib/client";
 import { Microphone } from "../lib/audio";
+import {
+  DeviceSpeech,
+  DeviceReplySpeaker,
+  DEFAULT_SPEAK_REPLIES,
+  requestServerVoice,
+} from "../lib/deviceSpeech";
 import {
   pairingEndpoint,
   assertPairingTransport,
@@ -25,7 +32,12 @@ import { load, save, uid } from "../lib/storage";
 import type { FaceState, Mood } from "../lib/types";
 
 const phone = new BlueyClient();
+const nativeSpeech = Capacitor.getPlatform() === "android";
 export function Phone() {
+  const [report, setReport] = useState<CompanionResponse | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [researchMode, setResearchMode] = useState(false);
+  const researchModeRef = useRef(false);
   const [paired, setPaired] = useState(false),
     [preview, setPreview] = useState(false),
     [connected, setConnected] = useState(false);
@@ -37,7 +49,7 @@ export function Phone() {
   const [error, setError] = useState(""),
     [pairing, setPairing] = useState(false),
     [options, setOptions] = useState(false);
-  const [volume, setVolume] = useState(true),
+  const [volume, setVolume] = useState(DEFAULT_SPEAK_REPLIES),
     [caption, setCaption] = useState(""),
     [draft, setDraft] = useState("");
   const [face, setFace] = useState<FaceState>({
@@ -46,6 +58,12 @@ export function Phone() {
     gazeY: 0,
     talk: 0,
   });
+  const speaker = useRef(new DeviceReplySpeaker());
+  const recognitionId = useRef("");
+  const inputGeneration = useRef(0);
+  const speaking = useRef(false);
+  const [recognitionConsent, setRecognitionConsent] = useState(false);
+  const recognitionConsentRef = useRef(false);
   const mic = useRef(new Microphone()),
     hold = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holding = useRef(false),
@@ -59,18 +77,41 @@ export function Phone() {
   const audio = useRef<HTMLAudioElement | null>(null),
     queue = useRef<string[]>([]);
   const history = useRef<{ role: "user" | "assistant"; content: string }[]>([]),
-    response = useRef({ request: "", text: "" });
+    response = useRef({ request: "", text: "", speak: false });
 
   function markBusy(value: boolean) {
     busyRef.current = value;
     setBusy(value);
   }
   function stopAudio() {
+    if (nativeSpeech) void speaker.current.stop();
+    speaking.current = false;
     audio.current?.pause();
     audio.current = null;
     queue.current = [];
   }
+  function cancelInput() {
+    const wasRecording = recordingRef.current;
+    inputGeneration.current++;
+    holding.current = false;
+    recordingRef.current = false;
+    recognitionId.current = "";
+    clearTimeout(hold.current ?? undefined);
+    setRecording(false);
+    if (nativeSpeech) void DeviceSpeech.cancelRecognition().catch(() => {});
+    else if (wasRecording) void mic.current.stop().catch(() => {});
+  }
+  function chooseVoice(enabled: boolean) {
+    volumeRef.current = enabled;
+    setVolume(enabled);
+    if (!enabled) {
+      response.current.speak = false;
+      stopAudio();
+      setFace((f) => ({ ...f, mood: "listening", talk: 0 }));
+    }
+  }
   function resetConnection(message = "") {
+    cancelInput();
     phone.disconnect();
     connectedRef.current = false;
     setConnected(false);
@@ -81,8 +122,10 @@ export function Phone() {
     stopAudio();
     markBusy(false);
     history.current = [];
-    response.current = { request: "", text: "" };
+    response.current = { request: "", text: "", speak: false };
     setCaption("");
+    setReport(null);
+    setReportOpen(false);
     setError(message);
   }
   function ask(text: string) {
@@ -104,7 +147,11 @@ export function Phone() {
       ...history.current.slice(-22),
       { role: "user", content },
     ];
-    response.current = { request, text: "" };
+    response.current = {
+      request,
+      text: "",
+      speak: nativeSpeech && volumeRef.current,
+    };
     stopAudio();
     markBusy(true);
     setError("");
@@ -115,7 +162,8 @@ export function Phone() {
         type: "chat",
         request,
         messages: history.current,
-        voice: volumeRef.current,
+        voice: requestServerVoice(nativeSpeech, volumeRef.current),
+        mode: researchModeRef.current ? "research" : "chat",
       });
     } catch (e) {
       setError(String(e));
@@ -123,9 +171,10 @@ export function Phone() {
     }
   }
   function stop() {
+    cancelInput();
     stopAudio();
     markBusy(false);
-    response.current = { request: "", text: "" };
+    response.current = { request: "", text: "", speak: false };
     if (connectedRef.current) phone.send({ type: "stop" });
     setFace((f) => ({ ...f, mood: "listening", talk: 0 }));
   }
@@ -161,6 +210,7 @@ export function Phone() {
       setConnected(s === "connected");
       if (s === "connected") setError("");
       if (s === "offline") {
+        cancelInput();
         setError(
           "The live connection to Windows is unavailable. Retrying automatically. Check your PC and network; HTTPS proxies must forward WebSocket connections too.",
         );
@@ -169,6 +219,8 @@ export function Phone() {
       }
     };
     phone.onPacket = (p) => {
+      if (p.type === "response" && p.format === "research")
+        setReport(p as unknown as CompanionResponse);
       if (p.type === "unpaired") {
         resetConnection(
           "Your pairing expired or was disconnected on Windows. Generate a new code.",
@@ -176,44 +228,78 @@ export function Phone() {
         return;
       }
       if (p.type === "stopped") {
+        response.current = { request: "", text: "", speak: false };
+        cancelInput();
         stopAudio();
         markBusy(false);
       }
       if (p.type === "face") {
         const incoming = p.face as FaceState;
         setFace(
-          audio.current && !audio.current.paused && !audio.current.ended
+          speaking.current ||
+            (audio.current && !audio.current.paused && !audio.current.ended)
             ? { ...incoming, mood: "talking", talk: 0.5 }
             : incoming,
         );
       }
       if (p.type === "caption") setCaption(String(p.text));
       if (p.type === "error") {
+        response.current.speak = false;
+        stopAudio();
         setError(String(p.text));
         markBusy(false);
         setFace((f) => ({ ...f, mood: "listening", talk: 0 }));
       }
-      if (p.type === "transcript") ask(String(p.text));
-      if (p.type === "token" && p.request === response.current.request)
+      if (p.type === "transcript" && !nativeSpeech) ask(String(p.text));
+      if (p.type === "token" && p.request === response.current.request) {
         response.current.text += String(p.text);
-      if (p.type === "done" && p.request === response.current.request) {
-        if (response.current.text)
-          history.current.push({
-            role: "assistant",
-            content: response.current.text,
-          });
-        response.current = { request: "", text: "" };
-        markBusy(false);
+        setCaption(response.current.text.slice(-900));
       }
-      if (p.type === "audio") {
+      if (p.type === "done" && p.request === response.current.request) {
+        const { text, speak } = response.current;
+        if (text) history.current.push({ role: "assistant", content: text });
+        response.current = { request: "", text: "", speak: false };
+        markBusy(false);
+        if (
+          nativeSpeech &&
+          speak &&
+          volumeRef.current &&
+          text &&
+          !document.hidden
+        ) {
+          void speaker.current.speak(
+            text,
+            (message) => {
+              if (alive.current) setError(message);
+            },
+            (active) => {
+              speaking.current = active;
+              if (alive.current)
+                setFace((f) => ({
+                  ...f,
+                  mood: active ? "talking" : "listening",
+                  talk: active ? 0.5 : 0,
+                }));
+            },
+          );
+        }
+      }
+      if (
+        p.type === "audio" &&
+        !nativeSpeech &&
+        volumeRef.current &&
+        !document.hidden
+      ) {
         queue.current.push(String(p.audio));
         if (!audio.current || audio.current.ended) next();
       }
     };
     const hidden = () => {
       if (document.hidden) {
-        void release(false);
+        cancelInput();
         stopAudio();
+        response.current.speak = false;
+        if (!response.current.request) markBusy(false);
       }
     };
     document.addEventListener("visibilitychange", hidden);
@@ -224,10 +310,7 @@ export function Phone() {
       stopAudio();
       clearTimeout(hold.current ?? undefined);
       document.removeEventListener("visibilitychange", hidden);
-      if (recordingRef.current) {
-        recordingRef.current = false;
-        void mic.current.stop();
-      }
+      cancelInput();
     };
   }, []);
   async function pair() {
@@ -299,13 +382,34 @@ export function Phone() {
       setError("Waiting for your Windows PC to reconnect.");
       return;
     }
+    if (nativeSpeech && !recognitionConsentRef.current) {
+      setOptions(true);
+      setError(
+        "Enable device speech recognition in options first. Your Android speech provider may use the network.",
+      );
+      return;
+    }
     starting.current = true;
+    stopAudio();
+    const generation = inputGeneration.current;
     try {
-      await mic.current.start((n) => {
-        if (alive.current) setFace((f) => ({ ...f, talk: n }));
-      });
-      if (!holding.current || !alive.current || document.hidden) {
-        await mic.current.stop();
+      if (nativeSpeech) {
+        const session = await DeviceSpeech.startRecognition();
+        recognitionId.current = session.id;
+      } else {
+        await mic.current.start((n) => {
+          if (alive.current) setFace((f) => ({ ...f, talk: n }));
+        });
+      }
+      if (
+        !holding.current ||
+        !alive.current ||
+        document.hidden ||
+        generation !== inputGeneration.current
+      ) {
+        if (nativeSpeech) await DeviceSpeech.cancelRecognition();
+        else await mic.current.stop();
+        recognitionId.current = "";
         if (alive.current && !document.hidden)
           setError("Microphone ready. Hold Bluey again to speak.");
         return;
@@ -316,7 +420,7 @@ export function Phone() {
       setFace((f) => ({ ...f, mood: "listening" }));
       hold.current = setTimeout(() => void release(), 59000);
     } catch (e) {
-      if (alive.current)
+      if (alive.current && generation === inputGeneration.current)
         setError(
           `Microphone: ${e instanceof Error ? e.message : String(e)}. You can also type in options.`,
         );
@@ -327,23 +431,48 @@ export function Phone() {
   async function release(sendAudio = true) {
     holding.current = false;
     clearTimeout(hold.current ?? undefined);
+    if (!sendAudio) {
+      cancelInput();
+      return;
+    }
     if (!recordingRef.current) return;
     recordingRef.current = false;
     setRecording(false);
+    const generation = inputGeneration.current;
     try {
-      const wav = await mic.current.stop();
-      if (sendAudio && alive.current && connectedRef.current) {
-        markBusy(true);
+      markBusy(true);
+      if (nativeSpeech) {
+        const id = recognitionId.current;
+        recognitionId.current = "";
+        const result = await DeviceSpeech.stopRecognition({ id });
+        if (
+          generation !== inputGeneration.current ||
+          !alive.current ||
+          document.hidden ||
+          !connectedRef.current
+        )
+          return;
+        ask(result.text);
+      } else {
+        const wav = await mic.current.stop();
+        if (
+          generation !== inputGeneration.current ||
+          !alive.current ||
+          document.hidden ||
+          !connectedRef.current
+        )
+          return;
         phone.send({ type: "transcribe", audio: wav });
         setFace((f) => ({ ...f, mood: "thinking", talk: 0 }));
       }
     } catch (e) {
-      if (alive.current) {
-        setError(String(e));
+      if (alive.current && generation === inputGeneration.current) {
+        setError(e instanceof Error ? e.message : String(e));
         markBusy(false);
       }
     }
   }
+
   function tap() {
     const now = Date.now();
     if (now - lastTap.current < 320) {
@@ -465,7 +594,7 @@ export function Phone() {
       onPointerDown={(e) => {
         if (
           (e.target as HTMLElement).closest(
-            "button,input,textarea,select,.phone-options,.phone-caption",
+            "button,input,textarea,select,.phone-options,.phone-caption,.response-card",
           )
         )
           return;
@@ -483,6 +612,14 @@ export function Phone() {
       onPointerCancel={() => void release(false)}
     >
       <FaceScreen {...face} />
+      {reportOpen && report && (
+        <div className="phone-report">
+          <ResponseCard
+            response={report}
+            onClose={() => setReportOpen(false)}
+          />
+        </div>
+      )}
       <div className="phone-top">
         <span className="phone-connection">
           <span className={`status-dot ${connected ? "green" : ""}`} />
@@ -493,23 +630,23 @@ export function Phone() {
               : "Reconnecting to Windows…"}
         </span>
         <div>
+          {report && (
+            <button
+              title="Read research response"
+              onClick={() => setReportOpen(true)}
+            >
+              Read notes
+            </button>
+          )}
           {busy && (
             <button title="Stop response" onClick={stop}>
               <Square size={18} />
             </button>
           )}
           <button
-            title="Toggle voice audio"
-            onClick={() => {
-              if (audio.current?.paused && !audio.current.ended && volume) {
-                void audio.current
-                  .play()
-                  .catch(() => setError("Audio could not start."));
-                return;
-              }
-              setVolume((v) => !v);
-              if (audio.current) audio.current.volume = volume ? 0 : 1;
-            }}
+            title={volume ? "Mute spoken replies" : "Enable spoken replies"}
+            aria-pressed={volume}
+            onClick={() => chooseVoice(!volumeRef.current)}
           >
             {volume ? <Volume2 size={20} /> : <VolumeX size={20} />}
           </button>
@@ -551,6 +688,36 @@ export function Phone() {
               ? "Try a little personality."
               : "Speak to me, or type a little thought."}
           </p>
+          {!preview && nativeSpeech && (
+            <div className="phone-device-voice">
+              <p>
+                Bluey is silent by default. Replies appear as captions. Android
+                handles voice input and optional spoken output—no Whisper or
+                Piper needed on your PC.
+              </p>
+              <label className="phone-voice-choice">
+                <input
+                  type="checkbox"
+                  checked={recognitionConsent}
+                  onChange={(e) => {
+                    recognitionConsentRef.current = e.target.checked;
+                    setRecognitionConsent(e.target.checked);
+                    if (!e.target.checked) {
+                      cancelInput();
+                      markBusy(false);
+                    }
+                  }}
+                />
+                Use device speech recognition
+              </label>
+              <p className="tiny muted">
+                On-device recognition is preferred when available. Otherwise
+                your Android speech provider may process audio online. Offline
+                languages and optional TTS voices are managed in Android
+                Settings. Only recognized text goes to your PC.
+              </p>
+            </div>
+          )}
           {preview ? (
             <select
               aria-label="Expression"
@@ -606,12 +773,23 @@ export function Phone() {
                   type="checkbox"
                   checked={volume}
                   onChange={(e) => {
-                    setVolume(e.target.checked);
-                    if (audio.current)
-                      audio.current.volume = e.target.checked ? 1 : 0;
+                    chooseVoice(e.target.checked);
                   }}
                 />
-                Speak replies (requires Piper on PC)
+                {nativeSpeech
+                  ? "Speak replies using Android voice (off by default)"
+                  : "Speak replies using PC voice (off by default; requires Piper)"}
+              </label>
+              <label className="phone-voice-choice">
+                <input
+                  type="checkbox"
+                  checked={researchMode}
+                  onChange={(e) => {
+                    researchModeRef.current = e.target.checked;
+                    setResearchMode(e.target.checked);
+                  }}
+                />
+                Research the web (requires Windows approval)
               </label>
             </form>
           )}

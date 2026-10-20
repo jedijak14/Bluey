@@ -39,3 +39,5 @@ License: Unlicense.
 - Phone gaze receives backend face states; continuous desktop-mouse gaze forwarding to the phone is not implemented (the Windows widget itself tracks the mouse).
 - Chat and IDE share the same conversation; IDE is a code workspace rather than a full language-server/debugger environment.
 - Native integration and packaging require Windows/Android validation; browser rendering alone does not validate these paths.
+
+Android 0.1.2 correction: Bluey remains **silent by default**, with expressive visuals and captions. Device recognition handles opted-in microphone input; device TTS is an optional user-enabled output, not the default character behavior. Android speech providers may use network processing when offline services/packs are unavailable; the original privacy-first Windows voice pipeline remains separate.
