@@ -1,20 +1,41 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { Capacitor } from "@capacitor/core";
 import App from "./App";
 import { Overlay } from "./components/FloatingWidget/Overlay";
+import { GemmaPreview } from "./components/GemmaPreview";
+import { DeviceGate } from "./components/DeviceGate";
 import { Phone } from "./components/Phone";
 import "./styles.css";
-const overlay = location.hash === "#overlay";
-if (overlay) document.documentElement.classList.add("overlay-document");
+function Root() {
+  const [hash, setHash] = useState(location.hash);
+  const native = Capacitor.isNativePlatform();
+  const overlay = !native && Boolean(window.bluey) && hash === "#overlay";
+  useEffect(() => {
+    const changed = () => setHash(location.hash);
+    window.addEventListener("hashchange", changed);
+    return () => window.removeEventListener("hashchange", changed);
+  }, []);
+  useEffect(() => {
+    document.documentElement.classList.toggle("overlay-document", overlay);
+  }, [overlay]);
+  const content = ["#gemma", "#starter"].includes(hash) ? (
+    <GemmaPreview standalone />
+  ) : hash === "#phone" ? (
+    <Phone />
+  ) : (
+    <App />
+  );
+  return native ? (
+    <Phone />
+  ) : overlay ? (
+    <Overlay />
+  ) : (
+    <DeviceGate>{content}</DeviceGate>
+  );
+}
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    {overlay ? (
-      <Overlay />
-    ) : Capacitor.isNativePlatform() || location.hash === "#phone" ? (
-      <Phone />
-    ) : (
-      <App />
-    )}
+    <Root />
   </React.StrictMode>,
 );

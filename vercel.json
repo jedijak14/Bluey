@@ -3,5 +3,13 @@
   "framework": "vite",
   "installCommand": "ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci",
   "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "functions": {
+    "api/gemma/generate.mjs": {
+      "maxDuration": 100
+    },
+    "api/gemma/status.mjs": {
+      "maxDuration": 15
+    }
+  }
 }

@@ -18,7 +18,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"electron/*.cjs\"",
     "test:pairing": "node scripts/pairing-smoke.mjs",
     "test:device-speech": "node scripts/device-speech-smoke.mjs",
-    "test:features": "node scripts/features-smoke.mjs"
+    "test:features": "node scripts/features-smoke.mjs",
+    "test:gemma": "node scripts/gemma-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",

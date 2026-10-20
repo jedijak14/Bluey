@@ -4,6 +4,12 @@ A local-first desktop companion with a Windows workspace, a separate animated de
 
 **Status: preview, not a validated production release.** Published Windows and Android previews are available under [GitHub Releases](https://github.com/jedijak14/Bluey/releases). The current website changes are checked with production builds, client/backend tests, and browser smoke tests. Those checks do not validate Windows UI Automation, microphone/Piper quality on physical devices, or a user's private HTTPS/VPN setup. Python and model files remain external prerequisites.
 
+## Gemma website preview
+
+Open **Gemma 3 preview** in the sidebar or `/#gemma`. The configured model is exactly `keras/gemma3/keras/gemma3_1b`, a pretrained **base** model—not a model trained by Bluey and not the instruct variant. It needs a separately provisioned Python inference host; the website reports unavailable until that host is connected. The retired tiny scratch model is not a fallback. See [download, Kaggle notebook and hosting setup](docs/GEMMA_WEBSITE.md).
+
+The website is desktop/laptop-only, with illustrated unsupported-device screens for phones, iPads and tablets. Detection uses browser signals and is not hardware authentication. The native Android paired companion remains separate. Automatic Wi-Fi PC discovery is not implemented by this change.
+
 ## Download Bluey 0.2.0
 
 Published preview: [v0.2.0-preview.3](https://github.com/jedijak14/Bluey/releases/tag/v0.2.0-preview.3).
