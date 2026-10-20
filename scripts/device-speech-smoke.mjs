@@ -138,7 +138,9 @@ try {
     await expect(page.locator(".phone-instruction")).toContainText(
       "Listening — release",
     );
+    await expect(page.locator(".listening-edge")).toBeVisible();
     await page.mouse.up();
+    await expect(page.locator(".listening-edge")).toHaveCount(0);
   };
   await hold();
   await expect(page.locator(".phone-caption")).toContainText(

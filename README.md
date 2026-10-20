@@ -6,9 +6,9 @@ A local-first desktop companion with a Windows workspace, a separate animated de
 
 ## Gemma website preview
 
-Open **Gemma 3 preview** in the sidebar or `/#gemma`. The configured model is exactly `keras/gemma3/keras/gemma3_1b`, a pretrained **base** model—not a model trained by Bluey and not the instruct variant. It needs a separately provisioned Python inference host; the website reports unavailable until that host is connected. The retired tiny scratch model is not a fallback. See [download, Kaggle notebook and hosting setup](docs/GEMMA_WEBSITE.md).
+Open **Test AI** in the sidebar or `/#gemma`. The configured model is exactly `keras/gemma3/keras/gemma3_1b`, a pretrained **base** model—not a model trained by Bluey and not the instruct variant. It needs a separately provisioned Python inference host; the website reports unavailable until that host is connected. The retired tiny scratch model is not a fallback. See [download, Kaggle notebook and hosting setup](docs/GEMMA_WEBSITE.md).
 
-The website is desktop/laptop-only, with illustrated unsupported-device screens for phones, iPads and tablets. Detection uses browser signals and is not hardware authentication. The native Android paired companion remains separate. Automatic Wi-Fi PC discovery is not implemented by this change.
+Phones, iPads and tablets can explore a separate mobile information site. **Test AI** and direct AI links remain desktop/laptop-only. Desktop visitors get a skippable wink-and-logo intro; mobile visitors see a sad Bluey, a device illustration and a clear notice. Detection uses browser signals—not CPU/GPU identification or hardware authentication. The native Android paired companion remains separate. Automatic Wi-Fi PC discovery is not implemented by this change.
 
 ## Download Bluey 0.2.0
 

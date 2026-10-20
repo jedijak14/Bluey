@@ -30,6 +30,9 @@ async function makePage() {
   const page = await browser.newPage({
     viewport: { width: 1280, height: 900 },
   });
+  await page.addInitScript(() =>
+    sessionStorage.setItem("bluey.desktop-welcome.v1", "seen"),
+  );
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript(() => {
     window.windowActions = [];

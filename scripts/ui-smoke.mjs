@@ -14,6 +14,9 @@ const page = await browser.newPage({
   viewport: { width: 1440, height: 900 },
   deviceScaleFactor: 1,
 });
+await page.addInitScript(() =>
+  sessionStorage.setItem("bluey.desktop-welcome.v1", "seen"),
+);
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 await fs.mkdir("artifacts", { recursive: true });

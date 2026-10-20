@@ -17,6 +17,9 @@ try {
   const page = await browser.newPage({
     viewport: { width: 1365, height: 980 },
   });
+  await page.addInitScript(() =>
+    sessionStorage.setItem("bluey.desktop-welcome.v1", "seen"),
+  );
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(`${base}/#gemma`);
@@ -106,13 +109,13 @@ try {
     p.on("request", (r) => requests.push(r.url()));
     await p.goto(`${base}/#gemma`);
     await expect(
-      p.getByRole("heading", { name: "A little more room for Bluey." }),
+      p.getByRole("heading", { name: "Let’s try this on a computer." }),
     ).toBeVisible();
-    await expect(p.locator(".device-description")).toContainText(device.name);
-    await expect(p.locator(".device-illustration")).toBeVisible();
+    await expect(p.getByRole("dialog")).toContainText(device.name);
+    await expect(p.locator(".mobile-device")).toBeVisible();
     expect(
       await p
-        .locator(".device-illustration")
+        .locator(".mobile-device")
         .evaluate((img) => img.complete && img.naturalWidth > 0),
     ).toBe(true);
     expect(requests.some((url) => url.includes("/api/gemma"))).toBe(false);

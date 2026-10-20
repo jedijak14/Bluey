@@ -4,15 +4,21 @@ import { Capacitor } from "@capacitor/core";
 import App from "./App";
 import { Overlay } from "./components/FloatingWidget/Overlay";
 import { GemmaPreview } from "./components/GemmaPreview";
-import { DeviceGate } from "./components/DeviceGate";
+import { DesktopWelcome } from "./components/DesktopWelcome";
+import { MobileWebsite } from "./components/MobileWebsite";
+import { currentDevice } from "./lib/deviceSupport";
 import { Phone } from "./components/Phone";
 import "./styles.css";
 function Root() {
   const [hash, setHash] = useState(location.hash);
+  const [device, setDevice] = useState(currentDevice);
   const native = Capacitor.isNativePlatform();
   const overlay = !native && Boolean(window.bluey) && hash === "#overlay";
   useEffect(() => {
-    const changed = () => setHash(location.hash);
+    const changed = () => {
+      setHash(location.hash);
+      setDevice(currentDevice());
+    };
     window.addEventListener("hashchange", changed);
     return () => window.removeEventListener("hashchange", changed);
   }, []);
@@ -30,8 +36,19 @@ function Root() {
     <Phone />
   ) : overlay ? (
     <Overlay />
+  ) : device !== "desktop" && !window.bluey ? (
+    <MobileWebsite
+      device={device}
+      requestedAI={["#gemma", "#starter"].includes(hash)}
+      onDesktop={() => {
+        setDevice(currentDevice());
+        location.hash = "gemma";
+      }}
+    />
+  ) : window.bluey ? (
+    content
   ) : (
-    <DeviceGate>{content}</DeviceGate>
+    <DesktopWelcome>{content}</DesktopWelcome>
   );
 }
 ReactDOM.createRoot(document.getElementById("root")!).render(

@@ -9,13 +9,11 @@ export type DeviceSignals = {
 /** Best-effort compatibility policy, not proof of physical hardware or an auth boundary. */
 export function classifyDevice(s: DeviceSignals): DeviceKind {
   const ua = s.userAgent;
-  if (
-    /iPad/i.test(ua) ||
-    (/Macintosh|MacIntel/i.test(`${ua} ${s.platform}`) && s.maxTouchPoints > 1)
-  )
-    return "ipad";
+  if (/iPad/i.test(ua)) return "ipad";
   if (/iPhone|iPod|Windows Phone|Android.*Mobile/i.test(ua)) return "phone";
   if (/Android|Tablet|Kindle|Silk|PlayBook/i.test(ua)) return "tablet";
+  if (/Macintosh|MacIntel/i.test(`${ua} ${s.platform}`) && s.maxTouchPoints > 1)
+    return "ipad";
   if (s.mobileHint === true) return "phone";
   if (s.maxTouchPoints > 1 && s.coarsePointer) return "tablet";
   if (

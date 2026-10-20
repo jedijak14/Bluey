@@ -57,3 +57,23 @@ it("does not silently approve unknown devices", () => {
     "unknown",
   );
 });
+it("does not call an unnamed tablet an iPad without Apple signals", () => {
+  expect(
+    classifyDevice({
+      ...desktop,
+      userAgent: "GenericBrowser",
+      platform: "",
+      maxTouchPoints: 5,
+      coarsePointer: true,
+    }),
+  ).toBe("tablet");
+  expect(
+    classifyDevice({
+      ...desktop,
+      userAgent: "Android 14 Tablet",
+      platform: "MacIntel",
+      maxTouchPoints: 5,
+      coarsePointer: true,
+    }),
+  ).toBe("tablet");
+});
