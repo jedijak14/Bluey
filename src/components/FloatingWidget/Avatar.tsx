@@ -11,7 +11,7 @@ export function Avatar({
   expression,
 }: {
   mood?: Mood;
-  expression?: "wink" | "sad";
+  expression?: "wink" | "sad" | "alarmed";
   className?: string;
   gaze?: { x: number; y: number };
   talk?: number;
@@ -45,7 +45,7 @@ export function Avatar({
       className={`avatar mood-${mood} expression-${expression || "default"} ${className}`}
       onClick={onClick}
       role="img"
-      aria-label={`Bluey is ${expression === "sad" ? "sad" : expression === "wink" ? "winking" : mood}`}
+      aria-label={`Bluey is ${expression === "alarmed" ? "surprised" : expression === "sad" ? "sad" : expression === "wink" ? "winking" : mood}`}
     >
       <defs>
         <linearGradient
@@ -153,7 +153,13 @@ export function Avatar({
                     <circle
                       cx={cx + 2}
                       cy="139"
-                      r={mood === "listening" ? 22 : 20}
+                      r={
+                        expression === "alarmed"
+                          ? 14
+                          : mood === "listening"
+                            ? 22
+                            : 20
+                      }
                       fill="#17151f"
                     />
                     <circle cx={cx - 5} cy="131" r="6" fill="white" />
@@ -224,7 +230,13 @@ export function Avatar({
               cx="170"
               cy="207"
               rx="12"
-              ry={mood === "talking" ? 15 + talk * 5 : 8}
+              ry={
+                expression === "alarmed"
+                  ? 16
+                  : mood === "talking"
+                    ? 15 + talk * 5
+                    : 8
+              }
               fill="#1c1f66"
             />
             {mood === "talking" && (

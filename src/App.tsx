@@ -862,11 +862,11 @@ export default function App() {
           </button>
           <button
             onClick={() => {
-              location.hash = "home";
+              location.hash = "account";
             }}
           >
             <ShieldCheck size={17} />
-            Bluey Home
+            Bluey Account · Home
           </button>
         </nav>
         <div className="recent-title">

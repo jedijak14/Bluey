@@ -30,7 +30,7 @@ function Root() {
   const variant = import.meta.env.VITE_BLUEY_VARIANT;
   if (variant === "home") return <HomeApp />;
   if (variant === "kids") return <KidsApp />;
-  if (hash === "#home") return <HomeApp />;
+  if (hash === "#home" || hash === "#account") return <HomeApp />;
   if (hash === "#kids") return <KidsApp />;
   const content = ["#gemma", "#starter"].includes(hash) ? (
     <GemmaPreview standalone />

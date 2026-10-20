@@ -17,50 +17,41 @@ page.on("pageerror", (e) => errors.push(e.message));
 try {
   await page.goto(base + "/#home");
   await expect(
-    page.getByRole("heading", {
-      name: "A little guidance. A lot of growing room.",
-    }),
+    page.getByRole("heading", { name: "Sign in to your Bluey Account." }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Sign in", exact: true }),
   ).toBeDisabled();
-  await page.getByRole("button", { name: "Explore a demo family" }).click();
-  await expect(page.getByText("DEMO FAMILY", { exact: false })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Save rules" })).toBeDisabled();
-  await page.getByRole("button", { name: /Sam Not protected/ }).click();
   await expect(
-    page.getByRole("heading", { name: "Sam’s rules" }),
-  ).toBeVisible();
+    page.getByRole("button", { name: "My family" }),
+  ).not.toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Explore a demo family" }),
+  ).not.toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
   await fs.mkdir("artifacts", { recursive: true });
-  await page.screenshot({ path: "artifacts/home-desktop.png", fullPage: true });
-  await page.getByRole("button", { name: "Time requests" }).click();
+  await page.screenshot({ path: "artifacts/account-gate.png", fullPage: true });
+  await page.goto(base + "/#kids");
+  await page
+    .getByRole("button", { name: "Preview safety message (not enforcement)" })
+    .click();
   await expect(
-    page.getByRole("heading", { name: "Nothing waiting for you." }),
+    page.getByRole("dialog", { name: "A little safety pause." }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Setup & safety" }).click();
   await expect(
-    page.getByText("A fullscreen window alone is not protection.", {
+    page.getByText("No website was blocked and no notification was sent.", {
       exact: false,
     }),
   ).toBeVisible();
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "My family" }).click();
-  await expect
-    .poll(() =>
-      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-    )
-    .toBe(true);
-  await page.screenshot({ path: "artifacts/home-mobile.png", fullPage: true });
-  await page.goto(base + "/#kids");
-  await expect(
-    page.getByRole("heading", { name: "Let’s get you connected." }),
-  ).toBeVisible();
-  await expect
-    .poll(() =>
-      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-    )
-    .toBe(true);
-  await page.screenshot({ path: "artifacts/kids-mobile.png", fullPage: true });
+  await page.screenshot({ path: "artifacts/kids-safety.png", fullPage: true });
+  await page
+    .getByRole("button", { name: "Close preview", exact: true })
+    .click();
   // Isolated browser fixtures exercise parent and kid UX; backend authorization is tested separately.
   const policy = {
     version: 0,
@@ -89,6 +80,7 @@ try {
     let result = {};
     if (path === "status") result = { status: "ready" };
     else if (path === "auth/login") result = { token: "parent-test" };
+    else if (path === "alerts") result = [];
     else if (path === "dashboard") result = { children, requests };
     else if (path === "children") {
       children = [child];
@@ -139,7 +131,7 @@ try {
   await page.getByRole("button", { name: "Save rules" }).click();
   await expect(
     page.getByText(
-      "Rules saved. Windows and browser enforcement are not connected.",
+      "Rules saved. Check the Windows agent’s applied policy version before relying on them.",
       { exact: true },
     ),
   ).toBeVisible();
@@ -178,7 +170,7 @@ try {
   ).toBeVisible();
   expect(errors).toEqual([]);
   console.log(
-    "Family desktop/mobile, enrollment, rules, time requests and honest preview UI passed.",
+    "Account gate, mobile safety preview, enrollment, rules and time requests passed.",
   );
 } finally {
   await browser.close();
