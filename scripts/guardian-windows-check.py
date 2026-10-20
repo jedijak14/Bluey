@@ -51,6 +51,7 @@ except win32service.error as error:
     if error.winerror != 1060: raise
 else: raise RuntimeError('Refusing to touch an existing Guardian service.')
 name='BlueyGuardianCI';created=False;profile=None;token=None;installed=False
+runtime_python=sys.executable
 try:
     password='Aa1!'+secrets.token_hex(20)
     win32net.NetUserAdd(None,1,{'name':name,'password':password,'priv':win32netcon.USER_PRIV_USER,
@@ -87,12 +88,16 @@ try:
     repo=Path(__file__).resolve().parent.parent
     shutil.copytree(repo/'backend',root/'backend',ignore=shutil.ignore_patterns('__pycache__'))
     shutil.copy(repo/'guardian'/'service_entry.py',root/'service_entry.py')
+    # Exercise Windows' venv redirector as used by the real installer; reuse CI
+    # dependencies to avoid a second network install, not a different interpreter.
+    command([sys.executable,'-I','-m','venv','--system-site-packages',str(root/'runtime')])
+    runtime_python=str(root/'runtime'/'Scripts'/'python.exe')
     config=data/'config.json'
     config.write_text(json.dumps({'sid':sid_text,'username':name,'origin':'https://127.0.0.1:9','token':'ci-only-invalid-token'}))
     now=time.time();budget=Budget();budget.sync({'policy':policy,'day':datetime.now(timezone.utc).date().isoformat(),'extra_minutes_today':0,'server_time':now,'valid_until':now+86400},now)
     (data/'usage.json').write_text(json.dumps(budget.state))
     installed=True
-    command([sys.executable,'-I',str(root/'service_entry.py'),'install','--config',str(config)])
+    command([runtime_python,'-I',str(root/'service_entry.py'),'install','--config',str(config)])
     deadline=time.monotonic()+45
     while time.monotonic()<deadline:
         try:
@@ -116,7 +121,7 @@ try:
 finally:
     win32security.RevertToSelf()
     if installed:
-        command([sys.executable,'-I',str(root/'service_entry.py'),'recover','--config',str(data/'config.json')])
+        command([runtime_python,'-I',str(root/'service_entry.py'),'recover','--config',str(data/'config.json')])
         assert not (data/'config.json').exists()
     elif profile:
         for kind in ('URLAllowlist','URLBlocklist'):
