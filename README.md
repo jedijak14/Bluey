@@ -4,6 +4,10 @@ A local-first desktop companion with a Windows workspace, a separate animated de
 
 **Status: preview, not a validated production release.** Published Windows and Android previews are available under [GitHub Releases](https://github.com/jedijak14/Bluey/releases). The current website changes are checked with production builds, client/backend tests, and browser smoke tests. Those checks do not validate Windows UI Automation, microphone/Piper quality on physical devices, or a user's private HTTPS/VPN setup. Python and model files remain external prerequisites.
 
+## 0.2.0 preview additions
+
+Research cards and quick-answer bubbles; approved web research with source snippets; ChatGPT/browser and installed-app launching; media keys; Edge/Chrome extension managers; visible typing and click feedback; Windows microphone selection; silent-by-default Android device speech. See [release scope and limitations](docs/RELEASE_0.2.0.md). New artifacts are published only after both platform build gates pass.
+
 ## The reference, faithfully adapted
 
 Reviewed [rbrown101010/bluey-by-riley](https://github.com/rbrown101010/bluey-by-riley) at commit `6d84d91456f3bf7ad9b31caf31f19710b0ba8328` (Unlicense). This is a **Windows/Android adaptation**, not the original Mac/iPhone app and not wire-compatible with it.
@@ -96,7 +100,7 @@ The desktop token is printed **once** in the private backend startup console. In
 
 ### Voice setup
 
-These model instructions apply to desktop/browser voice; Android 0.1.2 does not need these models for device input/output. Download voice models separately to locations outside this repository. This project does not fetch models automatically.
+These model instructions apply to desktop/browser voice; Android 0.2.0 does not need these models for device input/output. Download voice models separately to locations outside this repository. This project does not fetch models automatically.
 
 ```powershell
 $env:BLUEY_WHISPER_MODEL = "C:\BlueyModels\faster-whisper-small"
@@ -107,7 +111,7 @@ npm run desktop
 
 The Whisper path must be an already-downloaded CTranslate2/faster-whisper model directory. The Piper path must point to a valid voice `.onnx` plus its configuration file. Respect model licenses.
 
-Desktop mic: click to start, click again to stop; review the resulting transcript before sending. Turn on **Read responses aloud** for desktop audio. Android 0.1.2 uses device speech recognition after explicit opt-in: double tap to wake, hold to speak, release to send recognized text. **Bluey is silent by default**; optional Android spoken replies use the device TTS engine, not Piper. See [Android device speech and privacy](docs/ANDROID_RELEASE.md).
+Desktop mic: click to start, click again to stop; review the resulting transcript before sending. Turn on **Read responses aloud** for desktop audio. Android 0.2.0 uses device speech recognition after explicit opt-in: double tap to wake, hold to speak, release to send recognized text. **Bluey is silent by default**; optional Android spoken replies use the device TTS engine, not Piper. See [Android device speech and privacy](docs/ANDROID_RELEASE.md).
 
 First model load and CPU transcription/synthesis are **not zero-latency**. Whisper runs CPU/int8 in this implementation. For desktop/browser voice (not Android device speech), recordings are uploaded to the paired PC, temporary WAVs are deleted after transcription, and generated speech is sent as complete sentence-sized WAV chunks, not low-level streaming PCM.
 

@@ -6,6 +6,17 @@ export class BlueyClient {
   private retry?: ReturnType<typeof setTimeout>;
   private stopped = true;
   private attempts = 0;
+  private listeners = new Set<(p: Packet) => void>();
+  subscribe(listener: (p: Packet) => void) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+  private dispatch(packet: Packet) {
+    this.onPacket(packet);
+    this.listeners.forEach((listener) => listener(packet));
+  }
   onPacket: (p: Packet) => void = () => {};
   onStatus: (s: "connected" | "connecting" | "offline") => void = () => {};
   connect(endpoint: string, token: string) {
@@ -30,7 +41,7 @@ export class BlueyClient {
             this.attempts = 0;
             this.onStatus("connected");
           }
-          this.onPacket(p);
+          this.dispatch(p);
         } catch {
           /* Ignore invalid transport data. */
         }
@@ -38,7 +49,7 @@ export class BlueyClient {
       socket.onclose = (e) => {
         if (this.socket !== socket) return;
         this.onStatus("offline");
-        if (e.code === 4001) this.onPacket({ type: "unpaired" });
+        if (e.code === 4001) this.dispatch({ type: "unpaired" });
         if (!this.stopped && e.code !== 4001) {
           this.retry = setTimeout(
             () => this.open(),

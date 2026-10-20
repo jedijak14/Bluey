@@ -5,12 +5,16 @@ export class Microphone {
   private processor?: ScriptProcessorNode;
   private samples: Float32Array[] = [];
   private length = 0;
-  async start(onLevel: (n: number) => void) {
+  async start(onLevel: (n: number) => void, deviceId?: string) {
     if (this.context || this.stream)
       throw new Error("Recording is already active.");
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+        },
         video: false,
       });
       this.context = new AudioContext();

@@ -99,6 +99,16 @@ public class CompanionSmokeTest {
         shell("settings put secure voice_recognition_service app.bluey.companion.test/app.bluey.companion.FixtureRecognitionService");
         shell("settings put secure tts_default_synth app.bluey.companion.test");
         try (ActivityScenario<MainActivity> s = ActivityScenario.launch(MainActivity.class)) {
+            // The emulator advertises an on-device engine. This test deliberately
+            // exercises our installed system-service fixture instead. Reflection
+            // is instrumentation-only; there is no JS or production test switch.
+            s.onActivity(activity -> {
+                try {
+                    java.lang.reflect.Field preference = DeviceSpeechPlugin.class.getDeclaredField("preferOnDevice");
+                    preference.setAccessible(true);
+                    preference.setBoolean(activity.getBridge().getPlugin("DeviceSpeech").getInstance(), false);
+                } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
+            });
             waitFor(s, "document.querySelector('.phone-pairing')");
             String pairingCode = code();
             evaluate(s, "(()=>{const inputs=document.querySelectorAll('form input');const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(inputs[0],'http://10.0.2.2:8765');inputs[0].dispatchEvent(new Event('input',{bubbles:true}));set.call(inputs[1]," + JSONObject.quote(pairingCode) + ");inputs[1].dispatchEvent(new Event('input',{bubbles:true}));})()");

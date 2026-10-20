@@ -13,6 +13,7 @@ import {
   Wifi,
   X,
 } from "lucide-react";
+import { ResponseCard, type CompanionResponse } from "./ResponseCard";
 import { Avatar, FaceScreen } from "./FloatingWidget/Avatar";
 import { BlueyClient } from "../lib/client";
 import { Microphone } from "../lib/audio";
@@ -33,6 +34,10 @@ import type { FaceState, Mood } from "../lib/types";
 const phone = new BlueyClient();
 const nativeSpeech = Capacitor.getPlatform() === "android";
 export function Phone() {
+  const [report, setReport] = useState<CompanionResponse | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [researchMode, setResearchMode] = useState(false);
+  const researchModeRef = useRef(false);
   const [paired, setPaired] = useState(false),
     [preview, setPreview] = useState(false),
     [connected, setConnected] = useState(false);
@@ -119,6 +124,8 @@ export function Phone() {
     history.current = [];
     response.current = { request: "", text: "", speak: false };
     setCaption("");
+    setReport(null);
+    setReportOpen(false);
     setError(message);
   }
   function ask(text: string) {
@@ -156,6 +163,7 @@ export function Phone() {
         request,
         messages: history.current,
         voice: requestServerVoice(nativeSpeech, volumeRef.current),
+        mode: researchModeRef.current ? "research" : "chat",
       });
     } catch (e) {
       setError(String(e));
@@ -211,6 +219,8 @@ export function Phone() {
       }
     };
     phone.onPacket = (p) => {
+      if (p.type === "response" && p.format === "research")
+        setReport(p as unknown as CompanionResponse);
       if (p.type === "unpaired") {
         resetConnection(
           "Your pairing expired or was disconnected on Windows. Generate a new code.",
@@ -584,7 +594,7 @@ export function Phone() {
       onPointerDown={(e) => {
         if (
           (e.target as HTMLElement).closest(
-            "button,input,textarea,select,.phone-options,.phone-caption",
+            "button,input,textarea,select,.phone-options,.phone-caption,.response-card",
           )
         )
           return;
@@ -602,6 +612,14 @@ export function Phone() {
       onPointerCancel={() => void release(false)}
     >
       <FaceScreen {...face} />
+      {reportOpen && report && (
+        <div className="phone-report">
+          <ResponseCard
+            response={report}
+            onClose={() => setReportOpen(false)}
+          />
+        </div>
+      )}
       <div className="phone-top">
         <span className="phone-connection">
           <span className={`status-dot ${connected ? "green" : ""}`} />
@@ -612,6 +630,14 @@ export function Phone() {
               : "Reconnecting to Windows…"}
         </span>
         <div>
+          {report && (
+            <button
+              title="Read research response"
+              onClick={() => setReportOpen(true)}
+            >
+              Read notes
+            </button>
+          )}
           {busy && (
             <button title="Stop response" onClick={stop}>
               <Square size={18} />
@@ -753,6 +779,17 @@ export function Phone() {
                 {nativeSpeech
                   ? "Speak replies using Android voice (off by default)"
                   : "Speak replies using PC voice (off by default; requires Piper)"}
+              </label>
+              <label className="phone-voice-choice">
+                <input
+                  type="checkbox"
+                  checked={researchMode}
+                  onChange={(e) => {
+                    researchModeRef.current = e.target.checked;
+                    setResearchMode(e.target.checked);
+                  }}
+                />
+                Research the web (requires Windows approval)
               </label>
             </form>
           )}

@@ -1,4 +1,4 @@
-# Bluey 0.1.0 — Windows preview
+# Bluey 0.2.0 — Windows preview
 
 Windows 10/11, x64. Two versions of the same application:
 
@@ -30,3 +30,7 @@ For Android pairing also set `BLUEY_LAN=1` before launch and allow port 8765 onl
 Model API keys are configured in Settings. Local Ollama and downloaded voice models are external requirements. See `README.md` in the source for complete setup and native-platform limitations.
 
 Web builds and automated tests are checked before packaging. Packaging does not establish that all UIA interactions, audio devices, games, or display configurations work on a physical Windows PC. Native OS calls in progress cannot be forcibly undone by Stop. Review every proposed desktop action.
+
+## 0.2.0 features
+
+See RELEASE_0.2.0.md in the source repository for research cards, desktop tools, visible typing/click feedback, microphone selection and their limits. The companion starts silent; desktop spoken replies remain an explicit opt-in requiring Piper. Research queries require one-time approval. Windows app/media/extension behavior still needs validation on your PC.

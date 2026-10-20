@@ -1,7 +1,7 @@
 {
   "name": "bluey-companion",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -17,7 +17,8 @@
     "test:ui": "node scripts/ui-smoke.mjs",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"electron/*.cjs\"",
     "test:pairing": "node scripts/pairing-smoke.mjs",
-    "test:device-speech": "node scripts/device-speech-smoke.mjs"
+    "test:device-speech": "node scripts/device-speech-smoke.mjs",
+    "test:features": "node scripts/features-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, X } from "lucide-react";
+import { MessageCircle, Mic, Expand, X } from "lucide-react";
 import { Avatar, CursorAvatar } from "./Avatar";
+import { ResponseCard, type CompanionResponse } from "../ResponseCard";
 import { client } from "../../lib/client";
 import { planFlight, sampleFlight, type Flight } from "../../lib/motion";
 import { load } from "../../lib/storage";
@@ -14,6 +15,17 @@ export function Overlay() {
     talk: 0,
   });
   const [caption, setCaption] = useState("");
+  const [response, setResponse] = useState<CompanionResponse | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [pulse, setPulse] = useState<{
+    x: number;
+    y: number;
+    id: number;
+    typing: boolean;
+  } | null>(null);
+  const pulseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
   const cursor = useRef<HTMLDivElement>(null);
   const trail = useRef<SVGPathElement>(null);
   const target = useRef({ x: innerWidth / 2, y: innerHeight - 80 });
@@ -29,6 +41,21 @@ export function Overlay() {
   }, []);
   useEffect(() => {
     client.onPacket = (p) => {
+      if (p.type === "response") {
+        setResponse(p as unknown as CompanionResponse);
+        setExpanded(p.format === "research");
+        setCaption(String(p.text).slice(0, 420));
+      }
+      if (p.type === "click_feedback") {
+        setPulse({
+          x: Number(p.x),
+          y: Number(p.y),
+          typing: Boolean(p.typing),
+          id: Date.now(),
+        });
+        clearTimeout(pulseTimer.current);
+        pulseTimer.current = setTimeout(() => setPulse(null), 1400);
+      }
       if (p.type === "face") setFace(p.face as FaceState);
       if (p.type === "pointer") {
         target.current = {
@@ -39,6 +66,7 @@ export function Overlay() {
       }
       if (p.type === "caption") setCaption(String(p.text));
       if (p.type === "home") {
+        setExpanded(false);
         pinned.current = false;
         target.current = { x: innerWidth / 2, y: innerHeight - 80 };
         setCaption("");
@@ -54,6 +82,7 @@ export function Overlay() {
         }));
     });
     return () => {
+      clearTimeout(pulseTimer.current);
       client.disconnect();
       off?.();
     };
@@ -100,6 +129,28 @@ export function Overlay() {
   }, [settings.trail]);
   return (
     <div className="desktop-overlay">
+      {expanded && response && (
+        <div className="overlay-research">
+          <ResponseCard
+            response={response}
+            onClose={() => {
+              setExpanded(false);
+              window.bluey?.interactive(false);
+            }}
+          />
+        </div>
+      )}
+      {pulse && (
+        <div
+          key={pulse.id}
+          className="click-feedback"
+          style={{ left: `${pulse.x / 10}%`, top: `${pulse.y / 10}%` }}
+        >
+          <i />
+          <i />
+          <span>{pulse.typing ? "Typing" : "Click"}</span>
+        </div>
+      )}
       <svg className="overlay-trail">
         <path
           ref={trail}
@@ -116,7 +167,20 @@ export function Overlay() {
         style={{ width: settings.cursorSize ?? 72 }}
       >
         <CursorAvatar mood={face.mood} />
-        {caption && <div className="overlay-caption">{caption}</div>}
+        {caption && !expanded && (
+          <div
+            className="overlay-caption"
+            onMouseEnter={() => window.bluey?.interactive(true)}
+            onMouseLeave={() => window.bluey?.interactive(false)}
+          >
+            <span>{caption}</span>
+            {response && (
+              <button title="Expand answer" onClick={() => setExpanded(true)}>
+                <Expand size={13} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <div
         className="floating-widget"
@@ -130,11 +194,24 @@ export function Overlay() {
         />
         <div className="widget-controls">
           <button
+            title="Ask with Windows microphone"
+            onClick={() => window.bluey?.window("microphone")}
+          >
+            <Mic size={15} />
+          </button>
+          <button
+            title="Open workspace"
+            onClick={() => window.bluey?.window("workspace")}
+          >
+            <Expand size={15} />
+          </button>
+          <button
             title="Return cursor home"
             onClick={() => {
               pinned.current = false;
               target.current = { x: innerWidth / 2, y: innerHeight - 80 };
               setCaption("");
+              setExpanded(false);
             }}
           >
             <MessageCircle size={15} />

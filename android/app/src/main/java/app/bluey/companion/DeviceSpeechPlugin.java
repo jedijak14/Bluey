@@ -30,6 +30,7 @@ import java.util.UUID;
 public class DeviceSpeechPlugin extends Plugin {
     private final Handler main = new Handler(Looper.getMainLooper());
     private boolean foreground = false;
+    private boolean preferOnDevice = true;
     private Session session;
     private TextToSpeech tts;
     private boolean ttsReady;
@@ -62,7 +63,7 @@ public class DeviceSpeechPlugin extends Plugin {
     }
 
     private boolean onDeviceAvailable() {
-        return Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(getContext());
+        return preferOnDevice && Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(getContext());
     }
 
     @PluginMethod public void startRecognition(PluginCall call) {

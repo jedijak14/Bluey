@@ -6,6 +6,7 @@ const {
   screen,
   dialog,
   session,
+  shell,
 } = require("electron");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
@@ -186,10 +187,28 @@ ipcMain.handle("choose-folder", async (event) => {
   });
   return result.canceled ? null : result.filePaths[0];
 });
+ipcMain.handle("open-external", async (event, value) => {
+  if (!ours(event) || typeof value !== "string" || value.length > 4096)
+    throw new Error("Untrusted link");
+  const url = new URL(value);
+  if (
+    !["https:", "http:"].includes(url.protocol) ||
+    url.username ||
+    url.password
+  )
+    throw new Error("Only web links are supported");
+  await shell.openExternal(url.href);
+});
 ipcMain.on("window-action", (event, action) => {
   if (!ours(event)) return;
   if (action === "overlay") toggleOverlay();
   if (action === "stop") emergencyStop();
+  if (action === "workspace" || action === "microphone") {
+    main.restore();
+    main.show();
+    main.focus();
+    if (action === "microphone") main.webContents.send("command", "microphone");
+  }
   if (event.sender !== main.webContents) return;
   if (action === "minimize" || action === "yield") main.minimize();
   if (action === "approval") {

@@ -1,6 +1,6 @@
-# Bluey 0.1.2 — Android device speech, silent by default
+# Bluey 0.2.0 — Android device speech, silent by default
 
-Install **Bluey-0.1.2-Android.apk** on your Android phone. This is a universal, debug-signed sideload preview, not a Play Store release. The release workflow publishes the APK only after compilation, lint, tests, emulator checks and signature verification pass. Checksums and verification reports accompany the download.
+Install **Bluey-0.2.0-Android.apk** on your Android phone. This is a universal, debug-signed sideload preview, not a Play Store release. The release workflow publishes the APK only after compilation, lint, tests, emulator checks and signature verification pass. Checksums and verification reports accompany the download.
 
 ## Bluey is silent by default
 
@@ -34,3 +34,7 @@ Client tests cover silent defaults, Android text-only requests, optional native 
 The app remains landscape-oriented with seven expressions and a separate Windows pointer character. Keep Android System WebView current; Android 10+ is recommended (minimum API 23).
 
 If Android reports a signature mismatch when updating a debug preview, uninstall the previous APK first (this clears its app data). Production signing and Play Store distribution are not configured. The previous published APK does not acquire these changes automatically; install the new version.
+
+## Research notes
+
+Enable Research in companion options for an explicitly approved web search. The PC must approve the query. Tap **Read notes** after the response to see the paper-style answer and source snippets. Android supports copying notes; Markdown file downloads are a desktop/browser feature.
