@@ -13,6 +13,44 @@ defaults:
   run:
     shell: bash
 jobs:
+  postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: bluey_test
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: bluey_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U bluey_test -d bluey_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt pytest
+      - name: Durable database and hosted API regressions
+        env:
+          BLUEY_TEST_POSTGRES_URL: postgresql://bluey_test:ci-only-password@127.0.0.1:5432/bluey_test?sslmode=disable
+          BLUEY_REQUIRE_POSTGRES_TESTS: "1"
+        run: python -m pytest backend/tests/test_family_postgres.py backend/tests/test_family_serverless.py -q --junitxml=artifacts/postgres.xml
+      - name: Expose bounded test failures
+        if: failure()
+        run: |
+          python - <<'PYCODE'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          path=Path('artifacts/postgres.xml')
+          if path.exists():
+              for node in ET.parse(path).getroot().iter():
+                  if node.tag in {'failure','error'}:
+                      text=((node.get('message',''))+'\n'+(node.text or ''))[-6000:]
+                      print('::error::'+text.replace('%','%25').replace('\r','%0D').replace('\n','%0A'))
+          PYCODE
   test:
     runs-on: ubuntu-24.04
     steps:
@@ -74,7 +112,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
-    needs: test
+    needs: [test, postgres]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -155,7 +193,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
-    needs: test
+    needs: [test, postgres]
     strategy:
       fail-fast: false
       matrix:
@@ -245,7 +283,7 @@ jobs:
     if: "github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[release-android]')"
     timeout-minutes: 25
     runs-on: windows-latest
-    needs: [test, guardian-check]
+    needs: [test, postgres, guardian-check]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -284,7 +322,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: windows-latest
     timeout-minutes: 30
-    needs: test
+    needs: [test, postgres]
     strategy:
       fail-fast: false
       matrix:

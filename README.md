@@ -243,3 +243,7 @@ The application code is public domain under the repository's [Unlicense](LICENSE
 ## Quiet sessions (0.3.0 preview)
 
 Double-tap the paired Android face to start/stop a quiet context session; hold, speak and release for a text bubble and brief phone chirp. No spoken replies. **Ctrl+Shift+Space** controls the paired phone from Windows (or the Windows microphone when no phone is connected). Meeting-window detection is best effort, with manual controls and a save/discard prompt for volatile notes/transcripts. See [setup, privacy boundaries and known limits](docs/QUIET_SESSIONS.md). New native APIs require the matching 0.3.0 app/engine; older downloads do not contain these changes.
+
+## Connect the family backend
+
+The family API can run on Vercel with persistent PostgreSQL. Follow [the database connection steps](docs/VERCEL_FAMILY.md); no separate backend server is required. Storage and a private registration invite must be configured in the Vercel project. The API never substitutes temporary storage or bypasses parent authentication.

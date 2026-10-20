@@ -203,12 +203,31 @@ export function HomeApp() {
   const active = demo ? exampleFamily : data,
     child =
       active.children.find((c) => c.id === selected) || active.children[0];
+  const [serviceDetail, setServiceDetail] = useState("");
+  const [registrationAvailable, setRegistrationAvailable] = useState<
+    boolean | undefined
+  >();
   async function check() {
     try {
-      const r = await familyRequest<{ status: string }>("status");
+      const r = await familyRequest<{
+        status: string;
+        error?: string;
+        registration_available?: boolean;
+      }>("status");
       setService(r.status === "ready" ? "ready" : "unavailable");
-    } catch {
+      setServiceDetail(
+        typeof r.error === "string"
+          ? r.error
+          : "The family service is not connected yet.",
+      );
+      setRegistrationAvailable(r.registration_available);
+    } catch (error) {
       setService("unavailable");
+      setServiceDetail(
+        error instanceof Error
+          ? error.message
+          : "The family service could not be reached.",
+      );
     }
   }
   async function refresh() {
@@ -380,7 +399,11 @@ export function HomeApp() {
               )}
               <button
                 className="home-primary"
-                disabled={busy || service !== "ready"}
+                disabled={
+                  busy ||
+                  service !== "ready" ||
+                  (register && registrationAvailable === false)
+                }
               >
                 {register ? "Create parent account" : "Sign in"}
                 <ArrowRight size={16} />
@@ -394,10 +417,27 @@ export function HomeApp() {
                   ? "Already have an account?"
                   : "Create a Bluey Account"}
               </button>
+              {register && registrationAvailable === false && (
+                <p className="home-fine">
+                  Account creation is disabled until the operator configures a
+                  private setup invite. Existing accounts can still sign in.
+                </p>
+              )}
+              {!window.blueyFamily && (
+                <a
+                  className="home-text"
+                  href="https://bluey-plum.vercel.app/family-setup.html"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Connect the family database · setup instructions
+                </a>
+              )}
               {service !== "ready" && (
                 <p className="home-fine">
-                  A persistent family backend has not been connected. Sign-in
-                  and remote management are unavailable.{" "}
+                  {service === "checking"
+                    ? "Checking the family service…"
+                    : serviceDetail}{" "}
                   <button
                     type="button"
                     className="home-text"

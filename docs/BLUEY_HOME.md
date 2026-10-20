@@ -25,6 +25,10 @@ See [persistent backend setup](../deploy/family/README.md) and [Windows setup/re
 
 A safe Windows implementation needs an independently reviewed, signed administrator-installed service, a standard non-administrator child account, authenticated local UI/service IPC, per-user policy binding, offline policy caching and clock-change handling, controlled browser filtering, tamper resistance, uninstall authorization, and a parent-owned recovery route. Fullscreen Electron alone cannot provide this. No attempt is made here to disable Task Manager or lock a person out.
 
+## Vercel-hosted API (recommended)
+
+Connect a persistent PostgreSQL database to the Bluey Vercel project and configure a private registration invite. See [the one-time setup steps](VERCEL_FAMILY.md). No separate backend server is required in this mode. The existing standalone host remains supported below. Storage is not automatically provisioned by the connector.
+
 ## Hosted service setup (operator)
 
 No production family backend is provisioned by this source change. The Vercel UI honestly reports that it is unavailable until configured. **Vercel's ephemeral functions/filesystem are not the SQLite host.** Use a private persistent host with TLS termination and firewall restrictions; do not expose the desktop engine to the Internet.

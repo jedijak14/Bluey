@@ -1,7 +1,6 @@
 """Remote-ready Bluey Home control plane. NOT a Windows enforcement service.
 Run behind HTTPS on a host with persistent storage, separate from the desktop engine.
 """
-from contextlib import contextmanager
 import hashlib
 import hmac
 import json
@@ -86,22 +85,18 @@ class Decision(StrictModel):
     decision: str = Field(pattern=r'^(approve|deny)$')
 
 
-def create_app(path: str, gateway_token: str, invite: str):
+def create_app(path: str, gateway_token: str, invite: str, *, schema="bluey_family"):
     app = FastAPI(title='Bluey Home foundation', docs_url=None, redoc_url=None)
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    @contextmanager
-    def connect():
-        db = sqlite3.connect(path, timeout=5)
-        db.row_factory = sqlite3.Row
-        db.execute('PRAGMA foreign_keys=ON')
-        try:
-            yield db
-            db.commit()
-        except BaseException:
-            db.rollback()
-            raise
-        finally:
-            db.close()
+    from .family_database import Database
+    storage = Database(path, schema)
+    connect = storage.connect
+    from fastapi.responses import JSONResponse
+    async def storage_unavailable(request, error):
+        return JSONResponse({'error': 'Family storage is temporarily unavailable. Try again shortly.'}, status_code=503, headers={'Cache-Control':'no-store'})
+    app.add_exception_handler(sqlite3.OperationalError, storage_unavailable)
+    if storage.postgres:
+        import psycopg
+        app.add_exception_handler(psycopg.Error, storage_unavailable)
     with connect() as db:
         db.executescript('''
         CREATE TABLE IF NOT EXISTS parents(id TEXT PRIMARY KEY, username TEXT UNIQUE, salt TEXT, password TEXT);
@@ -112,7 +107,6 @@ def create_app(path: str, gateway_token: str, invite: str):
         CREATE TABLE IF NOT EXISTS grants(request TEXT PRIMARY KEY REFERENCES requests(id) ON DELETE CASCADE, child TEXT REFERENCES children(id) ON DELETE CASCADE, day TEXT, minutes INTEGER);
         CREATE TABLE IF NOT EXISTS attempts(key TEXT PRIMARY KEY, count INTEGER, reset REAL);
         ''')
-    os.chmod(path, 0o600)
 
     async def gateway(x_bluey_gateway: str = Header(default='')):
         if not gateway_token or not hmac.compare_digest(x_bluey_gateway.encode(), gateway_token.encode()):
@@ -144,7 +138,7 @@ def create_app(path: str, gateway_token: str, invite: str):
             db.execute('DELETE FROM attempts WHERE reset < ?', (now,))
             row = db.execute('SELECT count FROM attempts WHERE key=?', (key,)).fetchone()
             if row and row['count'] >= maximum: raise HTTPException(429, 'Too many attempts. Try again in 15 minutes.')
-            db.execute('INSERT INTO attempts VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1', (key, now+900))
+            db.execute('INSERT INTO attempts VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=attempts.count+1', (key, now+900))
 
     def actor(authorization: str = Header(default=''), _=Depends(gateway)):
         token = authorization.removeprefix('Bearer ')
@@ -197,7 +191,7 @@ def create_app(path: str, gateway_token: str, invite: str):
     @app.get('/api/family/status', dependencies=[Depends(gateway)])
     def status():
         with connect() as db: db.execute('SELECT count(*) FROM parents').fetchone()
-        return {'status':'ready', 'enforcement_available':False, 'notifications':'in_app_polling', 'version':2}
+        return {'status':'ready', 'enforcement_available':False, 'notifications':'in_app_polling', 'registration_available':bool(invite), 'version':3}
 
     @app.post('/api/family/auth/register', dependencies=[Depends(gateway)])
     def register(body: Account):
@@ -230,7 +224,7 @@ def create_app(path: str, gateway_token: str, invite: str):
     def dashboard(owner=Depends(parent)):
         with connect() as db:
             cleanup(db)
-            children=[snapshot(db,row) for row in db.execute('SELECT * FROM children WHERE parent=? ORDER BY rowid', (owner,)).fetchall()]
+            children=[snapshot(db,row) for row in db.execute('SELECT * FROM children WHERE parent=? ORDER BY name,id', (owner,)).fetchall()]
             requests=[dict(r) for r in db.execute('SELECT r.*, c.name FROM requests r JOIN children c ON c.id=r.child WHERE c.parent=? ORDER BY created DESC LIMIT 100', (owner,)).fetchall()]
             return {'children':children, 'requests':requests}
 
@@ -317,9 +311,9 @@ def create_app(path: str, gateway_token: str, invite: str):
 
 
 def app_factory():
-    path=os.getenv('BLUEY_FAMILY_DB')
+    path=os.getenv('BLUEY_FAMILY_DATABASE_URL') or os.getenv('BLUEY_FAMILY_DB')
     gateway=os.getenv('BLUEY_FAMILY_GATEWAY_TOKEN')
-    if not path or not gateway: raise RuntimeError('Configure a persistent BLUEY_FAMILY_DB path and BLUEY_FAMILY_GATEWAY_TOKEN before hosting Bluey Home.')
+    if not path or not gateway: raise RuntimeError('Configure durable family storage and BLUEY_FAMILY_GATEWAY_TOKEN before hosting Bluey Home.')
     return create_app(path,gateway,os.getenv('BLUEY_FAMILY_SETUP_INVITE',''))
 
 
