@@ -5,11 +5,15 @@ export class Microphone {
   private processor?: ScriptProcessorNode;
   private samples: Float32Array[] = [];
   private length = 0;
+  private generation = 0;
+  private starting = false;
   async start(onLevel: (n: number) => void, deviceId?: string) {
-    if (this.context || this.stream)
+    if (this.context || this.stream || this.starting)
       throw new Error("Recording is already active.");
+    const generation = ++this.generation;
+    this.starting = true;
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
@@ -17,8 +21,15 @@ export class Microphone {
         },
         video: false,
       });
+      if (generation !== this.generation) {
+        stream.getTracks().forEach((track) => track.stop());
+        throw new Error("Recording cancelled.");
+      }
+      this.stream = stream;
       this.context = new AudioContext();
       await this.context.resume();
+      if (generation !== this.generation)
+        throw new Error("Recording cancelled.");
       const source = this.context.createMediaStreamSource(this.stream);
       this.processor = this.context.createScriptProcessor(4096, 1, 1);
       this.samples = [];
@@ -49,9 +60,12 @@ export class Microphone {
       this.stream = undefined;
       this.processor = undefined;
       throw error;
+    } finally {
+      this.starting = false;
     }
   }
   async stop(): Promise<string> {
+    this.generation++;
     const rate = this.context?.sampleRate ?? 48000;
     this.processor?.disconnect();
     this.stream?.getTracks().forEach((t) => t.stop());
