@@ -50,7 +50,8 @@ export interface Bridge {
       | "approval"
       | "yield"
       | "workspace"
-      | "microphone",
+      | "microphone"
+      | "resume-overlay",
   ) => void;
   openExternal?: (url: string) => Promise<void>;
   onCommand?: (callback: (command: string) => void) => () => void;

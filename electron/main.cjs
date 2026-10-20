@@ -22,7 +22,8 @@ let main,
   overlay,
   backend,
   pointerTimer,
-  stopping = false;
+  stopping = false,
+  yieldingOverlay = false;
 const root = app.isPackaged
   ? process.resourcesPath
   : path.join(__dirname, "..");
@@ -210,6 +211,12 @@ ipcMain.on("window-action", (event, action) => {
     if (action === "microphone") main.webContents.send("command", "microphone");
   }
   if (event.sender !== main.webContents) return;
+  if (action === "yield") {
+    yieldingOverlay = true;
+    overlay?.setIgnoreMouseEvents(true, { forward: true });
+    overlay?.webContents.send("command", "yield");
+  }
+  if (action === "resume-overlay") yieldingOverlay = false;
   if (action === "minimize" || action === "yield") main.minimize();
   if (action === "approval") {
     main.restore();
@@ -222,7 +229,7 @@ ipcMain.on("window-action", (event, action) => {
 });
 ipcMain.on("overlay-interactive", (event, value) => {
   if (ours(event) && event.sender === overlay.webContents)
-    overlay.setIgnoreMouseEvents(!value, { forward: true });
+    overlay.setIgnoreMouseEvents(yieldingOverlay || !value, { forward: true });
 });
 app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler(

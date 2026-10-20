@@ -120,7 +120,11 @@ try {
     "https://example.com/",
   ]);
   await fs.mkdir("artifacts", { recursive: true });
-  await page.screenshot({ path: "artifacts/research-card.png" });
+  if (process.env.BLUEY_SCREENSHOTS === "1")
+    await page.screenshot({
+      path: "artifacts/research-card.png",
+      animations: "disabled",
+    });
   const download = page.waitForEvent("download");
   await card.getByRole("button", { name: "Save notes" }).click();
   expect((await download).suggestedFilename()).toBe("Bluey-notes.md");
@@ -154,7 +158,11 @@ try {
     page.getByText("Action declined. Nothing was run."),
   ).toBeVisible();
   expect(executed).toBe(2);
-  await page.screenshot({ path: "artifacts/desktop-tools.png" });
+  if (process.env.BLUEY_SCREENSHOTS === "1")
+    await page.screenshot({
+      path: "artifacts/desktop-tools.png",
+      animations: "disabled",
+    });
   await page.close();
 
   const overlay = await makePage();

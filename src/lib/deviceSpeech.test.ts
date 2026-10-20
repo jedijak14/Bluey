@@ -89,3 +89,17 @@ it("reports a missing device voice without calling the PC", async () => {
   expect(error).toHaveBeenCalledWith("Install a device voice");
   expect(active).toHaveBeenLastCalledWith(false);
 });
+
+it("treats an Android lifecycle cancellation as quiet cancellation, not a speech failure", async () => {
+  const device = {
+    speak: vi
+      .fn()
+      .mockRejectedValue(
+        Object.assign(new Error("Speech cancelled"), { code: "CANCELLED" }),
+      ),
+    stopSpeaking: vi.fn().mockResolvedValue(undefined),
+  };
+  const error = vi.fn();
+  await new DeviceReplySpeaker(device).speak("Reply", error, vi.fn());
+  expect(error).not.toHaveBeenCalled();
+});

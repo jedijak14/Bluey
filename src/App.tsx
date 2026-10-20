@@ -186,8 +186,13 @@ export default function App() {
         setNotice("Your browser blocked audio. Enable voice and try again.");
       });
     };
-    client.onStatus = setStatus;
+    client.onStatus = (state) => {
+      setStatus(state);
+      if (state === "offline") window.bluey?.window("resume-overlay");
+    };
     client.onPacket = (p: Packet) => {
+      if (p.type === "approval_resolved" || p.type === "stopped")
+        window.bluey?.window("resume-overlay");
       if (
         p.type === "response" &&
         flight.current &&

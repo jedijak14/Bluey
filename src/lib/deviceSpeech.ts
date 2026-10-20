@@ -53,7 +53,15 @@ export class DeviceReplySpeaker {
         await this.device.speak({ text: chunk });
       }
     } catch (error) {
-      if (generation === this.generation)
+      if (
+        generation === this.generation &&
+        !(
+          error &&
+          typeof error === "object" &&
+          "code" in error &&
+          error.code === "CANCELLED"
+        )
+      )
         onError(
           error instanceof Error
             ? error.message

@@ -27,6 +27,7 @@ export function Overlay() {
     undefined,
   );
   const cursor = useRef<HTMLDivElement>(null);
+  const bubble = useRef<HTMLDivElement>(null);
   const trail = useRef<SVGPathElement>(null);
   const target = useRef({ x: innerWidth / 2, y: innerHeight - 80 });
   const position = useRef({ ...target.current });
@@ -73,6 +74,13 @@ export function Overlay() {
       }
     };
     window.bluey?.connection().then((c) => client.connect(c.endpoint, c.token));
+    const offCommand = window.bluey?.onCommand?.((command) => {
+      if (command === "yield") {
+        setExpanded(false);
+        setCaption("");
+        window.bluey?.interactive(false);
+      }
+    });
     const off = window.bluey?.onPointer((p) => {
       if (!pinned.current)
         setFace((f) => ({
@@ -85,6 +93,7 @@ export function Overlay() {
       clearTimeout(pulseTimer.current);
       client.disconnect();
       off?.();
+      offCommand?.();
     };
   }, []);
   useEffect(() => {
@@ -109,6 +118,11 @@ export function Overlay() {
       const moving = !sample.done;
       if (cursor.current)
         cursor.current.style.transform = `translate(${p.x}px,${p.y}px) rotate(${moving ? angle : 0}deg)`;
+      if (bubble.current) {
+        bubble.current.style.left = `${p.x > innerWidth - 360 ? -Math.min(p.x - 10, 320) : 0}px`;
+        bubble.current.style.top = p.y < 180 ? "100%" : "auto";
+        bubble.current.style.bottom = p.y < 180 ? "auto" : "100%";
+      }
       samples.push({ ...p });
       if (samples.length > 18) samples.shift();
       if (trail.current) {
@@ -169,6 +183,7 @@ export function Overlay() {
         <CursorAvatar mood={face.mood} />
         {caption && !expanded && (
           <div
+            ref={bubble}
             className="overlay-caption"
             onMouseEnter={() => window.bluey?.interactive(true)}
             onMouseLeave={() => window.bluey?.interactive(false)}
