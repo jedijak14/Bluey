@@ -10,17 +10,17 @@ Open **Test AI** in the sidebar or `/#gemma`. The configured model is exactly `k
 
 Phones, iPads and tablets can explore a separate mobile information site. **Test AI** and direct AI links remain desktop/laptop-only. Desktop visitors get a skippable wink-and-logo intro; mobile visitors see a sad Bluey, a device illustration and a clear notice. Detection uses browser signals—not CPU/GPU identification or hardware authentication. The native Android paired companion remains separate. Automatic Wi-Fi PC discovery is not implemented by this change.
 
-## Download Bluey 0.2.0
+## Download Bluey 0.3.0
 
-Published preview: [v0.2.0-preview.3](https://github.com/jedijak14/Bluey/releases/tag/v0.2.0-preview.3).
+Published preview: [v0.3.0-preview.5](https://github.com/jedijak14/Bluey/releases/tag/v0.3.0-preview.5).
 
 | Platform              | Download                                                                                                                                           |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Android               | [Bluey-0.2.0-Android.apk](https://github.com/jedijak14/Bluey/releases/download/v0.2.0-preview.3/Bluey-0.2.0-Android.apk)                           |
-| Windows x64 installer | [Bluey-0.2.0-Windows-x64-Setup.exe](https://github.com/jedijak14/Bluey/releases/download/v0.2.0-preview.3/Bluey-0.2.0-Windows-x64-Setup.exe)       |
-| Windows x64 portable  | [Bluey-0.2.0-Windows-x64-Portable.exe](https://github.com/jedijak14/Bluey/releases/download/v0.2.0-preview.3/Bluey-0.2.0-Windows-x64-Portable.exe) |
+| Android               | [Bluey-0.3.0-Android.apk](https://github.com/jedijak14/Bluey/releases/download/v0.3.0-preview.5/Bluey-0.3.0-Android.apk)                           |
+| Windows x64 installer | [Bluey-0.3.0-Windows-x64-Setup.exe](https://github.com/jedijak14/Bluey/releases/download/v0.3.0-preview.5/Bluey-0.3.0-Windows-x64-Setup.exe)       |
+| Windows x64 portable  | [Bluey-0.3.0-Windows-x64-Portable.exe](https://github.com/jedijak14/Bluey/releases/download/v0.3.0-preview.5/Bluey-0.3.0-Windows-x64-Portable.exe) |
 
-[Checksums](https://github.com/jedijak14/Bluey/releases/download/v0.2.0-preview.3/SHA256SUMS.txt) · [Windows setup](docs/RELEASE_NOTES.md) · [Android setup](docs/ANDROID_RELEASE.md). Windows binaries are unsigned and still require the Python/model setup. Android is debug-signed; a different preview signing key can require uninstalling the previous APK (clears app data). **Bluey is silent by default.**
+[Checksums](https://github.com/jedijak14/Bluey/releases/download/v0.3.0-preview.5/SHA256SUMS.txt) · [Windows setup](docs/RELEASE_NOTES.md) · [Android setup](docs/ANDROID_RELEASE.md). Windows binaries are unsigned and still require the Python/model setup. Android is debug-signed; a different preview signing key can require uninstalling the previous APK (clears app data). **No spoken replies—text bubbles and a brief phone chirp. Update both apps and the Python engine.**
 
 ## 0.2.0 preview additions
 
