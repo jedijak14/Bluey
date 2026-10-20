@@ -209,7 +209,7 @@ try {
     nodes.map((node) => node.href),
   )) {
     expect(href).toContain(
-      "https://github.com/jedijak14/Bluey/releases/download/v0.5.0-preview.2/",
+      "https://github.com/jedijak14/Bluey/releases/download/v0.5.1-preview.1/",
     );
   }
   for (const width of [1440, 390]) {
