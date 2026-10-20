@@ -98,7 +98,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: bash -o pipefail -c "cd android && ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace 2>&1 | tee ../android-native-test.log"
+          script: bash -o pipefail -c "cd android && ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace 2>&1 | tee ../android-native-test.log"
       - name: Verify signed APK and create download files
         run: |
           mkdir -p release/android
