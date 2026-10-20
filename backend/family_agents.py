@@ -3,6 +3,7 @@ import json
 import secrets
 import time
 import uuid
+from typing import Literal
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from fastapi import Depends, HTTPException
@@ -15,6 +16,7 @@ class AgentReport(StrictModel):
     day: str = Field(pattern=r'^\d{4}-\d{2}-\d{2}$')
     time_service: StrictBool
     edge_rules: StrictBool
+    browser_rules: dict[Literal["edge", "chrome"], StrictBool] = Field(default_factory=dict)
     blocklist_version: str = Field(default='', max_length=40)
     error: str = Field(default='', max_length=160)
 

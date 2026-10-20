@@ -5,6 +5,7 @@ export type GuardianHealth = {
   policyVersion?: number;
   blocklistVersion?: string;
   verified?: boolean;
+  browserRules?: Partial<Record<"edge" | "chrome", boolean>>;
 };
 export function GuardianStatus() {
   const [health, setHealth] = useState<GuardianHealth>({ state: "checking" });
@@ -46,7 +47,14 @@ export function GuardianStatus() {
           {health.state === "admin_needed"
             ? "Ask your parent to install and enroll Windows Guardian using an administrator account. Installing this companion alone does not enable protection."
             : health.state === "reporting"
-              ? `Applied policy ${health.policyVersion}. Blocklist ${health.blocklistVersion}. Edge rules and session-time enforcement are reported, not independently verified.`
+              ? `Applied policy ${health.policyVersion}. Blocklist ${health.blocklistVersion}. ${Object.entries(
+                  health.browserRules ?? {},
+                )
+                  .filter(([, applied]) => applied)
+                  .map(([browser]) => (browser === "edge" ? "Edge" : "Chrome"))
+                  .join(
+                    " and ",
+                  )} policy writes and session-time enforcement are reported, not independently verified. Other browsers are not covered.`
               : "No verified protection status. Keep your existing parental controls enabled."}
         </p>
         {health.restriction && (

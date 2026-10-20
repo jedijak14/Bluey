@@ -192,13 +192,24 @@ try {
       name: "A little company. A space for everyone.",
     }),
   ).toBeVisible();
+  for (const name of [
+    "bluey-kids-logo.png",
+    "bluey-home-logo.png",
+    "bluey-logo.png",
+  ]) {
+    const logo = page.locator(`.product img[src="./${name}"]`);
+    await expect(logo).toBeVisible();
+    await expect
+      .poll(() => logo.evaluate((img) => img.complete && img.naturalWidth > 0))
+      .toBe(true);
+  }
   const downloads = page.locator('a[href$=".exe"], a[href$=".apk"]');
   await expect(downloads).toHaveCount(7);
   for (const href of await downloads.evaluateAll((nodes) =>
     nodes.map((node) => node.href),
   )) {
     expect(href).toContain(
-      "https://github.com/jedijak14/Bluey/releases/download/v0.5.0-preview.2/",
+      "https://github.com/jedijak14/Bluey/releases/download/v0.5.1-preview.1/",
     );
   }
   for (const width of [1440, 390]) {

@@ -148,7 +148,8 @@ function ChildRules({
           adult services are blocked by default. Your allowlist overrides
           matching blocks; each domain includes its subdomains. Allowing x.com
           does not also allow twitter.com. Unlisted websites are not certified
-          safe. Requires an updated, enrolled Guardian and managed Edge.
+          safe. Requires an updated, enrolled Guardian and managed Edge or
+          Chrome.
         </p>
         <details>
           <summary>
@@ -335,7 +336,7 @@ export function HomeApp() {
       <main className="bluey-home account-gate">
         <header className="home-header">
           <a className="home-brand" href="#">
-            <img src="./favicon.svg" alt="" />
+            <img src="./bluey-home-logo.png" alt="" />
             bluey<span>account</span>
           </a>
           <span className="home-connection">Private family access</span>
@@ -462,7 +463,7 @@ export function HomeApp() {
     <div className="bluey-home">
       <header className="home-header">
         <a className="home-brand" href="#home">
-          <img src="./favicon.svg" alt="" />
+          <img src="./bluey-home-logo.png" alt="" />
           bluey<span>home</span>
         </a>
         <span
@@ -538,8 +539,8 @@ export function HomeApp() {
               <p>
                 Rules require the separately installed experimental Windows
                 Guardian service. It can disconnect over-budget child sessions
-                and apply Edge rules. Neither all-browser protection nor Android
-                enforcement is verified.
+                and apply Edge/Chrome rules. Neither all-browser protection nor
+                Android enforcement is verified.
               </p>
             </div>
           </div>
@@ -703,8 +704,28 @@ export function HomeApp() {
                       <p>
                         Use a separate parent administrator and a standard child
                         account. This experimental service disconnects
-                        over-budget sessions and applies Edge rules; it is not
-                        all-browser or Android protection.
+                        over-budget sessions and applies Edge/Chrome rules; it
+                        is not all-browser or Android protection.
+                      </p>
+                      <p className="home-fine">
+                        {(["edge", "chrome"] as const).map((browser) => (
+                          <span key={browser} style={{ display: "block" }}>
+                            {browser === "edge"
+                              ? "Microsoft Edge"
+                              : "Google Chrome"}
+                            :{" "}
+                            {child.agent?.recent &&
+                            (child.agent.report?.browser_rules?.[browser] ??
+                              (browser === "edge"
+                                ? child.agent.report?.edge_rules
+                                : false)) === true
+                              ? "policy write reported — verify on the child PC"
+                              : "no current policy-write confirmation"}
+                          </span>
+                        ))}
+                        Other browsers: not covered. Older Guardian enrollments
+                        manage Edge only; parent recovery and re-enrollment are
+                        required to add Chrome.
                       </p>
                       <button
                         className="home-outline"
@@ -732,7 +753,7 @@ export function HomeApp() {
                       </p>
                       <a
                         className="home-text"
-                        href="https://github.com/jedijak14/Bluey/blob/arena/a5c27d6b-bluey/guardian/README.md"
+                        href="https://github.com/jedijak14/Bluey/blob/arena/e3f2fd55-bluey/guardian/README.md"
                         target="_blank"
                         rel="noreferrer"
                       >

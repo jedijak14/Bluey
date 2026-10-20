@@ -307,6 +307,7 @@ def create_app(path: str, gateway_token: str, invite: str, *, schema="bluey_fami
             db.execute('UPDATE requests SET status=? WHERE id=?',(status,identifier))
             if status=='approved': db.execute('INSERT INTO grants VALUES(?,?,?,?)',(identifier,row['child'],row['day'],row['minutes']))
             return {'status':status}
+    storage.harden()
     return app
 
 

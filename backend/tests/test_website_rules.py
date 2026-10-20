@@ -79,3 +79,33 @@ def test_standard_account_uses_real_pywin32_signature(monkeypatch):
     groups.append('Administrators')
     with pytest.raises(ValueError, match='must NOT be an administrator'):
         standard_local_user('Child')
+
+
+@pytest.mark.parametrize('browser', ['edge','chrome'])
+def test_browser_adapters_clear_revoked_exceptions_first(monkeypatch,browser):
+    from backend import guardian_windows as windows
+    writes=[]
+    monkeypatch.setattr(windows,'write_browser_list',lambda sid,values,kind,target:writes.append((target,kind,values)))
+    assert windows.browser_rules('child', {'allowed_domains':['safe.x.com']}, browser)
+    assert writes[0] == (browser,'URLAllowlist',[])
+    assert writes[1][0:2] == (browser,'URLBlocklist') and 'x.com' in writes[1][2]
+    assert writes[2] == (browser,'URLAllowlist',['safe.x.com'])
+    assert 'Google\\Chrome' in windows.browser_path('child','chrome')
+
+
+def test_legacy_enrollment_does_not_take_over_unrelated_chrome_policy():
+    from backend.guardian_windows import managed_browsers,browser_path
+    assert managed_browsers({}) == ['edge']
+    assert managed_browsers({'browsers':['edge','chrome']}) == ['edge','chrome']
+    for values in [[],['unknown'],['edge','edge'],[{}],'chrome']:
+        with pytest.raises(ValueError): managed_browsers({'browsers':values})
+    with pytest.raises(ValueError): browser_path('child','unknown')
+
+
+def test_one_browser_failure_does_not_hide_other_results(monkeypatch):
+    from backend import guardian_windows as windows
+    def write(sid,policy,browser):
+        if browser=='chrome': raise OSError('denied')
+        return True
+    monkeypatch.setattr(windows,'browser_rules',write)
+    assert windows.apply_browser_rules('child',{},['edge','chrome']) == {'edge':True,'chrome':False}

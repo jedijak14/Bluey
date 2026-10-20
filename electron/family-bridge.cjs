@@ -44,9 +44,19 @@ function guardianStatus(record, currentSid, now = Date.now() / 1000) {
     record.updated_at > now + 5
   )
     return { state: "unavailable" };
+  const browserRules =
+    record.browser_rules && typeof record.browser_rules === "object"
+      ? Object.fromEntries(
+          ["edge", "chrome"]
+            .filter((name) => Object.hasOwn(record.browser_rules, name))
+            .map((name) => [name, record.browser_rules[name] === true]),
+        )
+      : { edge: record.edge_rules === true };
   return {
     state:
-      record.edge_rules === true && Number.isInteger(record.applied_version)
+      Object.keys(browserRules).length > 0 &&
+      Object.values(browserRules).every(Boolean) &&
+      Number.isInteger(record.applied_version)
         ? "reporting"
         : "attention",
     restriction:
@@ -55,6 +65,7 @@ function guardianStatus(record, currentSid, now = Date.now() / 1000) {
         : "",
     policyVersion: record.applied_version,
     blocklistVersion: record.blocklist_version,
+    browserRules,
     verified: false,
   };
 }

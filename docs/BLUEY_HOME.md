@@ -19,7 +19,7 @@ Home is an Android parent app **and** web dashboard (sign in at `/#account` befo
 
 ## Not implemented
 
-A signed Kids Windows installer, tamper-resistant Winlogon lock, all-browser/DNS filtering, unsafe-site classification, trusted usage insights, MFA/account recovery, and background push remain unimplemented. The new **experimental** administrator-installed Guardian service can disconnect the enrolled standard child's session and apply Edge rules, with cached budgets and local administrator recovery. It has not been physically validated here; profiles remain **Not protected** rather than inferring verified protection from an agent's own report. The fullscreen time-up UI remains a dismissible preview, separate from session disconnection. No browser event collector currently sends Edge blocks to the safety inbox.
+A signed Kids Windows installer, tamper-resistant Winlogon lock, all-browser/DNS filtering, unsafe-site classification, trusted usage insights, MFA/account recovery, and background push remain unimplemented. The new **experimental** administrator-installed Guardian service can disconnect the enrolled standard child's session and apply Edge and Chrome rules, with cached budgets and local administrator recovery. It has not been physically validated here; profiles remain **Not protected** rather than inferring verified protection from an agent's own report. The fullscreen time-up UI remains a dismissible preview, separate from session disconnection. No browser event collector currently sends browser blocks to the safety inbox.
 
 See [persistent backend setup](../deploy/family/README.md) and [Windows setup/recovery](../guardian/README.md).
 
@@ -54,8 +54,8 @@ Java 21 + Android SDK 35:
 
 ```sh
 npm ci
-npm run android:home  # release/family/Bluey-Home-0.5.0-Android.apk
-npm run android:kids  # release/family/Bluey-Kids-0.5.0-Android.apk
+npm run android:home  # release/family/Bluey-Home-0.5.1-Android.apk
+npm run android:kids  # release/family/Bluey-Kids-0.5.1-Android.apk
 npm run android:apk   # original companion, separate app ID
 ```
 
@@ -72,3 +72,5 @@ Use **Settings → Voice → microphone selection** for the Windows microphone (
 In **Settings → Privacy**, an updated authenticated Windows engine exposes independent **Computer Use** and **Screen access** controls. Computer Use off denies desktop actions even if a phone/model requests them. Screen access defaults off and denies screen reads, screenshots and live frames. Permission changes stop current work and revoke pending approvals. An OS action already delivered cannot be undone.
 
 Enabling Screen access does not start capture. **Choose a screen to share** opens a consent picker. Live sharing sends bounded JPEG frames roughly every three seconds; a frame is eligible as question context for ten seconds. A visible banner stops sharing. Frames are kept in process memory, not written as a video or file by Bluey. They accompany questions sent to the configured model, possibly a cloud provider with its own retention rules. A vision-capable engine model is needed; the exact Gemma 1B BASE preview remains text-only. Stopping/revoking sharing cancels ongoing model requests best-effort; it cannot retract data already sent to a provider. Desktop privacy permissions are separate from family policy and cannot be changed through Home/Kids credentials.
+
+New Windows enrollments manage both Edge and Chrome. Existing Edge-only configurations require parent recovery and re-enrollment; see `guardian/README.md`. The Supabase Free setup guide is `docs/VERCEL_FAMILY.md`. No database or paid plan is provisioned automatically.

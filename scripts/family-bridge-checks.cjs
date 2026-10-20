@@ -40,3 +40,42 @@ test("status requires fresh report bound to current Windows user and never attes
   assert.equal(guardianStatus(record, "child", 101).state, "reporting");
   assert.equal(guardianStatus(record, "child", 101).verified, false);
 });
+test("browser-specific status exposes partial failure and legacy Edge-only coverage", () => {
+  const record = {
+    child_sid: "child",
+    updated_at: 100,
+    edge_rules: true,
+    applied_version: 1,
+  };
+  assert.deepEqual(guardianStatus(record, "child", 101).browserRules, {
+    edge: true,
+  });
+  assert.equal(
+    guardianStatus(
+      { ...record, browser_rules: { edge: true, chrome: false } },
+      "child",
+      101,
+    ).state,
+    "attention",
+  );
+  assert.equal(
+    guardianStatus(
+      { ...record, browser_rules: { edge: true, chrome: true } },
+      "child",
+      101,
+    ).state,
+    "reporting",
+  );
+  assert.equal(
+    guardianStatus({ ...record, browser_rules: {} }, "child", 101).state,
+    "attention",
+  );
+  assert.equal(
+    guardianStatus(
+      { ...record, browser_rules: { chrome: "true" } },
+      "child",
+      101,
+    ).state,
+    "attention",
+  );
+});

@@ -135,3 +135,13 @@ def test_policy_rollback_rejected_and_timezone_edit_keeps_usage():
 def test_chunked_request_limit_cannot_be_bypassed(api):
     response=api.post('/api/family/auth/login',content=iter([b'{"username":"',b'a'*21000,b'"}']),headers={'Content-Type':'application/json'})
     assert response.status_code==413
+
+
+def test_agent_browser_report_is_strict_and_legacy_compatible():
+    from backend.family_agents import AgentReport
+    from pydantic import ValidationError
+    report = dict(policy_version=1, used_seconds=0, day='2026-10-20', time_service=True, edge_rules=True)
+    assert AgentReport(**report).browser_rules == {}
+    assert AgentReport(**report,browser_rules={'edge':True,'chrome':False}).browser_rules == {'edge':True,'chrome':False}
+    for invalid in [{'chrome':'true'},{'firefox':True}]:
+        with pytest.raises(ValidationError): AgentReport(**report,browser_rules=invalid)
