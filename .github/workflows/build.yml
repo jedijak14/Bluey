@@ -277,7 +277,7 @@ jobs:
           python-version: "3.11"
       - name: Real Windows Guardian service and permission checks
         run: |
-          python -m pip install -r guardian/requirements.txt
+          python -m pip install -r guardian/requirements.txt playwright==1.64.0
           python scripts/guardian-windows-check.py
           python scripts/guardian-browser-check.py
   windows-installer:

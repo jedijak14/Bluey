@@ -6,7 +6,6 @@ This is NOT an interactive child-login or bypass-resistance certification.
 """
 import os
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 import threading
@@ -25,6 +24,7 @@ import win32api
 import win32con
 import win32security
 import winreg
+from playwright.sync_api import sync_playwright, Error as BrowserError
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from backend.guardian_windows import BROWSER_KEYS, browser_path, browser_rules
 
@@ -69,16 +69,23 @@ try:
         browser_rules(sid, policy, browser)
         def navigate(host, allowed):
             with tempfile.TemporaryDirectory(prefix=f'bluey-{browser}-') as profile:
-                result = subprocess.run([str(binary), '--headless=new', '--disable-gpu', '--no-first-run',
-                    '--no-default-browser-check', '--disable-background-networking', '--proxy-server=direct://',
-                    '--host-resolver-rules=MAP *.bluey.test 127.0.0.1', f'--user-data-dir={profile}',
-                    '--dump-dom', f'http://{host}:{port}/'], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=45)
-                assert result.returncode == 0, f'{browser}: {result.stderr[-1500:]}'
-                if allowed:
-                    assert 'BLUEY_ALLOWED_FIXTURE' in result.stdout, f'{browser}: allowlist did not load fixture'
-                else:
-                    assert 'BLUEY_ALLOWED_FIXTURE' not in result.stdout
-                    assert 'ERR_BLOCKED_BY_ADMINISTRATOR' in result.stdout, f'{browser}: expected managed block, not DNS/network failure: {result.stdout[-1500:]}'
+                with sync_playwright() as playwright:
+                    context = playwright.chromium.launch_persistent_context(profile, executable_path=str(binary),
+                        headless=True, args=['--no-first-run', '--no-default-browser-check',
+                            '--disable-background-networking', '--proxy-server=direct://',
+                            '--host-resolver-rules=MAP *.bluey.test 127.0.0.1'])
+                    try:
+                        page = context.new_page()
+                        try:
+                            page.goto(f'http://{host}:{port}/', wait_until='domcontentloaded', timeout=20000)
+                        except BrowserError as error:
+                            assert not allowed, f'{browser}: allowed fixture failed: {error}'
+                            assert 'ERR_BLOCKED_BY_ADMINISTRATOR' in str(error), f'{browser}: not a policy block: {error}'
+                        else:
+                            assert allowed, f'{browser}: blocked URL loaded: {page.url}'
+                            assert 'BLUEY_ALLOWED_FIXTURE' in page.content(), f'{browser}: missing local fixture'
+                    finally:
+                        context.close()
         navigate('denied.bluey.test', False)
         navigate('allowed.bluey.test', True)
         browser_rules(sid, {**policy, 'allowed_domains': []}, browser)
