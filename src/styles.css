@@ -2974,3 +2974,18 @@ label > input::placeholder {
     border-radius: 8px;
   }
 }
+
+.phone-device-voice {
+  border: 1px solid #81709344;
+  border-radius: 10px;
+  padding: 12px;
+  margin: 12px 0;
+}
+.phone-device-voice p {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.phone-options {
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}

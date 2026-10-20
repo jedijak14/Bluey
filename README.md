@@ -96,7 +96,7 @@ The desktop token is printed **once** in the private backend startup console. In
 
 ### Voice setup
 
-Download voice models separately to locations outside this repository. This project does not fetch models automatically.
+These model instructions apply to desktop/browser voice; Android 0.1.2 does not need these models for device input/output. Download voice models separately to locations outside this repository. This project does not fetch models automatically.
 
 ```powershell
 $env:BLUEY_WHISPER_MODEL = "C:\BlueyModels\faster-whisper-small"
@@ -107,9 +107,9 @@ npm run desktop
 
 The Whisper path must be an already-downloaded CTranslate2/faster-whisper model directory. The Piper path must point to a valid voice `.onnx` plus its configuration file. Respect model licenses.
 
-Desktop mic: click to start, click again to stop; review the resulting transcript before sending. Android: double tap to wake, hold to record, release to send the transcription. Maximum recording length is 60 seconds. Turn on **Read responses aloud** for desktop audio. Phone voice requests opt into Piper output.
+Desktop mic: click to start, click again to stop; review the resulting transcript before sending. Turn on **Read responses aloud** for desktop audio. Android 0.1.2 uses device speech recognition after explicit opt-in: double tap to wake, hold to speak, release to send recognized text. **Bluey is silent by default**; optional Android spoken replies use the device TTS engine, not Piper. See [Android device speech and privacy](docs/ANDROID_RELEASE.md).
 
-First model load and CPU transcription/synthesis are **not zero-latency**. Whisper runs CPU/int8 in this implementation. Recordings are uploaded to the paired PC, temporary WAVs are deleted after transcription, and generated speech is sent as complete sentence-sized WAV chunks, not low-level streaming PCM.
+First model load and CPU transcription/synthesis are **not zero-latency**. Whisper runs CPU/int8 in this implementation. For desktop/browser voice (not Android device speech), recordings are uploaded to the paired PC, temporary WAVs are deleted after transcription, and generated speech is sent as complete sentence-sized WAV chunks, not low-level streaming PCM.
 
 ### Desktop controls
 
