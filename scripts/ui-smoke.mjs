@@ -104,9 +104,7 @@ await expect(
   page.getByRole("heading", { name: "A little closer, on every screen." }),
 ).toBeVisible();
 await page.screenshot({ path: "artifacts/devices.png" });
-await page
-  .getByRole("button", { name: "Preview the Android companion" })
-  .click();
+await page.getByRole("button", { name: "Pair this device" }).click();
 await expect(
   page.getByRole("heading", { name: "Wake me up from your Windows PC." }),
 ).toBeVisible();

@@ -15,7 +15,8 @@
     "android:apk": "npm run android:sync && node scripts/build-android.mjs",
     "test": "vitest run",
     "test:ui": "node scripts/ui-smoke.mjs",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"electron/*.cjs\""
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"electron/*.cjs\"",
+    "test:pairing": "node scripts/pairing-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",

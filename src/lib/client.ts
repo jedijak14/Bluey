@@ -56,7 +56,12 @@ export class BlueyClient {
       throw new Error("Connect to your Windows backend first.");
     this.socket.send(JSON.stringify(packet));
   }
-  async request<T>(path: string, body?: unknown, method?: string): Promise<T> {
+  async request<T>(
+    path: string,
+    body?: unknown,
+    method?: string,
+    signal?: AbortSignal,
+  ): Promise<T> {
     const response = await fetch(`${this.endpoint}${path}`, {
       method: method ?? (body === undefined ? "GET" : "POST"),
       headers: {
@@ -64,7 +69,10 @@ export class BlueyClient {
         "Content-Type": "application/json",
       },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(30000),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(30000)])
+        : AbortSignal.timeout(30000),
+      cache: "no-store",
     });
     if (!response.ok) {
       const error = await response
@@ -76,7 +84,13 @@ export class BlueyClient {
           : "The backend rejected this request.",
       );
     }
-    return response.json();
+    try {
+      return await response.json();
+    } catch {
+      throw new Error(
+        "The address did not return a Bluey engine response. Check the backend address; the hosted website is not the engine.",
+      );
+    }
   }
   disconnect() {
     this.stopped = true;

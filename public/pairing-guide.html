@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Bluey · Pairing guide</title>
+    <style>
+      body {
+        margin: 0;
+        background: #19191f;
+        color: #ece9f5;
+        font:
+          16px/1.75 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 780px;
+        margin: auto;
+        padding: 48px 24px;
+      }
+      a {
+        color: #c7b6ff;
+      }
+      h1 {
+        font-size: 36px;
+        line-height: 1.2;
+      }
+      h2 {
+        margin-top: 36px;
+      }
+      p,
+      li {
+        color: #c3bdcf;
+      }
+      code,
+      pre {
+        background: #292632;
+        border-radius: 6px;
+        padding: 3px 6px;
+      }
+      pre {
+        padding: 18px;
+        overflow: auto;
+        font-size: 13px;
+      }
+      .note {
+        padding: 18px;
+        border: 1px solid #706185;
+        border-radius: 12px;
+      }
+      strong {
+        color: #ece9f5;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a href="/">← Bluey workspace</a>
+      <h1>One PC. A little company everywhere.</h1>
+      <p>
+        Pairing connects a device directly to your Windows engine. Vercel serves
+        the interface; it does not run your PC, generate valid codes, or relay
+        your requests.
+      </p>
+      <h2>Which button do I use?</h2>
+      <ul>
+        <li>
+          <strong>Enter pairing code / Pair this device:</strong> enter the PC
+          endpoint and six-digit code. This browser becomes a companion, with no
+          desktop administration privileges.
+        </li>
+        <li>
+          <strong>Connected devices → Pair my Android:</strong> connect as the
+          desktop administrator in Settings, then generate a code for another
+          device. Never enter your desktop token in the pairing-code field.
+        </li>
+      </ul>
+      <h2>Android APK: ordinary private Wi-Fi</h2>
+      <ol>
+        <li>
+          Configure the Windows app’s Python engine. Enable
+          <code>BLUEY_LAN=1</code> before launching the Windows app, or run
+          <code>python -m backend.server --lan</code> from the source checkout.
+        </li>
+        <li>
+          Keep both devices on the same trusted private network. Allow Python’s
+          TCP port 8765 in Windows Firewall for private networks only.
+        </li>
+        <li>
+          Generate a code in the Windows workspace’s Connected devices screen.
+        </li>
+        <li>
+          In the Android APK, enter the PC’s Wi-Fi address (for example
+          <code>192.168.1.10:8765</code>) and the code. Do not enter localhost
+          or the Vercel website address.
+        </li>
+      </ol>
+      <p>
+        <a
+          href="https://github.com/jedijak14/Bluey/releases/download/v0.1.1-android-preview.1/Bluey-0.1.1-Android.apk"
+          >Download the published Android preview APK</a
+        >. The APK is debug-signed and needs the Windows engine; it is not a
+        standalone AI service.
+      </p>
+      <h2>Vercel website: a secure route to your PC</h2>
+      <p class="note">
+        An HTTPS website cannot reliably call an ordinary HTTP LAN engine. You
+        need a trusted HTTPS/WSS endpoint reachable from this device over your
+        private network or VPN. A six-digit code alone cannot locate or connect
+        to a PC.
+      </p>
+      <ol>
+        <li>
+          Configure a private HTTPS reverse proxy to the running Windows engine
+          at <code>http://127.0.0.1:8765</code>. It must forward
+          <code>/api/*</code> and WebSocket upgrades for <code>/api/ws</code>.
+          Use a certificate trusted by each device and matching the endpoint’s
+          hostname. Keep the endpoint restricted to your private network or VPN;
+          do not use a public tunnel or port-forward the engine.
+        </li>
+        <li>
+          Before starting the Windows engine/app, explicitly allow the exact
+          website origin. For this deployment, in PowerShell:
+          <pre>
+$env:BLUEY_LAN = "1"
+$env:BLUEY_ALLOWED_ORIGINS = "https://bluey-plum.vercel.app"
+# Now launch Bluey from this same environment.</pre>
+          For local source development add the exact Vite preview origin as a
+          comma-separated value. Do not use a wildcard. The backend does not
+          read .env files automatically.
+        </li>
+        <li>
+          To <strong>generate</strong> a code on the website: open Settings,
+          enter the secure PC endpoint and desktop token from the engine startup
+          log, then Save &amp; connect. Only enter that token into a website you
+          trust. It grants desktop-level engine access and stays in memory.
+        </li>
+        <li>
+          To <strong>redeem</strong> a code: choose Enter pairing code, enter
+          the same secure endpoint and a fresh code from Windows, then Pair with
+          Windows. Browser/private-network permission prompts must be allowed
+          for this trusted PC.
+        </li>
+      </ol>
+      <p>
+        If you do not already have private HTTPS configured, use the Windows app
+        and Android APK rather than weakening browser security. A self-signed
+        certificate is not sufficient unless it has been properly trusted on
+        every device. The website does not provision certificates, a VPN, or a
+        cloud relay.
+      </p>
+      <h2>Live codes and device status</h2>
+      <p>
+        Each code lasts two minutes and works once. While Connected devices is
+        open and connected, the countdown updates every second and the
+        paired-device list refreshes every two seconds. An unused expired code
+        is replaced automatically. Refresh stops after a device pairs, when you
+        leave the page, or if an error occurs. Generate a new code to retry.
+        Keep only one code-generation screen active per PC to avoid replacing
+        another screen’s code.
+      </p>
+      <p>
+        “Paired” means authorized for this engine session, not necessarily
+        currently online. The companion shows the live WebSocket connection
+        status separately. Restarting the backend invalidates its codes and
+        device credentials; restarting the companion requires pairing again.
+      </p>
+      <h2>If it still fails</h2>
+      <ul>
+        <li>
+          <strong>Invalid or expired code:</strong> get the latest code from the
+          same engine endpoint. Used codes cannot be redeemed again.
+        </li>
+        <li>
+          <strong>Too many attempts:</strong> wait a minute before trying again.
+        </li>
+        <li>
+          <strong>Cannot reach PC:</strong> check endpoint, private network/VPN,
+          certificate, firewall, and exact allowed origin. Never disable browser
+          security or make the engine publicly accessible.
+        </li>
+        <li>
+          <strong>Connected, but no AI reply:</strong> configure your local
+          model. Voice additionally needs Whisper and Piper models on Windows;
+          pairing does not install them.
+        </li>
+      </ul>
+      <p><a href="/#phone">Enter a pairing code →</a></p>
+    </main>
+  </body>
+</html>

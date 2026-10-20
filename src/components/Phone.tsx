@@ -16,7 +16,11 @@ import {
 import { Avatar, FaceScreen } from "./FloatingWidget/Avatar";
 import { BlueyClient } from "../lib/client";
 import { Microphone } from "../lib/audio";
-import { pairingEndpoint } from "../lib/pairing";
+import {
+  pairingEndpoint,
+  assertPairingTransport,
+  pairingNetworkError,
+} from "../lib/pairing";
 import { load, save, uid } from "../lib/storage";
 import type { FaceState, Mood } from "../lib/types";
 
@@ -155,7 +159,11 @@ export function Phone() {
     phone.onStatus = (s) => {
       connectedRef.current = s === "connected";
       setConnected(s === "connected");
+      if (s === "connected") setError("");
       if (s === "offline") {
+        setError(
+          "The live connection to Windows is unavailable. Retrying automatically. Check your PC and network; HTTPS proxies must forward WebSocket connections too.",
+        );
         stopAudio();
         markBusy(false);
       }
@@ -229,18 +237,29 @@ export function Phone() {
       timer = setTimeout(() => controller.abort(), 12000);
     try {
       const endpoint = pairingEndpoint(address);
-      if (
-        Capacitor.isNativePlatform() &&
-        ["localhost", "127.0.0.1", "[::1]"].includes(new URL(endpoint).hostname)
-      )
-        throw new Error("Use your PC’s Wi-Fi IP address, not localhost.");
+      assertPairingTransport(
+        endpoint,
+        location.protocol,
+        Capacitor.isNativePlatform(),
+      );
+      if (!/^\d{6}$/.test(code))
+        throw new Error("Enter the six-digit code shown on your Windows PC.");
       const r = await fetch(`${endpoint}/api/pair`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, name: "Android companion" }),
+        body: JSON.stringify({
+          code,
+          name: Capacitor.isNativePlatform()
+            ? "Android companion"
+            : "Browser companion",
+        }),
         signal: controller.signal,
       });
-      const data = await r.json();
+      const data = await r.json().catch(() => {
+        throw new Error(
+          "This address is not a Bluey pairing endpoint. Enter your PC’s engine address, not the Vercel website address.",
+        );
+      });
       if (!r.ok)
         throw new Error(
           typeof data.detail === "string"
@@ -249,6 +268,7 @@ export function Phone() {
         );
       if (typeof data.token !== "string" || !data.token)
         throw new Error("The PC returned an invalid pairing response.");
+      if (!alive.current) return;
       save("bluey.phone.address", endpoint);
       phone.connect(endpoint, data.token);
       setPaired(true);
@@ -257,7 +277,7 @@ export function Phone() {
     } catch (e) {
       setError(
         e instanceof TypeError || controller.signal.aborted
-          ? "Could not reach your PC. Check the Wi-Fi IP, LAN mode, and Windows Firewall (private network, port 8765)."
+          ? pairingNetworkError(location.protocol, Capacitor.isNativePlatform())
           : e instanceof Error
             ? e.message
             : String(e),
@@ -347,7 +367,7 @@ export function Phone() {
             }}
           >
             <ArrowLeft size={17} />
-            Workspace preview
+            Back to workspace
           </button>
         )}
         <div className="phone-pair-inner">
@@ -361,6 +381,21 @@ export function Phone() {
               Open Bluey on Windows. Keep us on the same Wi-Fi, then enter the
               pairing code from Connected devices.
             </p>
+            {!Capacitor.isNativePlatform() &&
+              location.protocol === "https:" && (
+                <p className="connection-guidance">
+                  This hosted page needs your PC’s trusted HTTPS/WSS address and
+                  permission for this website’s origin. For ordinary Wi-Fi IP
+                  pairing, use the Android APK.{" "}
+                  <a
+                    href="/pairing-guide.html"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Connection guide
+                  </a>
+                </p>
+              )}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -370,7 +405,12 @@ export function Phone() {
               <label>
                 PC address
                 <input
-                  placeholder="192.168.1.10:8765"
+                  placeholder={
+                    location.protocol === "https:" &&
+                    !Capacitor.isNativePlatform()
+                      ? "https://your-pc.private-network"
+                      : "192.168.1.10:8765"
+                  }
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   required
@@ -383,6 +423,7 @@ export function Phone() {
                 Pairing code
                 <input
                   placeholder="000000"
+                  autoComplete="one-time-code"
                   inputMode="numeric"
                   pattern="[0-9]{6}"
                   maxLength={6}
@@ -397,6 +438,11 @@ export function Phone() {
                 <ArrowRight size={16} />
               </button>
             </form>
+            <p role="status">
+              {pairing
+                ? "Checking your code with Windows…"
+                : "Enter a fresh code from Windows → Connected devices. Codes last two minutes and work once."}
+            </p>
             {error && (
               <p className="error-text" role="alert">
                 {error}

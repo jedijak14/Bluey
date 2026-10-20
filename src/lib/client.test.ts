@@ -70,3 +70,42 @@ describe("local engine client", () => {
     expect(() => save("x", { test: true })).not.toThrow();
   });
 });
+
+it("explains a frontend HTML response instead of showing a JSON parse error", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(new Response("<!doctype html>", { status: 200 })),
+  );
+  await expect(new BlueyClient().request("/api/devices")).rejects.toThrow(
+    "not the engine",
+  );
+});
+it("preserves actionable engine errors", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: "Enable LAN mode first." }), {
+        status: 409,
+      }),
+    ),
+  );
+  await expect(
+    new BlueyClient().request("/api/pair/create", {}),
+  ).rejects.toThrow("Enable LAN mode first.");
+});
+it("polls without caching and propagates cancellation", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response("[]"));
+  vi.stubGlobal("fetch", fetchMock);
+  const controller = new AbortController();
+  await new BlueyClient().request(
+    "/api/devices",
+    undefined,
+    undefined,
+    controller.signal,
+  );
+  const options = fetchMock.mock.calls[0][1];
+  expect(options.cache).toBe("no-store");
+  expect(options.signal.aborted).toBe(false);
+  controller.abort();
+  expect(options.signal.aborted).toBe(true);
+});
