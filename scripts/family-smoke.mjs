@@ -181,6 +181,7 @@ try {
     };
   });
   await page.goto(base + "/#kids");
+  await page.reload();
   await expect(
     page.getByText("Admin Permissions is needed", { exact: true }),
   ).toBeVisible();
