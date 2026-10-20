@@ -28,8 +28,14 @@ import winreg
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from backend.guardian_windows import BROWSER_KEYS, browser_path, browser_rules
 
-with win32security.OpenProcessToken(win32api.GetCurrentProcess(), win32con.TOKEN_QUERY) as token:
+token = win32security.OpenProcessToken(win32api.GetCurrentProcess(), win32con.TOKEN_QUERY | win32con.TOKEN_ADJUST_PRIVILEGES)
+try:
     sid = win32security.ConvertSidToStringSid(win32security.GetTokenInformation(token, win32security.TokenUser)[0])
+    # The adapter sets SYSTEM as owner; a disposable administrator test process
+    # needs SeRestorePrivilege. The actual Guardian runs as LocalSystem.
+    win32security.AdjustTokenPrivileges(token, False, [(win32security.LookupPrivilegeValue(None, 'SeRestorePrivilege'), win32con.SE_PRIVILEGE_ENABLED)])
+finally:
+    token.Close()
 # Refuse pre-existing management rather than snapshot/overwrite another policy.
 for browser in BROWSER_KEYS:
     for kind in ('URLBlocklist', 'URLAllowlist'):
