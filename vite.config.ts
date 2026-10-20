@@ -4,6 +4,8 @@ import tailwindcss from "@tailwindcss/vite";
 // Shared server-only adapter: never imported into browser bundles.
 // @ts-expect-error JavaScript server module intentionally has no client declaration.
 import { gemmaProxy } from "./server/gemmaProxy.mjs";
+// @ts-expect-error Server-only JavaScript adapter.
+import { familyProxy } from "./server/familyProxy.mjs";
 export default defineConfig(({ mode }) => {
   const env = {
     ...loadEnv(mode, process.cwd(), ""),
@@ -16,6 +18,8 @@ export default defineConfig(({ mode }) => {
     server.middlewares.use((req, res, next) => {
       if (req.url?.split("?")[0].startsWith("/api/gemma/"))
         void gemmaProxy(req, res, env);
+      else if (req.url?.split("?")[0].startsWith("/api/family/"))
+        void familyProxy(req, res, env);
       else next();
     });
   };
@@ -34,7 +38,10 @@ export default defineConfig(({ mode }) => {
       host: "0.0.0.0",
       allowedHosts: [".e2b.app", "localhost"],
       proxy: {
-        "^/api/(?!gemma/)": { target: "http://127.0.0.1:8765", ws: true },
+        "^/api/(?!gemma/|family/)": {
+          target: "http://127.0.0.1:8765",
+          ws: true,
+        },
       },
     },
     build: { chunkSizeWarningLimit: 1000 },

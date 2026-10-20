@@ -9,6 +9,7 @@ export class SessionRecorder {
   constructor(
     private native: boolean,
     private transcribe: (wav: string) => Promise<string>,
+    private microphoneId: () => string | undefined = () => undefined,
   ) {}
   async start() {
     const generation = ++this.generation;
@@ -19,7 +20,7 @@ export class SessionRecorder {
         throw new Error("Session cancelled.");
       }
       this.id = id;
-    } else await this.mic.start(() => {});
+    } else await this.mic.start(() => {}, this.microphoneId());
     this.started = Date.now();
   }
   async ready() {

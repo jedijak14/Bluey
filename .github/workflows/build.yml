@@ -49,6 +49,7 @@ jobs:
           npm run test:features
           npm run test:gemma
           npm run test:mobile-site
+          npm run test:family
       - name: Gemma UI and device gate in production build
         run: |
           set -euo pipefail
@@ -59,6 +60,7 @@ jobs:
           npx wait-on --timeout 30000 http://127.0.0.1:5174
           BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:gemma
           BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:mobile-site
+          BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:family
           BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:device-speech
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -124,10 +126,10 @@ jobs:
       - name: Verify signed APK and create download files
         run: |
           mkdir -p release/android
-          cp android/app/build/outputs/apk/debug/app-debug.apk release/android/Bluey-0.3.0-Android.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs release/android/Bluey-0.3.0-Android.apk | tee release/android/APK-verification.txt
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging release/android/Bluey-0.3.0-Android.apk > release/android/APK-manifest.txt
-          (cd release/android && sha256sum Bluey-0.3.0-Android.apk > SHA256SUMS.txt)
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/android/Bluey-0.4.0-Android.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs release/android/Bluey-0.4.0-Android.apk | tee release/android/APK-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging release/android/Bluey-0.4.0-Android.apk > release/android/APK-manifest.txt
+          (cd release/android && sha256sum Bluey-0.4.0-Android.apk > SHA256SUMS.txt)
           cp docs/ANDROID_RELEASE.md release/android/Android-Setup-Instructions.md
       - uses: actions/upload-artifact@v4
         with:
@@ -149,6 +151,79 @@ jobs:
             android-*.log
             native-smoke-server.log
           if-no-files-found: ignore
+  family-apks:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [home, kids]
+    env:
+      BLUEY_VARIANT: ${{ matrix.variant }}
+      VITE_BLUEY_VARIANT: ${{ matrix.variant }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Prepare SDK
+        run: |
+          set -euo pipefail
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          (set +o pipefail; yes | "$sdkmanager" --licenses >/dev/null)
+          "$sdkmanager" --install "platforms;android-35" "build-tools;35.0.0"
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm run android:sync
+      - name: Compile family app and tests
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --no-daemon --stacktrace
+      - name: Enable emulator access
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Test family package and encrypted Kids vault
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: cd android && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.bluey.companion.FamilyAppSmokeTest --no-daemon --stacktrace
+      - name: Verify separate package and create download
+        run: |
+          mkdir -p release/family
+          label=Home
+          if [ "$BLUEY_VARIANT" = kids ]; then label=Kids; fi
+          apk="release/family/Bluey-$label-0.4.0-Android.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | grep "package: name='app.bluey.$BLUEY_VARIANT'"
+          if "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$apk" | grep -q RECORD_AUDIO; then exit 1; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bluey-family-${{ matrix.variant }}
+          path: release/family/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: family-${{ matrix.variant }}-reports
+          path: |
+            android/app/build/reports/
+            android/app/build/outputs/androidTest-results/
   windows-installer:
     if: "github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[release-android]')"
     timeout-minutes: 25
@@ -189,8 +264,8 @@ jobs:
             release/Windows-Setup-Instructions.md
           if-no-files-found: error
   publish-preview:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/eb8659fe-bluey' && contains(github.event.head_commit.message, '[release-preview]')
-    needs: [android-apk, windows-installer]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/e8d2ea05-bluey' && contains(github.event.head_commit.message, '[release-preview]')
+    needs: [android-apk, family-apks, windows-installer]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -204,6 +279,11 @@ jobs:
         with:
           name: Bluey-Android-APK
           path: release/android
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Bluey-family-*
+          path: release/family
+          merge-multiple: true
       - name: Publish verified PC and Android previews together
         env:
           GH_TOKEN: ${{ github.token }}
@@ -222,13 +302,15 @@ jobs:
           mkdir -p release/combined
           cp release/windows/*.exe release/windows/*Instructions.md release/combined/
           cp release/android/*.apk release/android/*Instructions.md release/android/APK-*.txt release/combined/
+          cp release/family/*.apk release/combined/
+          cp docs/BLUEY_HOME.md release/combined/Family-Setup-Instructions.md
           (cd release/combined && sha256sum *.exe *.apk > SHA256SUMS.txt)
-          tag="v0.3.0-preview.5"
+          tag="v0.4.0-preview.1"
           if gh release view "$tag" >/dev/null 2>&1; then
             test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA"
             gh release upload "$tag" release/combined/* --clobber
           else
             gh release create "$tag" release/combined/* \
-              --target "$GITHUB_SHA" --title "Bluey 0.3.0 — Quiet sessions & meeting drafts" \
-              --prerelease --notes-file docs/RELEASE_0.3.0.md
+              --target "$GITHUB_SHA" --title "Bluey 0.4.0 — Privacy & family foundation (not enforcement)" \
+              --prerelease --notes-file docs/RELEASE_0.4.0.md
           fi

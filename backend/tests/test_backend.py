@@ -22,6 +22,9 @@ def api(monkeypatch):
     monkeypatch.setattr(server, "workspace", Workspace())
     monkeypatch.setattr(server, "engine_lock", asyncio.Lock())
     monkeypatch.setattr(server, "LAN", True)
+    # These existing approval tests explicitly opt into screen reads.
+    from backend.privacy import PrivacySettings
+    server.privacy.update(PrivacySettings(screen_access=True))
     return TestClient(server.app)
 
 

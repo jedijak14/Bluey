@@ -1,0 +1,5 @@
+# Standalone control plane; no desktop automation/model dependencies.
+fastapi>=0.115,<1
+uvicorn[standard]>=0.34,<1
+pydantic>=2.10,<3
+tzdata>=2025.1

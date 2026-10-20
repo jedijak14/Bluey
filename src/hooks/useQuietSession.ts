@@ -12,6 +12,7 @@ export function useQuietSession(
   client: BlueyClient,
   native: boolean,
   connected: boolean,
+  microphoneId?: string,
 ) {
   const [view, setView] = useState({
     active: false,
@@ -34,6 +35,7 @@ export function useQuietSession(
     consent,
     autoMeeting,
     chirps,
+    microphoneId,
     draftsCount: drafts.length,
   });
   props.current = {
@@ -41,6 +43,7 @@ export function useQuietSession(
     consent,
     autoMeeting,
     chirps,
+    microphoneId,
     draftsCount: drafts.length,
   };
   const state = useRef({
@@ -72,6 +75,7 @@ export function useQuietSession(
             audio,
           })
         ).text,
+      () => props.current.microphoneId,
     );
   function patch(p: Partial<typeof view>) {
     if (state.current.alive) setView((v) => ({ ...v, ...p }));
