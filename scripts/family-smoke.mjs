@@ -186,6 +186,34 @@ try {
     page.getByText("Admin Permissions is needed", { exact: true }),
   ).toBeVisible();
   await expect(page.locator(".kids-welcome .avatar")).toBeVisible();
+  await page.goto(base + "/downloads.html");
+  await expect(
+    page.getByRole("heading", {
+      name: "A little company. A space for everyone.",
+    }),
+  ).toBeVisible();
+  const downloads = page.locator('a[href$=".exe"], a[href$=".apk"]');
+  await expect(downloads).toHaveCount(7);
+  for (const href of await downloads.evaluateAll((nodes) =>
+    nodes.map((node) => node.href),
+  )) {
+    expect(href).toContain(
+      "https://github.com/jedijak14/Bluey/releases/download/v0.5.0-preview.2/",
+    );
+  }
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: `artifacts/downloads-${width}.png`,
+      fullPage: true,
+    });
+  }
   expect(errors).toEqual([]);
   console.log(
     "Account gate, mobile safety preview, enrollment, rules and time requests passed.",

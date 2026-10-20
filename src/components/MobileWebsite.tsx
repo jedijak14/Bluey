@@ -224,11 +224,7 @@ export function MobileWebsite({
               </div>
             </li>
           </ol>
-          <a
-            href="https://github.com/jedijak14/Bluey/releases"
-            target="_blank"
-            rel="noreferrer"
-          >
+          <a href="./downloads.html" target="_blank" rel="noreferrer">
             Downloads & setup guides <ExternalLink size={14} />
           </a>
         </section>
