@@ -4,6 +4,9 @@ on:
     branches: [main, "arena/**"]
   pull_request:
   workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 defaults:
@@ -66,6 +69,7 @@ jobs:
             ui-server.log
             production-ui.log
   android-apk:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     needs: test
@@ -146,7 +150,7 @@ jobs:
             native-smoke-server.log
           if-no-files-found: ignore
   windows-installer:
-    if: "!contains(github.event.head_commit.message, '[release-android]')"
+    if: "github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[release-android]')"
     timeout-minutes: 25
     runs-on: windows-latest
     needs: test
@@ -207,12 +211,19 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee publish-preview.log) 2>&1
-          trap 'code=$?; if [ "$code" -ne 0 ]; then message="$(tail -c 3500 publish-preview.log)"; message="${message//%/%25}"; message="${message//$\'\n\'/%0A}"; echo "::error::Release publication failed: $message"; fi' EXIT
+          release_failure() {
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              python -c 'from pathlib import Path; text=Path("publish-preview.log").read_text(errors="replace")[-3500:]; print("::error::Release publication failed: " + text.replace("%", "%25").replace(chr(13), "%0D").replace(chr(10), "%0A"))'
+            fi
+            exit "$code"
+          }
+          trap release_failure EXIT
           mkdir -p release/combined
           cp release/windows/*.exe release/windows/*Instructions.md release/combined/
           cp release/android/*.apk release/android/*Instructions.md release/android/APK-*.txt release/combined/
           (cd release/combined && sha256sum *.exe *.apk > SHA256SUMS.txt)
-          tag="v0.3.0-preview.4"
+          tag="v0.3.0-preview.5"
           if gh release view "$tag" >/dev/null 2>&1; then
             test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA"
             gh release upload "$tag" release/combined/* --clobber
