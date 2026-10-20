@@ -6,33 +6,56 @@ export class Microphone {
   private samples: Float32Array[] = [];
   private length = 0;
   async start(onLevel: (n: number) => void) {
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true },
-      video: false,
-    });
-    this.context = new AudioContext();
-    await this.context.resume();
-    const source = this.context.createMediaStreamSource(this.stream);
-    this.processor = this.context.createScriptProcessor(4096, 1, 1);
-    this.samples = [];
-    this.length = 0;
-    this.processor.onaudioprocess = (e) => {
-      const s = e.inputBuffer.getChannelData(0);
-      if (this.length > this.context!.sampleRate * 60) return;
-      this.samples.push(new Float32Array(s));
-      this.length += s.length;
-      onLevel(
-        Math.min(1, Math.sqrt(s.reduce((a, b) => a + b * b, 0) / s.length) * 5),
-      );
-    };
-    source.connect(this.processor);
-    this.processor.connect(this.context.destination);
+    if (this.context || this.stream)
+      throw new Error("Recording is already active.");
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+        video: false,
+      });
+      this.context = new AudioContext();
+      await this.context.resume();
+      const source = this.context.createMediaStreamSource(this.stream);
+      this.processor = this.context.createScriptProcessor(4096, 1, 1);
+      this.samples = [];
+      this.length = 0;
+      const sampleRate = this.context.sampleRate;
+      this.processor.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        const remaining = sampleRate * 60 - this.length;
+        if (remaining <= 0) return;
+        const s = input.subarray(0, remaining);
+        this.samples.push(new Float32Array(s));
+        this.length += s.length;
+        onLevel(
+          Math.min(
+            1,
+            Math.sqrt(s.reduce((a, b) => a + b * b, 0) / s.length) * 5,
+          ),
+        );
+      };
+      source.connect(this.processor);
+      this.processor.connect(this.context.destination);
+    } catch (error) {
+      this.processor?.disconnect();
+      this.stream?.getTracks().forEach((t) => t.stop());
+      if (this.context && this.context.state !== "closed")
+        await this.context.close();
+      this.context = undefined;
+      this.stream = undefined;
+      this.processor = undefined;
+      throw error;
+    }
   }
   async stop(): Promise<string> {
     const rate = this.context?.sampleRate ?? 48000;
     this.processor?.disconnect();
     this.stream?.getTracks().forEach((t) => t.stop());
-    await this.context?.close();
+    const context = this.context;
+    this.context = undefined;
+    this.stream = undefined;
+    this.processor = undefined;
+    if (context && context.state !== "closed") await context.close();
     const b = new ArrayBuffer(44 + this.length * 2),
       v = new DataView(b);
     const str = (o: number, s: string) => {

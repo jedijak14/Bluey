@@ -2808,3 +2808,39 @@ label > input::placeholder {
     bottom: 0;
   }
 }
+.phone-options {
+  max-height: calc(100dvh - 90px);
+  overflow: auto;
+}
+.phone-options textarea {
+  background: #17151c;
+  border: 1px solid #ffffff12;
+  border-radius: 7px;
+  padding: 10px 12px;
+  font-size: 12px;
+  resize: vertical;
+  color: #dfcdeb;
+}
+.phone-voice-choice {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  font-size: 10px;
+  margin: 12px 0 0;
+  gap: 7px;
+}
+.phone-voice-choice > input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #b7a1dc;
+  padding: 0;
+}
+.phone-caption {
+  touch-action: pan-y;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.phone-face:has(.phone-options) {
+  touch-action: pan-y;
+}

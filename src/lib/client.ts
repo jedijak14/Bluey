@@ -38,6 +38,7 @@ export class BlueyClient {
       socket.onclose = (e) => {
         if (this.socket !== socket) return;
         this.onStatus("offline");
+        if (e.code === 4001) this.onPacket({ type: "unpaired" });
         if (!this.stopped && e.code !== 4001) {
           this.retry = setTimeout(
             () => this.open(),

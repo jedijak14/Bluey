@@ -10,5 +10,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        // Only bundled UI is loaded. Paired replies may arrive after the hold gesture ends.
+        getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
     }
 }
