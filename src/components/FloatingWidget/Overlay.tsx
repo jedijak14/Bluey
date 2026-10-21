@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, Mic, Expand, X } from "lucide-react";
-import { Avatar, CursorAvatar } from "./Avatar";
+import {
+  MessageCircle,
+  Mic,
+  Expand,
+  X,
+  Settings2,
+  LoaderCircle,
+  Minus,
+} from "lucide-react";
+import { CursorAvatar } from "./Avatar";
 import { ResponseCard, type CompanionResponse } from "../ResponseCard";
 import { client } from "../../lib/client";
 import { planFlight, sampleFlight, type Flight } from "../../lib/motion";
@@ -25,6 +33,24 @@ export function Overlay() {
   const [caption, setCaption] = useState("");
   const [response, setResponse] = useState<CompanionResponse | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [cardResponse, setCardResponse] = useState<CompanionResponse | null>(
+    null,
+  );
+  const [research, setResearch] = useState<{
+    request: string;
+    state: string;
+  } | null>(null);
+  const activeResearch = useRef("");
+  const dismissedResearch = useRef<string | null>(null);
+  const [docked, setDocked] = useState(true);
+  const dockedRef = useRef(true);
+  const [layoutArea, setLayoutArea] = useState<CursorArea | null>(null);
+  const [controlsOpen, setControlsOpen] = useState(false);
+  function closeCard() {
+    dismissedResearch.current = activeResearch.current;
+    setExpanded(false);
+    window.bluey?.interactive(false);
+  }
   const [pulse, setPulse] = useState<{
     x: number;
     y: number;
@@ -78,9 +104,28 @@ export function Overlay() {
   useEffect(() => {
     const unsubscribe = client.subscribe((p) => {
       if (p.type === "session_state") setSessionActive(Boolean(p.active));
+      if (p.type === "research_state" && typeof p.request === "string") {
+        const state = String(p.state);
+        if (["waiting", "searching", "writing"].includes(state)) {
+          if (activeResearch.current !== p.request) setCardResponse(null);
+          activeResearch.current = p.request;
+          setResearch({ request: p.request, state });
+          if (dismissedResearch.current !== p.request) setExpanded(true);
+        } else if (activeResearch.current === p.request) {
+          setResearch(
+            state === "complete" ? null : { request: p.request, state },
+          );
+        }
+      }
       if (p.type === "response") {
-        setResponse(p as unknown as CompanionResponse);
-        setExpanded(p.format === "research");
+        const answer = p as unknown as CompanionResponse;
+        setResponse(answer);
+        if (p.format === "research") {
+          activeResearch.current = answer.request;
+          setCardResponse(answer);
+          setResearch(null);
+          if (dismissedResearch.current !== answer.request) setExpanded(true);
+        }
         setCaption(String(p.text).slice(0, 420));
       }
       if (p.type === "click_feedback") {
@@ -98,13 +143,14 @@ export function Overlay() {
         p.type === "pointer" &&
         cursorDestination(p.x, p.y, innerWidth, innerHeight, sizeRef.current)
       ) {
+        dockedRef.current = false;
+        setDocked(false);
         returnAfterArrival.current = false;
         requested.current = { x: p.x as number, y: p.y as number };
         reposition();
       }
       if (p.type === "caption") setCaption(String(p.text));
       if (p.type === "home") {
-        setExpanded(false);
         if (p.reason === "action_complete") {
           // Finish pointing before returning, even if the action finishes first.
           returnAfterArrival.current = true;
@@ -114,6 +160,16 @@ export function Overlay() {
       }
     });
     let alive = true;
+    const previousStatus = client.onStatus;
+    client.onStatus = (status) => {
+      if (alive && status === "offline") {
+        setResearch((current) =>
+          current && ["waiting", "searching", "writing"].includes(current.state)
+            ? { ...current, state: "error" }
+            : current,
+        );
+      }
+    };
     window.bluey
       ?.connection()
       .then((c) => {
@@ -124,7 +180,6 @@ export function Overlay() {
       });
     const offCommand = window.bluey?.onCommand?.((command) => {
       if (command === "yield") {
-        setExpanded(false);
         setCaption("");
         window.bluey?.interactive(false);
       }
@@ -132,6 +187,7 @@ export function Overlay() {
     const layout = (next: CursorArea) => {
       if (!alive) return;
       area.current = next;
+      setLayoutArea(next);
       reposition();
     };
     const offLayout = window.bluey?.onOverlayLayout?.(layout);
@@ -142,8 +198,9 @@ export function Overlay() {
     window.addEventListener("resize", reposition);
     return () => {
       clearTimeout(pulseTimer.current);
-      client.disconnect();
       alive = false;
+      client.disconnect();
+      client.onStatus = previousStatus;
       unsubscribe();
       offLayout?.();
       window.removeEventListener("resize", reposition);
@@ -212,10 +269,32 @@ export function Overlay() {
       if (cursor.current)
         cursor.current.style.transform = `translate3d(${p.x}px,${p.y}px,0)`;
       if (body.current) body.current.style.transform = `rotate(${tilt}deg)`;
+      if (
+        sample.done &&
+        !requested.current &&
+        !returnAfterArrival.current &&
+        !dockedRef.current
+      ) {
+        dockedRef.current = true;
+        setDocked(true);
+      }
       if (bubble.current) {
-        bubble.current.style.left = `${p.x > innerWidth - 360 ? -Math.min(p.x - 10, 320) : 0}px`;
-        bubble.current.style.top = p.y < 180 ? "100%" : "auto";
-        bubble.current.style.bottom = p.y < 180 ? "auto" : "100%";
+        const width = bubble.current.offsetWidth;
+        const left = Math.max(
+          8,
+          Math.min(
+            innerWidth - width - 8,
+            p.x + sizeRef.current / 2 - width / 2,
+          ),
+        );
+        bubble.current.style.left = `${left - p.x}px`;
+        bubble.current.style.top =
+          !dockedRef.current && p.y < 180 ? "100%" : "auto";
+        bubble.current.style.bottom = dockedRef.current
+          ? "20px"
+          : p.y < 180
+            ? "auto"
+            : "100%";
       }
       if (moving) {
         samples.push({ ...p });
@@ -265,18 +344,74 @@ export function Overlay() {
   }, [size]);
   useEffect(() => {
     wake.current();
-  }, [caption, expanded, settings.trail]);
+  }, [caption, expanded, docked, settings.trail]);
   return (
     <div className="desktop-overlay">
-      {expanded && response && (
-        <div className="overlay-research">
-          <ResponseCard
-            response={response}
-            onClose={() => {
-              setExpanded(false);
-              window.bluey?.interactive(false);
-            }}
-          />
+      {expanded && (research || cardResponse) && (
+        <div
+          className="overlay-research"
+          style={{
+            top: (layoutArea?.y || 0) + 16,
+            right: layoutArea
+              ? Math.max(16, innerWidth - layoutArea.x - layoutArea.width + 16)
+              : 16,
+            maxHeight: layoutArea
+              ? Math.max(120, layoutArea.height - 32)
+              : undefined,
+          }}
+        >
+          {research ? (
+            <section
+              className="research-progress"
+              aria-label="Bluey research"
+              onMouseEnter={() => window.bluey?.interactive(true)}
+              onMouseLeave={() => window.bluey?.interactive(false)}
+            >
+              <header>
+                <strong>
+                  {["waiting", "searching", "writing"].includes(research.state)
+                    ? "Researching"
+                    : research.state === "cancelled"
+                      ? "Research cancelled"
+                      : "Research unavailable"}
+                </strong>
+                {["waiting", "searching", "writing"].includes(
+                  research.state,
+                ) && (
+                  <LoaderCircle
+                    className="research-spinner"
+                    size={15}
+                    aria-hidden="true"
+                  />
+                )}
+                <button title="Close research" onClick={closeCard}>
+                  <Minus size={16} />
+                </button>
+              </header>
+              <p role="status">
+                {
+                  {
+                    waiting: "Waiting for desktop approval…",
+                    searching: "Looking up sources…",
+                    writing: "Preparing your report…",
+                    cancelled: "No report was completed.",
+                    error:
+                      "The request could not finish. Try again from the workspace.",
+                  }[research.state]
+                }
+              </p>
+            </section>
+          ) : (
+            cardResponse && (
+              <ResponseCard
+                key={cardResponse.request}
+                response={cardResponse}
+                initialCollapsed={cardResponse.format === "research"}
+                overlay
+                onClose={closeCard}
+              />
+            )
+          )}
         </div>
       )}
       {pulse && (
@@ -302,17 +437,32 @@ export function Overlay() {
       </svg>
       <div
         ref={cursor}
-        className={`overlay-cursor ${settings.glow === false ? "" : "glow"}`}
+        className={`overlay-cursor ${docked ? "docked" : "pointing"}`}
+        data-state={docked ? "docked" : "pointing"}
         style={{
           width: size,
           height: size,
           transform: `translate3d(${position.current.x}px,${position.current.y}px,0)`,
         }}
       >
-        <div ref={body} className="overlay-cursor-body">
+        <div ref={body} className="overlay-cursor-body" aria-hidden={docked}>
           <CursorAvatar mood={face.mood} />
         </div>
-        {caption && !expanded && (
+        <svg
+          className="overlay-dock-tip"
+          viewBox="0 0 32 16"
+          role="img"
+          aria-label="Bluey parked at bottom"
+          aria-hidden={!docked}
+        >
+          <path
+            d="M1 15 L16 1 L31 15 Z"
+            fill="#f8fbff"
+            stroke="#b9c8db"
+            strokeWidth="0.8"
+          />
+        </svg>
+        {caption && (
           <div
             ref={bubble}
             className="overlay-caption"
@@ -321,7 +471,14 @@ export function Overlay() {
           >
             <span>{caption}</span>
             {response && (
-              <button title="Expand answer" onClick={() => setExpanded(true)}>
+              <button
+                title="Expand answer"
+                onClick={() => {
+                  setCardResponse(response);
+                  setResearch(null);
+                  setExpanded(true);
+                }}
+              >
                 <Expand size={13} />
               </button>
             )}
@@ -329,15 +486,18 @@ export function Overlay() {
         )}
       </div>
       <div
-        className="floating-widget"
+        className={`floating-widget ${controlsOpen ? "controls-open" : ""}`}
         onMouseEnter={() => window.bluey?.interactive(true)}
         onMouseLeave={() => window.bluey?.interactive(false)}
       >
-        <Avatar
-          mood={face.mood}
-          gaze={{ x: face.gazeX, y: face.gazeY }}
-          talk={face.talk}
-        />
+        <button
+          className="widget-toggle"
+          title="Bluey controls"
+          aria-expanded={controlsOpen}
+          onClick={() => setControlsOpen(!controlsOpen)}
+        >
+          <Settings2 size={17} />
+        </button>
         <div className="widget-controls">
           <button
             title={sessionActive ? "End quiet session" : "Start quiet session"}
@@ -363,7 +523,6 @@ export function Overlay() {
             onClick={() => {
               home();
               setCaption("");
-              setExpanded(false);
             }}
           >
             <MessageCircle size={15} />

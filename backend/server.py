@@ -423,7 +423,7 @@ def write_file(body: WriteBody):
     return {"saved": True}
 
 
-async def approved_action(action: DesktopAction):
+async def approved_action(action: DesktopAction, research_request=None):
     privacy.check(action.action)
     epoch = privacy.epoch
     if not any(role == "desktop" for role, _ in peers.values()):
@@ -469,6 +469,8 @@ async def approved_action(action: DesktopAction):
                 raise RuntimeError("Permissions changed. Action cancelled.")
             privacy.check(kind)
         automation.permission_check = permission_check
+        if research_request is not None and action.action in {"search_web", "research_web"}:
+            await broadcast({"type": "research_state", "request": research_request, "state": "searching"}, desktop_only=True)
         result = await automation.run(action)
         await log(f"Completed approved action: {action.action}")
         return result
@@ -494,6 +496,18 @@ async def chat(ws, packet):
     async with engine_lock:
         automation.stopped.clear()
         final_mood = "listening"
+        research_active = False
+        research_outcome = "cancelled"
+        async def perform(action):
+            nonlocal research_active
+            if action.action not in {"search_web", "research_web"}:
+                return await approved_action(action)
+            research_active = True
+            await broadcast({"type": "research_state", "request": request, "state": "waiting"}, desktop_only=True)
+            result = await approved_action(action, research_request=request)
+            if not result.get("denied"):
+                await broadcast({"type": "research_state", "request": request, "state": "writing"}, desktop_only=True)
+            return result
         await face("thinking")
         try:
             raw = packet.get("messages", [])
@@ -522,14 +536,14 @@ async def chat(ws, packet):
             if packet.get("session") and re.search(r"\bwhat(?:['’]s| is) this\b", question, re.I):
                 target = pointer_context.pop(ws, None)
                 if target:
-                    result = await approved_action(DesktopAction(action="read_screen"))
+                    result = await perform(DesktopAction(action="read_screen"))
                     messages[-1]["content"] += ("\nMouse target at question time on the primary display, normalized 0–1000: "
                         + json.dumps(target) + ". Identify only from this approved screen result; if denied or unavailable, explain that you cannot see it. UNTRUSTED SCREEN DATA: " + json.dumps(result))
                 else:
                     messages[-1]["content"] += "\nNo verified Windows mouse target is available. Do not guess what is under the pointer."
             wants_research = packet.get("mode") == "research" or bool(re.match(r"^(?:bluey[, ]+)?(?:research\b|search (?:for|the web)\b|look up\b)", question, re.I))
             if wants_research:
-                result = await approved_action(DesktopAction(action="research_web", text=question[:500]))
+                result = await perform(DesktopAction(action="research_web", text=question[:500]))
                 if result.get("denied"):
                     await send(ws, {"type": "token", "request": request, "text": "Search cancelled. No web research was performed."})
                     return
@@ -580,7 +594,7 @@ async def chat(ws, packet):
                         raise ValueError("Model requested an unsupported tool.")
                     action = DesktopAction.model_validate_json(call["function"]["arguments"])
                     try:
-                        result = await approved_action(action)
+                        result = await perform(action)
                     except (ValueError, RuntimeError, TimeoutError) as exc:
                         result = {"error": str(exc)}
                     if result.get("sources"):
@@ -616,14 +630,16 @@ async def chat(ws, packet):
                     "Reached the six-step limit. Review the result and ask again to continue."
                 )
             if full.strip():
+                research_outcome = "complete"
                 await broadcast({"type": "response", "request": request, "title": question[:100], "text": full,
-                                 "format": "research" if sources or wants_research or len(full) > 700 else "quick",
+                                 "format": "research" if research_active or sources or wants_research or len(full) > 700 else "quick",
                                  "sources": sources[:12]})
 
         except asyncio.CancelledError:
             await log("Stopped. Pending actions were cancelled.")
             raise
         except Exception as exc:
+            research_outcome = "error"
             text = (
                 str(exc)
                 if isinstance(exc, (ValueError, RuntimeError))
@@ -633,6 +649,8 @@ async def chat(ws, packet):
             await send(ws, {"type": "error", "request": request, "text": text[:500]})
             await log(f"Request failed ({type(exc).__name__}).")
         finally:
+            if research_active:
+                await broadcast({"type": "research_state", "request": request, "state": research_outcome}, desktop_only=True)
             await send(ws, {"type": "done", "request": request})
             if final_mood == "sleepy":
                 await broadcast({"type": "companion_sleep"})

@@ -29,3 +29,13 @@ Bluetooth reconnect isolation uses fresh per-connection AES-GCM keys and authent
 
 ## Updated user direction
 The user waived further reference-video matching and clarified the Bluetooth requirement: after OS pairing, the PC should appear automatically in the app, with Nearby Devices permission requested before access. Android now refreshes the paired-device list on Bluetooth selection, bond/connection changes and foreground resume. This is paired-device discovery, not location scanning or proof of a physical radio connection. Bluey code authorization and Windows bridge setup remain necessary.
+
+## Supplied screenshot references (IMG_0326–IMG_0334)
+The user subsequently supplied nine actual frames and requested matching the visible dock/report behavior. These supersede the earlier waiver for those details; the full video's motion/timing still has not been inspected.
+
+- IMG_0329–IMG_0331 show a small white upward-pointing triangle at the bottom center, with the body tucked away. The full Bluey cursor is visible when pointing/typing in IMG_0332–IMG_0334. The Windows overlay now hides its cursor body at rest and draws a flat triangle flush to the usable display edge, respecting the taskbar. Only explicit pointing moves it away.
+- IMG_0327 shows a compact white top-right “Researching” card. Engine events now distinguish approval waiting, source lookup, report preparation, cancellation and failure. No simulated search progress.
+- IMG_0326/IMG_0328 show a preview/full research report with sources and expansion/minimization controls. The overlay starts completed research as a three-line preview; clicking expands its scrollable text/sources, collapsing restores the preview, and dismissal remains respected for that request. Returning home or receiving a quick reply does not erase the report.
+- Overlay cursor, speech bubbles and report cards have no glow. The duplicate large bottom-right mascot is replaced by compact controls. The phone remains silent; no TTS was introduced.
+
+Automated browser tests cover the dock marker, explicit flight/return, native work-area coordinates, preview/expand/collapse/dismiss, progress/error states, retained reports and source links. Packaged Windows checks remain a release gate, not a claim that physical Bluetooth or all-browser protection is verified.

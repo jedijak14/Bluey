@@ -24,7 +24,7 @@ try {
   });
   const home = {
     x: Math.round(area.x + (area.width - 72) / 2),
-    y: Math.round(area.y + area.height - 72 - 16),
+    y: Math.round(area.y + area.height - 72),
   };
   const position = () =>
     page.locator(".overlay-cursor").evaluate((el) => {
@@ -32,6 +32,15 @@ try {
       return { x: Math.round(m.m41), y: Math.round(m.m42) };
     });
   await expect.poll(position).toEqual(home);
+  await expect(page.locator(".overlay-cursor")).toHaveAttribute(
+    "data-state",
+    "docked",
+  );
+  await expect(page.locator(".overlay-cursor-body > svg")).toHaveCSS(
+    "opacity",
+    "0",
+  );
+  await expect(page.locator(".overlay-dock-tip")).toHaveCSS("opacity", "1");
   let socket;
   await page.routeWebSocket("**/api/ws", (route) =>
     route.onMessage((raw) => {

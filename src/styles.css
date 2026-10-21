@@ -4544,3 +4544,169 @@ label > input::placeholder {
     transition: none;
   }
 }
+
+/* Reference dock: only a flat upward tip remains at the usable bottom edge. */
+.overlay-cursor-body {
+  overflow: hidden;
+}
+.overlay-cursor-body > svg {
+  transition:
+    transform 180ms ease,
+    opacity 140ms ease;
+  filter: none !important;
+}
+.overlay-cursor.docked .overlay-cursor-body > svg {
+  transform: translateY(110%);
+  opacity: 0;
+}
+.overlay-dock-tip {
+  position: absolute;
+  width: 32px;
+  height: 16px;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 140ms ease;
+  pointer-events: none;
+}
+.overlay-cursor.docked .overlay-dock-tip {
+  opacity: 1;
+}
+.overlay-caption {
+  box-shadow: none;
+  border-color: #d6dce5;
+}
+.overlay-caption::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: calc(50% - 5px);
+  width: 10px;
+  height: 10px;
+  background: #faf9ff;
+  border-right: 1px solid #d6dce5;
+  border-bottom: 1px solid #d6dce5;
+  transform: rotate(45deg);
+}
+.desktop-overlay .floating-widget {
+  width: auto;
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 6px;
+  align-items: center;
+}
+.widget-toggle {
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  background: #f8fbff;
+  color: #4b5a73;
+  border: 1px solid #d6dce5;
+}
+.floating-widget .widget-controls {
+  gap: 6px;
+}
+.floating-widget:focus-within .widget-controls,
+.floating-widget.controls-open .widget-controls {
+  opacity: 1;
+}
+.overlay-research {
+  width: min(340px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+}
+.overlay-research .response-card {
+  width: 100%;
+  max-height: inherit;
+  border-radius: 14px;
+  border-color: #d6dce5;
+  background: #fcfdff;
+  box-shadow: none;
+}
+.overlay-research .response-card header {
+  padding: 13px 12px;
+  background: #fcfdff;
+  gap: 6px;
+}
+.overlay-research .response-card header strong {
+  font-size: 12px;
+}
+.overlay-research .response-paper {
+  padding: 15px;
+}
+.overlay-research .response-card footer {
+  padding: 10px 12px;
+}
+.response-card .response-preview {
+  display: block;
+  text-align: left;
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 0;
+  color: #444b59;
+}
+.response-preview > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  line-height: 1.55;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.response-preview > small {
+  display: block;
+  margin-top: 10px;
+  font-size: 10px;
+  color: #64748b;
+}
+.research-progress {
+  border: 1px solid #d6dce5;
+  border-radius: 14px;
+  padding: 15px;
+  background: #fcfdff;
+  color: #444b59;
+  pointer-events: auto;
+}
+.research-progress header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.research-progress strong {
+  font-size: 12px;
+  flex: 1;
+}
+.research-progress button {
+  padding: 4px;
+  background: transparent;
+  color: #64748b;
+  border: 0;
+  cursor: pointer;
+}
+.research-progress p {
+  margin: 12px 0 0;
+  font-size: 11px;
+}
+.research-spinner {
+  animation: research-spin 1s linear infinite;
+}
+@keyframes research-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overlay-cursor-body > svg,
+  .overlay-dock-tip {
+    transition: none;
+  }
+  .research-spinner {
+    animation: none;
+  }
+}
+.overlay-caption {
+  overflow: visible;
+}

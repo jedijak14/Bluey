@@ -1,8 +1,10 @@
 # Bluey-Latest · 0.5.7 Windows / Android preview
 
-This is an experimental build. The release is named **Bluey-Latest**, with immutable source tag `v0.5.7`. The user waived further reference-video matching; this is not a claim of universal browser protection.
+This is an experimental build. The release is named **Bluey-Latest**, with immutable source tag `v0.5.7`. The user supplied nine reference frames for the dock and research cards; this is not a claim of full-video parity or universal browser protection.
 
 ## New in 0.5.7
+- Screenshot-matched bottom-center dock: only a small white upward triangle is visible at rest; the full cursor appears for explicit pointing and tucks away on return. Removed the duplicate large bottom-right mascot and overlay glows.
+- Persistent top-right research card: real approval/search/report progress, three-line preview, expandable scrollable report and sources, collapse and dismiss controls. Returning home does not erase the report; cancelled/failed/disconnected requests stop the progress indicator.
 - Android requests Nearby Devices when you choose Bluetooth, automatically lists OS-paired PCs, and refreshes after pairing changes or returning from Settings. It does not request location/contacts, silently approve desktop access, or repeatedly prompt after denial.
 - The Android emulator test exercises the actual permission dialog and native resume event. Radio operation on the user's paired hardware still needs a device test.
 - Home/Kids production storage is connected to Neon, without Supabase. The live database query returned `ready`. New parent registration remains **closed at the operator's request** until a private setup invite is configured. This is not an end-to-end parent login claim.
@@ -33,4 +35,4 @@ Explicit administrator opt-in to child-SID LSA new-logon denial; native Windows 
 - No universal browser filtering, certified Hello/PIN unlock/reconnect barrier, or physical cold-boot verification. Keep established family protections enabled.
 - Windows voice transcription still needs explicit local Whisper model files (`BLUEY_WHISPER_MODEL`); Android uses its own speech recognizer. No automatic spoken replies.
 - Desktop actions require Windows approval and a tool-capable model. Small text-only models can chat without tool support. Cloud use depends on provider access/quota. No model weights or cloud credentials are included.
-- Reference video: the user waived further matching. The historical transcript review remains in docs/VIDEO_REFERENCE.md; no pixel-for-pixel equivalence is claimed.
+- Reference: nine user-supplied screenshots now guide the dock and report-card layout. The transcript and frame review are recorded in docs/VIDEO_REFERENCE.md; full-video timing and pixel-for-pixel equivalence are not claimed.
