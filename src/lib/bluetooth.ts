@@ -14,8 +14,19 @@ interface Frame {
   nonce?: string;
   ciphertext?: string;
 }
+export interface PairedBluetoothDevice {
+  name: string;
+  address: string;
+  computer?: boolean;
+}
 export const Bluetooth = registerPlugin<{
-  devices(): Promise<{ devices: { name: string; address: string }[] }>;
+  devices(options?: {
+    requestPermission: boolean;
+  }): Promise<{ devices: PairedBluetoothDevice[] }>;
+  addListener(
+    event: "devicesChanged",
+    callback: () => void,
+  ): Promise<PluginListenerHandle>;
   connect(options: { address: string }): Promise<void>;
   send(options: { frame: string }): Promise<void>;
   disconnect(): Promise<void>;

@@ -26,3 +26,6 @@ Length shown: 2:19. The page provided a transcript, **not accessible visual fram
 Do not turn this checklist into a blanket “everything works” claim.
 
 Bluetooth reconnect isolation uses fresh per-connection AES-GCM keys and authenticated sequence numbers inside the OS-paired secure RFCOMM link. Every application packet must carry the current phone token. Old buffered replies are unreadable by a later device. This does not replace OS Bluetooth pairing or certify adapter behavior.
+
+## Updated user direction
+The user waived further reference-video matching and clarified the Bluetooth requirement: after OS pairing, the PC should appear automatically in the app, with Nearby Devices permission requested before access. Android now refreshes the paired-device list on Bluetooth selection, bond/connection changes and foreground resume. This is paired-device discovery, not location scanning or proof of a physical radio connection. Bluey code authorization and Windows bridge setup remain necessary.

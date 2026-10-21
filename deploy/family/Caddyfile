@@ -1,0 +1,17 @@
+{$BLUEY_FAMILY_HOST} {
+    request_body {
+        max_size 20KB
+    }
+    @family path /api/family/*
+    handle @family {
+        reverse_proxy family:8767 {
+            transport http {
+                dial_timeout 5s
+                response_header_timeout 15s
+            }
+        }
+    }
+    handle {
+        respond "Not found" 404
+    }
+}

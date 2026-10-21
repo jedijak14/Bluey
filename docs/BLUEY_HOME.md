@@ -25,7 +25,11 @@ See [persistent backend setup](../deploy/family/README.md) and [Windows setup/re
 
 A safe Windows implementation needs an independently reviewed, signed administrator-installed service, a standard non-administrator child account, authenticated local UI/service IPC, per-user policy binding, offline policy caching and clock-change handling, controlled browser filtering, tamper resistance, uninstall authorization, and a parent-owned recovery route. Fullscreen Electron alone cannot provide this. No attempt is made here to disable Task Manager or lock a person out.
 
-## Vercel-hosted API (recommended)
+## Without Supabase
+
+Use the [persistent SQLite family host](../deploy/family/README.md). The included setup command generates private credentials and the Docker HTTPS configuration stores accounts on a persistent volume. This needs an always-on host and DNS; it is not a database inside Vercel's ephemeral filesystem. Supabase is optional, not a sign-in requirement.
+
+## Vercel-hosted API with PostgreSQL
 
 Connect a persistent PostgreSQL database to the Bluey Vercel project and configure a private registration invite. See [the one-time setup steps](VERCEL_FAMILY.md). No separate backend server is required in this mode. The existing standalone host remains supported below. Storage is not automatically provisioned by the connector.
 

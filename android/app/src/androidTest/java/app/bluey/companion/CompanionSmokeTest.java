@@ -54,6 +54,48 @@ public class CompanionSmokeTest {
         return new JSONObject(bytes.toString("UTF-8")).getString("code");
     }
 
+    @Test public void bluetoothChoiceRequestsNearbyPermissionAndResumeRefreshes() throws Exception {
+        org.junit.Assume.assumeTrue(android.os.Build.VERSION.SDK_INT >= 31);
+        android.content.Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        boolean previouslyGranted = context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
+            == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        shell("pm revoke app.bluey.companion android.permission.BLUETOOTH_CONNECT");
+        shell("pm clear-permission-flags app.bluey.companion android.permission.BLUETOOTH_CONNECT user-set user-fixed");
+        try (ActivityScenario<MainActivity> s = ActivityScenario.launch(MainActivity.class)) {
+            waitFor(s, "document.querySelector('.phone-pairing')");
+            evaluate(s, "window.__btDenied=null;Capacitor.Plugins.BlueyBluetooth.devices({requestPermission:false}).then(()=>window.__btDenied='unexpected success',e=>window.__btDenied=e.message)");
+            waitFor(s, "window.__btDenied");
+            assertTrue(evaluate(s, "window.__btDenied").contains("Nearby devices"));
+            assertEquals(android.content.pm.PackageManager.PERMISSION_DENIED,
+                context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT));
+            evaluate(s, "(()=>{const e=document.querySelector('[aria-label=\"Connection transport\"]');e.value='bluetooth';e.dispatchEvent(new Event('change',{bubbles:true}));})()");
+            long deadline = SystemClock.elapsedRealtime() + 15000;
+            boolean clicked = false;
+            while (!clicked && SystemClock.elapsedRealtime() < deadline) {
+                android.view.accessibility.AccessibilityNodeInfo root = InstrumentationRegistry.getInstrumentation().getUiAutomation().getRootInActiveWindow();
+                if (root != null) {
+                    for (android.view.accessibility.AccessibilityNodeInfo node : root.findAccessibilityNodeInfosByViewId("com.android.permissioncontroller:id/permission_allow_button")) {
+                        if (node.isEnabled()) clicked = node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
+                    }
+                }
+                if (!clicked) SystemClock.sleep(100);
+            }
+            assertTrue("Choosing Bluetooth must display the actual Android Nearby Devices permission prompt", clicked);
+            waitFor(s, "!document.body.innerText.includes('Checking paired devices…')");
+            assertEquals(android.content.pm.PackageManager.PERMISSION_GRANTED,
+                context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT));
+            evaluate(s, "window.__btChanges=0;window.__btListenerReady=false;Capacitor.Plugins.BlueyBluetooth.addListener('devicesChanged',()=>window.__btChanges++).then(()=>window.__btListenerReady=true)");
+            waitFor(s, "window.__btListenerReady");
+            s.moveToState(androidx.lifecycle.Lifecycle.State.CREATED);
+            s.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED);
+            waitFor(s, "window.__btChanges>0");
+            // The emulator has no real paired PC: no claim of radio connectivity.
+            assertEquals("No device is authorized by discovery alone", "null", evaluate(s, "document.querySelector('.face-screen')"));
+        } finally {
+            if (!previouslyGranted) shell("pm revoke app.bluey.companion android.permission.BLUETOOTH_CONNECT");
+        }
+    }
+
     @Test public void offlineExpressionsAndNativePackage() throws Exception {
         assertEquals("app.bluey.companion", InstrumentationRegistry.getInstrumentation().getTargetContext().getPackageName());
         try (ActivityScenario<MainActivity> s = ActivityScenario.launch(MainActivity.class)) {

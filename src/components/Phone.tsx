@@ -17,7 +17,9 @@ import { QuietSessionPanel } from "./QuietSessionPanel";
 import { useQuietSession } from "../hooks/useQuietSession";
 import { ResponseCard, type CompanionResponse } from "./ResponseCard";
 import { Avatar, FaceScreen } from "./FloatingWidget/Avatar";
-import { Bluetooth, bluetooth } from "../lib/bluetooth";
+import { bluetooth } from "../lib/bluetooth";
+import { useBluetoothDiscovery } from "../hooks/useBluetoothDiscovery";
+import { selectPairedDevice } from "../lib/bluetoothDiscovery";
 import { BlueyClient } from "../lib/client";
 import { DeviceSpeech } from "../lib/deviceSpeech";
 import {
@@ -31,9 +33,6 @@ const phone = new BlueyClient();
 const nativeSpeech = Capacitor.getPlatform() === "android";
 export function Phone() {
   const [transport, setTransport] = useState<"wifi" | "bluetooth">("wifi");
-  const [bluetoothDevices, setBluetoothDevices] = useState<
-    { name: string; address: string }[]
-  >([]);
   const [bluetoothAddress, setBluetoothAddress] = useState("");
   const [paired, setPaired] = useState(false),
     [preview, setPreview] = useState(false),
@@ -43,6 +42,14 @@ export function Phone() {
   const [error, setError] = useState(""),
     [pairing, setPairing] = useState(false),
     [options, setOptions] = useState(false);
+  const discovery = useBluetoothDiscovery(
+    nativeSpeech && transport === "bluetooth" && !paired && !preview,
+  );
+  useEffect(() => {
+    setBluetoothAddress((previous) =>
+      selectPairedDevice(discovery.devices, previous),
+    );
+  }, [discovery.devices]);
   const [caption, setCaption] = useState(""),
     [draft, setDraft] = useState("");
   const [report, setReport] = useState<CompanionResponse | null>(null),
@@ -254,6 +261,7 @@ export function Phone() {
                   <select
                     aria-label="Connection transport"
                     value={transport}
+                    disabled={pairing}
                     onChange={(e) =>
                       setTransport(e.target.value as "wifi" | "bluetooth")
                     }
@@ -267,35 +275,41 @@ export function Phone() {
                 {transport === "bluetooth" && (
                   <>
                     <p>
-                      Pair your PC in Android Settings first. In Bluey on
-                      Windows, enable its incoming Bluetooth COM port under
-                      Connected devices. Keep both apps open.
+                      Allow Nearby devices to find and connect to your paired
+                      PC. Devices appear automatically after pairing in Android
+                      Settings, including when you return to Bluey. No location
+                      or contacts access is needed. In Bluey on Windows, enable
+                      the incoming Bluetooth bridge under Connected devices.
+                      Keep both apps open.
                     </p>
                     <button
                       type="button"
                       className="outline-button"
-                      onClick={async () => {
-                        try {
-                          setBluetoothDevices(
-                            (await Bluetooth.devices()).devices,
-                          );
-                          setError("");
-                        } catch (e) {
-                          setError(String(e));
-                        }
-                      }}
+                      disabled={discovery.busy || pairing}
+                      onClick={() => void discovery.refresh()}
                     >
-                      List paired PCs
+                      {discovery.busy
+                        ? "Finding paired devices…"
+                        : "Refresh / allow Nearby devices"}
                     </button>
+                    <p role="status">
+                      {discovery.busy
+                        ? "Checking paired devices…"
+                        : discovery.devices.length
+                          ? "Paired devices found. Select your PC and use its Bluey code to authorize sharing."
+                          : "No paired devices found. Pair your Windows PC in Android Settings, then return here."}
+                    </p>
+                    {discovery.error && <p role="alert">{discovery.error}</p>}
                     <label>
                       Paired device
                       <select
                         aria-label="Bluetooth PC"
                         value={bluetoothAddress}
+                        disabled={pairing || discovery.busy}
                         onChange={(e) => setBluetoothAddress(e.target.value)}
                       >
                         <option value="">Choose your Windows PC</option>
-                        {bluetoothDevices.map((d) => (
+                        {discovery.devices.map((d) => (
                           <option key={d.address} value={d.address}>
                             {d.name || d.address}
                           </option>

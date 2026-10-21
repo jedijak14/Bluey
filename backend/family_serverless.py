@@ -128,7 +128,7 @@ class FamilyAPI:
             return await reply(200 if relative == 'status' else 503, {
                 'status': 'unavailable', 'setup_required': 'database',
                 'enforcement_available': False, 'notifications': 'unavailable',
-                'error': 'Connect a PostgreSQL database to the Bluey Vercel project. Accounts cannot be stored until it is connected.'})
+                'error': 'Configure a persistent family database or a hosted Bluey family server. Supabase is not required. Accounts cannot be stored until a service is connected.'})
         if not is_postgres(database):
             return await reply(503, {'error': 'Vercel family storage requires PostgreSQL; temporary files are not supported.'})
         try:

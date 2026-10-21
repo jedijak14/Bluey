@@ -3,6 +3,11 @@ package app.bluey.companion;
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothClass;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothSocket;
 import android.os.Build;
@@ -30,6 +35,33 @@ public class BlueyBluetoothPlugin extends Plugin {
     private final Object writeLock = new Object();
     private volatile BluetoothSocket socket;
     private volatile int generation;
+    private boolean observing;
+    private final BroadcastReceiver deviceChanges = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            // Broadcasts are only refresh hints, never trusted device data or authorization.
+            devicesChanged();
+        }
+    };
+
+    @Override public void load() {
+        super.load();
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
+        filter.addAction(BluetoothDevice.ACTION_ACL_CONNECTED);
+        filter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
+        filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
+        // Bluetooth broadcasts originate from the privileged Bluetooth service, not
+        // necessarily the system UID. EXPORTED is required on recent Android versions.
+        if (Build.VERSION.SDK_INT >= 33)
+            getContext().registerReceiver(deviceChanges, filter, Context.RECEIVER_EXPORTED);
+        else getContext().registerReceiver(deviceChanges, filter);
+        observing = true;
+    }
+    private void devicesChanged() { notifyListeners("devicesChanged", new JSObject()); }
+    @Override protected void handleOnResume() {
+        super.handleOnResume();
+        devicesChanged();
+    }
 
     private boolean permitted() {
         return Build.VERSION.SDK_INT < 31 || getPermissionState("bluetooth") == PermissionState.GRANTED;
@@ -39,14 +71,22 @@ public class BlueyBluetoothPlugin extends Plugin {
         return manager == null ? null : manager.getAdapter();
     }
     @PluginMethod public void devices(PluginCall call) {
-        if (!permitted()) { requestPermissionForAlias("bluetooth", call, "permissionResult"); return; }
+        if (!permitted()) {
+            if (Boolean.FALSE.equals(call.getBoolean("requestPermission", true)))
+                call.reject("Allow Nearby devices to find and connect to your paired PC.");
+            else requestPermissionForAlias("bluetooth", call, "permissionResult");
+            return;
+        }
         try {
             BluetoothAdapter adapter = adapter();
             if (adapter == null || !adapter.isEnabled()) {call.reject("Turn on Bluetooth in Android Settings first.");return;}
             JSArray devices = new JSArray();
             for (BluetoothDevice device : adapter.getBondedDevices()) {
                 JSObject item = new JSObject();
-                item.put("address", device.getAddress()); item.put("name", device.getName()); devices.put(item);
+                item.put("address", device.getAddress()); item.put("name", device.getName());
+                BluetoothClass category = device.getBluetoothClass();
+                item.put("computer", category != null && category.getMajorDeviceClass() == BluetoothClass.Device.Major.COMPUTER);
+                devices.put(item);
             }
             JSObject result = new JSObject();result.put("devices", devices);call.resolve(result);
         } catch (SecurityException e) {call.reject("Bluetooth permission was denied.");}
@@ -55,7 +95,7 @@ public class BlueyBluetoothPlugin extends Plugin {
         if (permitted()) devices(call); else call.reject("Nearby devices permission is required for Bluetooth pairing.");
     }
     @PluginMethod public void connect(PluginCall call) {
-        if (!permitted()) {call.reject("Select List paired PCs and allow Bluetooth access first.");return;}
+        if (!permitted()) {call.reject("Allow Nearby devices before connecting to your PC.");return;}
         final String address = call.getString("address", "");
         if (!BluetoothAdapter.checkBluetoothAddress(address)) {call.reject("Select an OS-paired Windows PC.");return;}
         closeSocket();
@@ -131,5 +171,8 @@ public class BlueyBluetoothPlugin extends Plugin {
         JSObject data = new JSObject();data.put("kind", "closed");notifyListeners("disconnect", data);
         super.handleOnStop();
     }
-    @Override protected void handleOnDestroy() {closeSocket();workers.shutdownNow();super.handleOnDestroy();}
+    @Override protected void handleOnDestroy() {
+        if (observing) {getContext().unregisterReceiver(deviceChanges);observing = false;}
+        closeSocket();workers.shutdownNow();super.handleOnDestroy();
+    }
 }

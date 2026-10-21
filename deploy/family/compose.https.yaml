@@ -1,0 +1,32 @@
+# Optional HTTPS entry point for a persistent Linux Docker host.
+# Use with compose.yaml; setup.py creates the private .env first.
+services:
+  family:
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os,httpx; r=httpx.get('http://127.0.0.1:8767/api/family/status',headers={'X-Bluey-Gateway':os.environ['BLUEY_FAMILY_GATEWAY_TOKEN']},timeout=5); r.raise_for_status(); assert r.json()['status']=='ready'"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+  https:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      BLUEY_FAMILY_HOST: ${BLUEY_FAMILY_HOST:?Run setup.py --hostname first}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - family-tls-data:/data
+      - family-tls-config:/config
+    depends_on:
+      family:
+        condition: service_healthy
+volumes:
+  family-tls-data:
+  family-tls-config:
