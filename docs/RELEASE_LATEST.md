@@ -14,6 +14,8 @@ This is an experimental build, not a claim that every feature in the reference v
 3. Generate a Bluey pairing code on Windows. In the Android APK, select Bluetooth, list paired PCs, select your PC and enter the six-digit Bluey code.
 4. Keep both applications open. Bluetooth uses the OS-paired SPP channel, not Wi-Fi/tethering. No IP address or public listener is required for Bluetooth. A fresh Bluey code is needed after the Windows engine restarts. Disable Bluetooth from Connected devices when not needed.
 
+The transport uses a fresh AES-GCM key and sequence checks inside the OS-paired secure RFCOMM channel, so another paired device cannot inherit a previous phone session or read its buffered replies. Each application packet also requires the current phone token.
+
 Bluetooth is adapter-dependent and **not yet physically verified** on a paired Android/Windows device. Protocol/authentication tests and Android compilation do not prove radio operation. Wi-Fi remains available; Wi-Fi requires Windows LAN mode and private-network firewall permission. Family apps do not expose the Bluetooth or companion automation bridge.
 
 ## Windows Guardian additions

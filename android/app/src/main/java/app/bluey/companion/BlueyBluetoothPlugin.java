@@ -85,7 +85,7 @@ public class BlueyBluetoothPlugin extends Plugin {
                 if (pending != null) try {pending.close();} catch(Exception ignored){}
                 if (attempt == generation) {
                     socket = null;
-                    JSObject data = new JSObject();data.put("kind", "closed");notifyListeners("frame", data);
+                    JSObject data = new JSObject();data.put("kind", "closed");notifyListeners("disconnect", data);
                 }
             }
         });
@@ -128,7 +128,7 @@ public class BlueyBluetoothPlugin extends Plugin {
     @PluginMethod public void disconnect(PluginCall call) {closeSocket();call.resolve();}
     @Override protected void handleOnPause() {
         closeSocket();
-        JSObject data = new JSObject();data.put("kind", "closed");notifyListeners("frame", data);
+        JSObject data = new JSObject();data.put("kind", "closed");notifyListeners("disconnect", data);
         super.handleOnPause();
     }
     @Override protected void handleOnDestroy() {closeSocket();workers.shutdownNow();super.handleOnDestroy();}

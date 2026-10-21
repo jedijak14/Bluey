@@ -37,7 +37,7 @@ async def test_companion_only_http_bridge(tmp_path):
     app=FastAPI();pairing=Pairing();pairing.devices['phone-token']={'id':'1','name':'phone'}
     @app.get('/api/companion/meeting')
     def meeting(): return {'active':False,'supported':True}
-    relay=BluetoothRelay(pairing,app,settings=tmp_path/'bt.json');sent=[]
+    relay=BluetoothRelay(pairing,app,settings=tmp_path/'bt.json');relay.session_token='phone-token';sent=[]
     async def write(value): sent.append(value)
     relay.write=write
     await relay.handle({'kind':'request','id':'1','token':'phone-token','path':'/api/companion/meeting'})
@@ -75,3 +75,54 @@ def test_bluetooth_code_generation_does_not_require_lan_or_dns(monkeypatch):
     assert 'Bluetooth' in response.json()['addresses'][0]
     # Enabling Bluetooth must NOT enable HTTP pairing on a network interface.
     assert api.post('/api/pair',json={'code':response.json()['code']}).status_code==403
+
+
+@pytest.mark.asyncio
+async def test_reconnect_encryption_and_replay_isolation(tmp_path):
+    import base64
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.exceptions import InvalidTag
+    import os
+    relay=BluetoothRelay(Pairing(),FastAPI(),settings=tmp_path/'bt.json')
+    class Serial:
+        def __init__(self): self.frames=[]
+        def write(self,data):self.frames.append(json.loads(data));return len(data)
+    relay.serial=Serial()
+    old_key=os.urandom(32);new_key=os.urandom(32)
+    def hello(key):return {'kind':'hello','key':base64.b64encode(key).decode()}
+    def seal(key,packet):
+        nonce=os.urandom(12)
+        return {'kind':'sealed','nonce':base64.b64encode(nonce).decode(),'ciphertext':base64.b64encode(AESGCM(key).encrypt(nonce,json.dumps(packet).encode(),b'bluey-bt-v1:client')).decode()}
+    await relay.accept_frame(hello(old_key))
+    await relay.write({'kind':'event','packet':{'text':'private old reply'}})
+    old_reply=relay.serial.frames[-1]
+    assert 'private old reply' not in json.dumps(old_reply)
+    await relay.accept_frame(hello(new_key))
+    assert relay.session_token=='' and relay.socket is None
+    with pytest.raises(InvalidTag):
+        AESGCM(new_key).decrypt(base64.b64decode(old_reply['nonce']),base64.b64decode(old_reply['ciphertext']),b'bluey-bt-v1:server')
+    with pytest.raises(ValueError):
+        await relay.accept_frame(seal(old_key,{'kind':'pair','code':'000000','sequence':0}))
+    frame=seal(new_key,{'kind':'pair','id':'new','code':relay.pairing.create(),'sequence':0})
+    await relay.accept_frame(frame)
+    assert len(relay.pairing.devices)==1
+    with pytest.raises(ValueError):await relay.accept_frame(frame)
+    with pytest.raises(ValueError):await relay.accept_frame({'kind':'packet','packet':{'type':'chat'}})
+
+@pytest.mark.asyncio
+async def test_each_phone_packet_must_match_current_session(tmp_path):
+    relay=BluetoothRelay(Pairing(),FastAPI(),settings=tmp_path/'bt.json');replies=[];forwarded=[]
+    class Socket:
+        async def send(self,packet):forwarded.append(packet)
+    relay.socket=Socket();relay.session_token='first';relay.pairing.devices['first']={'id':'1'}
+    relay.pairing.devices['other']={'id':'2'}
+    async def write(value):replies.append(value)
+    relay.write=write
+    for token in [None,'desktop-token','other']:
+        await relay.handle({'kind':'packet','token':token,'packet':{'type':'chat'}})
+        assert 'error' in replies[-1] and not forwarded
+    await relay.handle({'kind':'packet','token':'first','packet':{'type':'chat'}})
+    assert len(forwarded)==1
+    del relay.pairing.devices['first']
+    await relay.handle({'kind':'packet','token':'first','packet':{'type':'chat'}})
+    assert len(forwarded)==1

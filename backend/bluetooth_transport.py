@@ -5,6 +5,10 @@ pairing is not Bluey authorization: the existing expiring six-digit code is stil
 required. Only a phone role can cross this transport. No LAN listener is needed.
 """
 import asyncio
+import base64
+import secrets
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.exceptions import InvalidTag
 import json
 import os
 import re
@@ -21,7 +25,7 @@ def decode_frame(raw):
     if len(raw) > MAX_FRAME:
         raise ValueError('Bluetooth frame too large.')
     frame = json.loads(raw)
-    if not isinstance(frame, dict) or frame.get('kind') not in {'pair', 'open', 'packet', 'close', 'request'}:
+    if not isinstance(frame, dict) or frame.get('kind') not in {'pair', 'open', 'packet', 'close', 'request', 'hello', 'sealed'}:
         raise ValueError('Invalid Bluetooth frame.')
     if not isinstance(frame.get('id', ''), str) or len(frame.get('id', '')) > 80:
         raise ValueError('Invalid request ID.')
@@ -44,6 +48,9 @@ class BluetoothRelay:
         self.serial = self.task = self.socket = self.pump = None
         self.lock, self.write_lock = asyncio.Lock(), asyncio.Lock()
         self.error, self.selected = '', ''
+        self.key = None
+        self.incoming, self.outgoing = -1, 0
+        self.session_token = ''
 
     def status(self):
         return {'enabled': bool(self.task and not self.task.done()), 'port': self.selected,
@@ -85,8 +92,10 @@ class BluetoothRelay:
             self.serial.close()
             self.serial = None
         self.selected = ''
+        self.key = None
 
     async def close_socket(self):
+        self.session_token = ''
         if self.pump:
             self.pump.cancel()
             await asyncio.gather(self.pump, return_exceptions=True)
@@ -95,13 +104,50 @@ class BluetoothRelay:
             await self.socket.close()
             self.socket = None
 
+    async def accept_frame(self, frame):
+        if frame['kind'] == 'hello':
+            try:
+                key = base64.b64decode(frame.get('key', ''), validate=True)
+            except (ValueError, TypeError):
+                raise ValueError('Invalid Bluetooth handshake.') from None
+            if len(key) != 32: raise ValueError('Invalid Bluetooth handshake.')
+            # Finish/cancel every old producer BEFORE switching the connection key.
+            await self.close_socket()
+            self.key, self.incoming, self.outgoing = key, -1, 0
+            return
+        if frame['kind'] != 'sealed' or self.key is None:
+            raise ValueError('Encrypted Bluetooth handshake required.')
+        try:
+            nonce = base64.b64decode(frame['nonce'], validate=True)
+            ciphertext = base64.b64decode(frame['ciphertext'], validate=True)
+            if len(nonce) != 12: raise ValueError()
+            plain = AESGCM(self.key).decrypt(nonce, ciphertext, b'bluey-bt-v1:client')
+            packet = decode_frame(plain)
+            if type(packet.get('sequence')) is not int or packet['sequence'] != self.incoming + 1:
+                raise ValueError()
+            if packet['kind'] in {'hello', 'sealed'}: raise ValueError()
+        except (KeyError, ValueError, TypeError, InvalidTag):
+            raise ValueError('Invalid or replayed Bluetooth frame.') from None
+        self.incoming += 1
+        await self.handle(packet)
+
     async def write(self, frame):
-        data = (json.dumps(frame, ensure_ascii=True)+'\n').encode()
-        if len(data) > MAX_FRAME:
-            raise ValueError('Bluetooth output too large.')
         async with self.write_lock:
-            if not self.serial: raise RuntimeError('Bluetooth disconnected.')
-            await asyncio.to_thread(self.serial.write, data)
+            if not self.serial or self.key is None:
+                raise RuntimeError('Bluetooth disconnected.')
+            plain = json.dumps({**frame, 'sequence': self.outgoing}, ensure_ascii=True).encode()
+            nonce = secrets.token_bytes(12)
+            ciphertext = AESGCM(self.key).encrypt(nonce, plain, b'bluey-bt-v1:server')
+            data = (json.dumps({'kind':'sealed', 'nonce':base64.b64encode(nonce).decode(),
+                               'ciphertext':base64.b64encode(ciphertext).decode()})+'\n').encode()
+            if len(data) > MAX_FRAME: raise ValueError('Bluetooth output too large.')
+            self.outgoing += 1
+            writing = asyncio.create_task(asyncio.to_thread(self.serial.write, data))
+            try:
+                await asyncio.shield(writing)
+            except asyncio.CancelledError:
+                await writing  # Do not interleave another writer with a cancelled OS write.
+                raise
 
     async def handle(self, frame):
         kind, identity = frame['kind'], frame.get('id', '')
@@ -116,7 +162,8 @@ class BluetoothRelay:
                 await self.close_socket()
                 result = {}
             elif kind == 'packet':
-                if not self.socket: raise ValueError('Pair and connect first.')
+                if not self.socket or frame.get('token') != self.session_token or self.session_token not in self.pairing.devices:
+                    raise ValueError('Pair and connect first.')
                 packet = frame.get('packet')
                 if not isinstance(packet, dict) or packet.get('type') == 'auth':
                     raise ValueError('Invalid phone packet.')
@@ -132,11 +179,13 @@ class BluetoothRelay:
                     await self.close_socket()
                     self.socket = await connect(f'ws://127.0.0.1:{self.port}/api/ws', max_size=MAX_FRAME, proxy=None)
                     await self.socket.send(json.dumps({'type': 'auth', 'token': token}))
+                    self.session_token = token
                     self.pump = asyncio.create_task(self.forward())
                     result = {}
                 elif kind == 'request':
                     route = (frame.get('method', 'GET'), frame.get('path'))
                     if route not in HTTP_ROUTES: raise ValueError('Route not allowed over Bluetooth.')
+                    if token != self.session_token: raise ValueError('Connect this phone session first.')
                     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.application), base_url='http://bluetooth', timeout=120) as client:
                         response = await client.request(*route, json=frame.get('body'), headers={'Authorization': 'Bearer '+token})
                     if not response.is_success: raise HTTPException(response.status_code, response.json().get('detail', 'Request failed.'))
@@ -168,10 +217,11 @@ class BluetoothRelay:
                 if len(pending) > MAX_FRAME: raise ValueError('Bluetooth frame too large.')
                 while b'\n' in pending:
                     raw, _, rest = pending.partition(b'\n'); pending = bytearray(rest)
-                    try: frame = decode_frame(raw)
+                    try:
+                        await self.accept_frame(decode_frame(raw))
                     except (ValueError, UnicodeError):
-                        await self.write({'kind': 'closed'}); continue
-                    await self.handle(frame)
+                        # Do not expose errors/session data to an unauthenticated new peer.
+                        continue
         except asyncio.CancelledError:
             raise
         except Exception:

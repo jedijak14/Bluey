@@ -25,4 +25,4 @@ Length shown: 2:19. The page provided a transcript, **not accessible visual fram
 
 Do not turn this checklist into a blanket “everything works” claim.
 
-Bluetooth release gate: reconnect isolation and encrypted frames are under active verification; do not install an unverified intermediate build.
+Bluetooth reconnect isolation uses fresh per-connection AES-GCM keys and authenticated sequence numbers inside the OS-paired secure RFCOMM link. Every application packet must carry the current phone token. Old buffered replies are unreadable by a later device. This does not replace OS Bluetooth pairing or certify adapter behavior.

@@ -84,7 +84,7 @@ export class BlueyClient {
   }
   send(packet: Packet) {
     if (this.endpoint === "bluetooth:" && !this.stopped) {
-      void bluetooth.send(packet).catch((error) => {
+      void bluetooth.send(packet, this.token).catch((error) => {
         this.onStatus("offline");
         this.dispatch({ type: "error", text: String(error) });
       });
