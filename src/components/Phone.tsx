@@ -381,7 +381,7 @@ export function Phone() {
                 ? "Thinking quietly…"
                 : session.active
                   ? "Keeping context. Hold to ask. Double tap to end."
-                  : "Follow mode · double tap to start a session."}
+                  : "Parked bottom-center · double tap to start a session."}
       </div>
       <QuietSessionPanel session={session} client={phone} phone />
       {options && (

@@ -57,6 +57,15 @@ export interface Bridge {
   openExternal?: (url: string) => Promise<void>;
   onCommand?: (callback: (command: string) => void) => () => void;
   chooseFolder: () => Promise<string | null>;
+  overlayLayout?: () => Promise<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }>;
+  onOverlayLayout?: (
+    cb: (area: { x: number; y: number; width: number; height: number }) => void,
+  ) => () => void;
   onPointer: (cb: (p: { x: number; y: number }) => void) => () => void;
   interactive: (value: boolean) => void;
 }

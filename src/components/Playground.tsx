@@ -49,8 +49,8 @@ export function Playground({
   onMood: (m: Mood) => void;
 }) {
   const [mood, setMood] = useState<Mood>("listening");
-  const [point, setPoint] = useState({ x: 72, y: 35 });
-  const [cursorMood, setCursorMood] = useState<Mood>("pointing");
+  const [point, setPoint] = useState<{ x: number; y: number } | null>(null);
+  const [cursorMood, setCursorMood] = useState<Mood>("listening");
   return (
     <div className="page-scroll playground">
       <div className="page-heading">
@@ -93,9 +93,9 @@ export function Playground({
           </div>
           <h2>A pointer with a personality.</h2>
           <p>
-            His own little eyes. His own way around.
+            A quiet little companion, parked bottom-center.
             <br />
-            Click in the space below to send him flying.
+            He stays put until asked to move. Click below to try it.
           </p>
           <div
             className={`cursor-stage trail-${settings.trail}`}
@@ -109,7 +109,7 @@ export function Playground({
               setTimeout(() => setCursorMood("listening"), 1200);
             }}
           >
-            {settings.trail === "string" && (
+            {settings.trail === "string" && point && (
               <svg
                 className="pointer-string"
                 width="100%"
@@ -129,13 +129,18 @@ export function Playground({
             <div
               className={`moving-cursor ${settings.glow ? "glow" : ""}`}
               style={{
-                left: `${point.x}%`,
-                top: `${point.y}%`,
+                left: `${point?.x ?? 50}%`,
+                top: point
+                  ? `${point.y}%`
+                  : `calc(100% - ${(settings.cursorSize + 30) / 2 + 26}px)`,
+                transform: "translate(-50%, -50%)",
                 width: settings.cursorSize + 30,
               }}
             >
               <CursorAvatar mood={cursorMood} />
-              {settings.trail === "comet" && <span className="cursor-comet" />}
+              {settings.trail === "comet" && point && (
+                <span className="cursor-comet" />
+              )}
             </div>
             <span>CLICK ANYWHERE TO EXPLORE</span>
           </div>
@@ -195,7 +200,8 @@ export function Playground({
           onClick={() => {
             setMood("listening");
             onMood("listening");
-            setPoint({ x: 72, y: 35 });
+            setPoint(null);
+            setCursorMood("listening");
           }}
         >
           <RotateCcw size={13} />

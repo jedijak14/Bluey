@@ -205,7 +205,7 @@ try {
     "## Microphone transcript",
   );
   await page.mouse.dblclick(450, 280);
-  await expect(page.locator(".phone-instruction")).toContainText("Follow mode");
+  await expect(page.locator(".phone-instruction")).toContainText("Parked bottom-center");
   await expect(page.locator(".listening-edge")).toHaveCount(0);
   // Windows shortcut command can start the already-consented paired phone, not TTS.
   peer.send(JSON.stringify({ type: "session_toggle" }));
@@ -242,7 +242,7 @@ try {
     .poll(async () => (await calls("startRecognition")).length)
     .toBe(previousStarts + 1);
   peer.send(JSON.stringify({ type: "session_toggle" }));
-  await expect(page.locator(".phone-instruction")).toContainText("Follow mode");
+  await expect(page.locator(".phone-instruction")).toContainText("Parked bottom-center");
   await page.evaluate(() => window.grantPermission());
   await expect
     .poll(() => page.evaluate(() => window.recognitionActive))

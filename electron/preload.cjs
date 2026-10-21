@@ -11,6 +11,12 @@ contextBridge.exposeInMainWorld("bluey", {
   chooseFolder: () => ipcRenderer.invoke("choose-folder"),
   interactive: (value) =>
     ipcRenderer.send("overlay-interactive", Boolean(value)),
+  overlayLayout: () => ipcRenderer.invoke("overlay-layout"),
+  onOverlayLayout: (callback) => {
+    const listener = (_event, area) => callback(area);
+    ipcRenderer.on("overlay-layout", listener);
+    return () => ipcRenderer.removeListener("overlay-layout", listener);
+  },
   onPointer: (callback) => {
     const listener = (_event, point) => callback(point);
     ipcRenderer.on("pointer", listener);
