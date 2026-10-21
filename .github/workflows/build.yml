@@ -289,13 +289,20 @@ jobs:
     if: "github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[release-android]')"
     timeout-minutes: 25
     runs-on: windows-latest
-    needs: [test, postgres, guardian-check]
+    needs: [test, postgres]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Windows model discovery and encrypted restart checks
+        run: |
+          python -m pip install -r backend/requirements-dev.txt
+          python -m pytest backend/tests/test_model_connection.py -q
       - run: npm ci
       - run: npm run package:win
         env:
