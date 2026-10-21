@@ -165,6 +165,23 @@ try:
     restart_with_usage(720*60)
     await_signin('blocked')
     logon_denied()
+    win32security.ImpersonateLoggedOnUser(token)
+    try:
+        child_rights=None
+        try:
+            child_rights=WindowsRights()
+            child_rights.remove(sid_text, DENY_RIGHTS)
+        except OSError: pass
+        else: raise AssertionError('Standard child could remove Windows sign-in denial')
+        finally:
+            if child_rights is not None: child_rights.close()
+        try:
+            descriptor=os.open(data/'signin.json', os.O_WRONLY)
+        except PermissionError: pass
+        else:
+            os.close(descriptor)
+            raise AssertionError('Standard child could write the recovery journal')
+    finally: win32security.RevertToSelf()
     rights=WindowsRights()
     try:
         assert DENY_RIGHTS <= rights.read(sid_text)
