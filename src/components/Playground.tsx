@@ -8,6 +8,7 @@ import {
   Pause,
 } from "lucide-react";
 import { Avatar, CursorAvatar } from "./FloatingWidget/Avatar";
+import { MotionControl, useMotionPreference } from "./MotionPreferences";
 import type { Mood, Settings } from "../lib/types";
 const moods: { id: Mood; label: string; description: string }[] = [
   {
@@ -56,20 +57,11 @@ export function Playground({
   onMood: (m: Mood) => void;
 }) {
   const [mood, setMood] = useState<Mood>("listening");
-  const [reducedMotion, setReducedMotion] = useState(
-    () =>
-      typeof matchMedia !== "undefined" &&
-      matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
+  const { enabled: motionOn } = useMotionPreference();
+  const reducedMotion = !motionOn;
   const [playing, setPlaying] = useState(true);
   const [replay, setReplay] = useState(0);
   const cursorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    const media = matchMedia("(prefers-reduced-motion: reduce)");
-    const changed = () => setReducedMotion(media.matches);
-    media.addEventListener("change", changed);
-    return () => media.removeEventListener("change", changed);
-  }, []);
   useEffect(() => {
     if (!playing || reducedMotion) return;
     const timer = setInterval(() => {
@@ -107,6 +99,7 @@ export function Playground({
             Meet Bluey<span>LIVE PREVIEW</span>
           </div>
           <Avatar key={`${mood}-${replay}`} mood={mood} />
+          <MotionControl />
           <div className="expression-controls">
             <button
               onClick={() => setPlaying(!playing)}
@@ -133,7 +126,7 @@ export function Playground({
           </div>
           <p className="expression-status">
             {reducedMotion
-              ? "Reduced motion is on. Choose an expression below."
+              ? "Motion is off. Choose On above to animate, or select an expression below."
               : playing
                 ? "A silent tour of all seven expressions"
                 : "Tour paused · the selected expression stays animated"}

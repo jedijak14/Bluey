@@ -13,10 +13,11 @@ const browser = await chromium.launch({
 });
 const base = process.env.BLUEY_PREVIEW_URL || "http://127.0.0.1:5173";
 try {
-  const page = await browser.newPage({
+  const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     reducedMotion: "no-preference",
   });
+  const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript(() =>
@@ -78,7 +79,9 @@ try {
   });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(
-    page.getByText("Reduced motion is on. Choose an expression below."),
+    page.getByText(
+      "Motion is off. Choose On above to animate, or select an expression below.",
+    ),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Play expressions" }),
@@ -90,6 +93,109 @@ try {
   await expect(face).toHaveClass(/mood-sleepy/);
   await page.waitForTimeout(4200);
   await expect(face).toHaveClass(/mood-sleepy/);
+  // Explicit On must override the still-active OS reduce preference, both CSS
+  // and JS timers. Off must also work when the OS normally permits animation.
+  await page
+    .getByRole("combobox", { name: "Motion", exact: true })
+    .selectOption("on");
+  expect(
+    await page.evaluate(
+      () => matchMedia("(prefers-reduced-motion: reduce)").matches,
+    ),
+  ).toBe(true);
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
+  for (const [label, , part] of moods) {
+    await page.getByRole("button", { name: label, exact: true }).click();
+    const animated = face.locator(part).first();
+    const sample = () =>
+      animated.evaluate(
+        (el) =>
+          `${getComputedStyle(el).transform}|${getComputedStyle(el).opacity}`,
+      );
+    const before = await sample();
+    await expect.poll(sample).not.toBe(before);
+  }
+  await page.getByRole("button", { name: "Play expressions" }).click();
+  await expect(face).toHaveClass(/mood-listening/, { timeout: 6500 });
+  const oldFace = await face.elementHandle();
+  await page.getByRole("button", { name: "Replay expression" }).click();
+  expect(await oldFace.evaluate((el) => el.isConnected)).toBe(false);
+  await page.reload();
+  await page.getByRole("button", { name: "My companion", exact: true }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Motion", exact: true }),
+  ).toHaveValue("on");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page
+    .getByRole("combobox", { name: "Motion", exact: true })
+    .selectOption("off");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "off");
+  expect(
+    await face.evaluate((el) => el.getAnimations({ subtree: true }).length),
+  ).toBe(0);
+  await page
+    .getByRole("combobox", { name: "Motion", exact: true })
+    .selectOption("system");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "off");
+
+  const otherTab = await page.context().newPage();
+  await otherTab.goto(base);
+  await otherTab
+    .getByRole("combobox", { name: "Motion", exact: true })
+    .selectOption("on");
+  await expect(
+    page.getByRole("combobox", { name: "Motion", exact: true }),
+  ).toHaveValue("on");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
+  await otherTab
+    .getByRole("combobox", { name: "Motion", exact: true })
+    .selectOption("off");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "off");
+  await otherTab.close();
+
+  const welcome = await browser.newPage({ reducedMotion: "reduce" });
+  await welcome.clock.install();
+  await welcome.goto(base);
+  await expect(
+    welcome.getByRole("button", { name: "Enter Bluey" }),
+  ).toBeEnabled();
+  await welcome
+    .getByRole("combobox", { name: "Motion", exact: true })
+    .selectOption("on");
+  await welcome.clock.runFor(600);
+  await expect(
+    welcome.getByRole("img", { name: "Bluey is winking" }),
+  ).toBeVisible();
+  await expect(
+    welcome.getByRole("button", { name: "Enter Bluey" }),
+  ).toBeEnabled();
+  await welcome.close();
+
+  const blockedStorage = await browser.newPage({ reducedMotion: "reduce" });
+  await blockedStorage.addInitScript(() => {
+    sessionStorage.setItem("bluey.desktop-welcome.v1", "seen");
+    const write = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "bluey.motion-preference.v1")
+        throw new DOMException("Storage blocked", "SecurityError");
+      return write.call(this, key, value);
+    };
+  });
+  await blockedStorage.goto(base);
+  await blockedStorage
+    .getByRole("button", { name: "My companion", exact: true })
+    .click();
+  await blockedStorage
+    .getByRole("combobox", { name: "Motion", exact: true })
+    .selectOption("on");
+  await expect(blockedStorage.locator("html")).toHaveAttribute(
+    "data-motion",
+    "on",
+  );
+  await blockedStorage.close();
   const phone = await browser.newPage({
     viewport: { width: 390, height: 844 },
     isMobile: true,
@@ -108,12 +214,33 @@ try {
       .evaluate((el) => getComputedStyle(el).animationName),
   ).toBe("blink");
   await phone.emulateMedia({ reducedMotion: "reduce" });
+  await expect(phone.locator("html")).toHaveAttribute("data-motion", "off");
+  await expect
+    .poll(() =>
+      sad.evaluate((el) => el.getAnimations({ subtree: true }).length),
+    )
+    .toBe(0);
+  await phone
+    .getByRole("combobox", { name: "Motion", exact: true })
+    .selectOption("on");
+  await expect(phone.locator("html")).toHaveAttribute("data-motion", "on");
   expect(
-    await sad.evaluate((el) => el.getAnimations({ subtree: true }).length),
-  ).toBe(0);
+    await sad
+      .locator(".eye")
+      .first()
+      .evaluate((el) => getComputedStyle(el).animationName),
+  ).toBe("blink");
+  await phone
+    .getByRole("combobox", { name: "Motion", exact: true })
+    .selectOption("off");
+  await expect
+    .poll(() =>
+      sad.evaluate((el) => el.getAnimations({ subtree: true }).length),
+    )
+    .toBe(0);
   expect(errors).toEqual([]);
   console.log(
-    "PASS: all seven moods change rendered frames; autoplay, manual selection, replay, parked pointer, mobile blink and live reduced-motion preferences.",
+    "PASS: all seven moods change rendered frames; autoplay, manual selection, replay, parked pointer, mobile blink, System/On/Off overrides, reload persistence, blocked storage, welcome replay and live OS preferences.",
   );
 } finally {
   await browser.close();

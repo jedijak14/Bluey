@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Avatar } from "./FloatingWidget/Avatar";
 import { currentDevice, type DeviceKind } from "../lib/deviceSupport";
+import { MotionControl } from "./MotionPreferences";
 const RESTRICTION =
   "iPads, Phones, and other tablets are not supported. You are now viewing the mobile version of the website.";
 export function MobileWebsite({
@@ -89,6 +90,7 @@ export function MobileWebsite({
             Meet Bluey <ArrowDown size={14} />
           </a>
         </header>
+        <MotionControl />
         <section className="mobile-intro">
           <span className="mobile-eyebrow">
             A LITTLE COMPANION. A DIFFERENT VIEW.

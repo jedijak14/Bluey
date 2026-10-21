@@ -2762,10 +2762,17 @@ label > input::placeholder {
     font-size: 12px;
   }
 }
+html[data-motion="off"] *,
+html[data-motion="off"] *:before,
+html[data-motion="off"] *:after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *:before,
-  *:after {
+  html:not([data-motion]) *,
+  html:not([data-motion]) *:before,
+  html:not([data-motion]) *:after {
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;
@@ -3312,8 +3319,12 @@ label > input::placeholder {
     padding: 18px;
   }
 }
+html[data-motion="off"] .click-feedback > i {
+  animation: none;
+  opacity: 0.5;
+}
 @media (prefers-reduced-motion: reduce) {
-  .click-feedback > i {
+  html:not([data-motion]) .click-feedback > i {
     animation: none;
     opacity: 0.5;
   }
@@ -4131,16 +4142,28 @@ label > input::placeholder {
     padding-top: 20px;
   }
 }
+html[data-motion="off"] .welcome-wordmark {
+  transform: none;
+}
+html[data-motion="off"] .listening-edge {
+  animation: none;
+  opacity: 0.65;
+}
+html[data-motion="off"] .mobile-site *,
+html[data-motion="off"] .desktop-welcome * {
+  animation: none !important;
+  transition: none !important;
+}
 @media (prefers-reduced-motion: reduce) {
-  .welcome-wordmark {
+  html:not([data-motion]) .welcome-wordmark {
     transform: none;
   }
-  .listening-edge {
+  html:not([data-motion]) .listening-edge {
     animation: none;
     opacity: 0.65;
   }
-  .mobile-site *,
-  .desktop-welcome * {
+  html:not([data-motion]) .mobile-site *,
+  html:not([data-motion]) .desktop-welcome * {
     animation: none !important;
     transition: none !important;
   }
@@ -4538,8 +4561,11 @@ label > input::placeholder {
     margin-left: 0;
   }
 }
+html[data-motion="off"] .desktop-task-grid button {
+  transition: none;
+}
 @media (prefers-reduced-motion: reduce) {
-  .desktop-task-grid button {
+  html:not([data-motion]) .desktop-task-grid button {
     transition: none;
   }
 }
@@ -4697,12 +4723,19 @@ label > input::placeholder {
     transform: rotate(360deg);
   }
 }
+html[data-motion="off"] .overlay-cursor-body > svg,
+html[data-motion="off"] .overlay-dock-tip {
+  transition: none;
+}
+html[data-motion="off"] .research-spinner {
+  animation: none;
+}
 @media (prefers-reduced-motion: reduce) {
-  .overlay-cursor-body > svg,
-  .overlay-dock-tip {
+  html:not([data-motion]) .overlay-cursor-body > svg,
+  html:not([data-motion]) .overlay-dock-tip {
     transition: none;
   }
-  .research-spinner {
+  html:not([data-motion]) .research-spinner {
     animation: none;
   }
 }
@@ -4745,33 +4778,61 @@ label > input::placeholder {
   text-align: center;
   margin: 10px 12px 0;
 }
+html[data-motion="on"] .face-preview .mood-listening .berry-body {
+  animation: attentive-breathe 3.2s ease-in-out infinite;
+}
+html[data-motion="on"] .face-preview .mood-happy .berry-body {
+  animation: happy-hop 1.8s ease-in-out infinite;
+}
+html[data-motion="on"] .face-preview .mood-pointing .berry-body {
+  animation: confident-nod 2.4s ease-in-out infinite;
+}
+html[data-motion="on"] .face-preview .mood-sleepy .berry-body {
+  animation: sleepy-settle 4s ease-in-out infinite;
+}
+html[data-motion="on"] .face-preview .mood-sleepy .eye {
+  animation: drowsy-blink 4s ease-in-out infinite;
+}
+html[data-motion="on"] .face-preview .mood-thinking .eyebrow {
+  animation: curious-brow 2.4s ease-in-out infinite;
+}
+html[data-motion="on"] .face-preview .mood-resting .berry-body {
+  animation: attentive-breathe 5s ease-in-out infinite;
+}
+html[data-motion="on"] .cursor-stage .pointer-body {
+  transform-box: view-box;
+  transform-origin: 50px 95px;
+}
+html[data-motion="on"] .cursor-stage .mood-pointing .pointer-body {
+  animation: pointer-nod 0.65s ease-in-out 2;
+}
 @media (prefers-reduced-motion: no-preference) {
-  .face-preview .mood-listening .berry-body {
+  html:not([data-motion]) .face-preview .mood-listening .berry-body {
     animation: attentive-breathe 3.2s ease-in-out infinite;
   }
-  .face-preview .mood-happy .berry-body {
+  html:not([data-motion]) .face-preview .mood-happy .berry-body {
     animation: happy-hop 1.8s ease-in-out infinite;
   }
-  .face-preview .mood-pointing .berry-body {
+  html:not([data-motion]) .face-preview .mood-pointing .berry-body {
     animation: confident-nod 2.4s ease-in-out infinite;
   }
-  .face-preview .mood-sleepy .berry-body {
+  html:not([data-motion]) .face-preview .mood-sleepy .berry-body {
     animation: sleepy-settle 4s ease-in-out infinite;
   }
-  .face-preview .mood-sleepy .eye {
+  html:not([data-motion]) .face-preview .mood-sleepy .eye {
     animation: drowsy-blink 4s ease-in-out infinite;
   }
-  .face-preview .mood-thinking .eyebrow {
+  html:not([data-motion]) .face-preview .mood-thinking .eyebrow {
     animation: curious-brow 2.4s ease-in-out infinite;
   }
-  .face-preview .mood-resting .berry-body {
+  html:not([data-motion]) .face-preview .mood-resting .berry-body {
     animation: attentive-breathe 5s ease-in-out infinite;
   }
-  .cursor-stage .pointer-body {
+  html:not([data-motion]) .cursor-stage .pointer-body {
     transform-box: view-box;
     transform-origin: 50px 95px;
   }
-  .cursor-stage .mood-pointing .pointer-body {
+  html:not([data-motion]) .cursor-stage .mood-pointing .pointer-body {
     animation: pointer-nod 0.65s ease-in-out 2;
   }
 }
@@ -4849,4 +4910,48 @@ label > input::placeholder {
   45% {
     transform: scale(1.08, 0.92);
   }
+}
+
+.motion-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+  width: min(100%, 390px);
+  margin: 18px auto 8px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: inherit;
+}
+.motion-control label {
+  font-weight: 600;
+}
+.motion-control select {
+  max-width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #8a80a866;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.motion-control option {
+  background: Canvas;
+  color: CanvasText;
+}
+.motion-control select:focus-visible {
+  outline: 2px solid #859afa;
+  outline-offset: 3px;
+}
+.motion-control p,
+.welcome-stage .motion-control p {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  opacity: 0.8;
+  letter-spacing: normal;
+  text-align: center;
 }

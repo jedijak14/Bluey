@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Avatar } from "./FloatingWidget/Avatar";
+import { MotionControl, useMotionPreference } from "./MotionPreferences";
 const KEY = "bluey.desktop-welcome.v1";
 export function DesktopWelcome({ children }: { children: ReactNode }) {
+  const { enabled: motionOn } = useMotionPreference();
   const [entered, setEntered] = useState(() => {
     try {
       return sessionStorage.getItem(KEY) === "seen";
@@ -13,27 +15,18 @@ export function DesktopWelcome({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState("arrival");
   useEffect(() => {
     if (entered) return;
-    const media = matchMedia("(prefers-reduced-motion: reduce)");
-    if (media.matches) {
+    if (!motionOn) {
       setPhase("logo");
       return;
     }
+    setPhase("arrival");
     const wink = setTimeout(() => setPhase("wink"), 500);
     const logo = setTimeout(() => setPhase("logo"), 1500);
-    const reduced = () => {
-      if (media.matches) {
-        clearTimeout(wink);
-        clearTimeout(logo);
-        setPhase("logo");
-      }
-    };
-    media.addEventListener("change", reduced);
     return () => {
       clearTimeout(wink);
       clearTimeout(logo);
-      media.removeEventListener("change", reduced);
     };
-  }, [entered]);
+  }, [entered, motionOn]);
   function enter() {
     try {
       sessionStorage.setItem(KEY, "seen");
@@ -70,6 +63,7 @@ export function DesktopWelcome({ children }: { children: ReactNode }) {
         >
           Enter Bluey <ArrowRight size={18} />
         </button>
+        <MotionControl />
       </div>
       <span className="welcome-bottom">YOUR LITTLE DESKTOP COMPANION</span>
     </main>
