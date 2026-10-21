@@ -4,6 +4,11 @@ on:
     branches: [main, "arena/**"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_latest:
+        description: Publish Bluey-Latest only after all native and inference gates pass
+        type: boolean
+        default: false
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
@@ -497,7 +502,7 @@ jobs:
           fi
 
   publish-latest:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/1cef984e-bluey' && contains(github.event.head_commit.message, '[release-latest]')
+    if: github.ref == 'refs/heads/arena/1cef984e-bluey' && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[release-latest]')) || (github.event_name == 'workflow_dispatch' && inputs.release_latest))
     needs: [android-apk, family-apks, windows-installer, family-windows, ollama-check, guardian-check]
     runs-on: ubuntu-24.04
     permissions:
