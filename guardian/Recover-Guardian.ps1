@@ -36,6 +36,6 @@ if ($ArchiveInstallation) {
     }
   }
 }
-Write-Host 'Bluey service removed; enrolled-browser rules cleared when configuration was present.'
+Write-Host 'Bluey service removed; Bluey-owned sign-in deny rights and enrolled-browser rules cleared when configuration was present.'
 Write-Host 'Restart Edge and Chrome. Parent administrator recovery does not require an Internet connection.'
 if (!$ArchiveInstallation) { Write-Host 'To reinstall, rerun this script with -ArchiveInstallation. This preserves old files in protected sibling folders.' }

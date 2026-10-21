@@ -14,6 +14,7 @@ class AgentReport(StrictModel):
     policy_version: int = Field(ge=0, strict=True)
     used_seconds: int = Field(ge=0, le=172800, strict=True)
     day: str = Field(pattern=r'^\d{4}-\d{2}-\d{2}$')
+    signin_state: Literal['disabled', 'starting', 'allowed', 'blocked', 'external_policy', 'error'] = 'disabled'
     time_service: StrictBool
     edge_rules: StrictBool
     browser_rules: dict[Literal["edge", "chrome"], StrictBool] = Field(default_factory=dict)

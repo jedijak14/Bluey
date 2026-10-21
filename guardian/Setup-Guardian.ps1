@@ -22,7 +22,12 @@ try {
     $child = Read-Host 'Local STANDARD child Windows account name (not the Bluey nickname)'
     $python = Read-Host 'Full path to system-wide Python 3.11+ under Program Files'
     Write-Host 'Keep the child profile loaded. Create a Windows agent code in signed-in Home.'
-    & (Join-Path $PSScriptRoot 'Install-Guardian.ps1') -ChildAccount $child -Python $python -AcceptExperimentalEnforcement
+    Write-Host 'Optional: deny NEW Windows interactive/RDP logons for this child when restricted.'
+    Write-Host 'Uses persistent Windows security policy, not a fake fullscreen lock. Existing sessions are disconnected.'
+    Write-Host 'Keep a working separate parent administrator account. Offline recovery removes Bluey-owned deny rights.'
+    Write-Host 'Hello/PIN unlock, reconnect and reboot behavior still require supervised device testing.'
+    $signIn = (Read-Host 'Type BLOCK-SIGNIN to enable this experimental OS policy, or Enter to keep session-only limits') -ceq 'BLOCK-SIGNIN'
+    & (Join-Path $PSScriptRoot 'Install-Guardian.ps1') -ChildAccount $child -Python $python -AcceptExperimentalEnforcement -EnableSignInBlocking:$signIn
     Write-Host 'Installer finished. Verify the service and both browser policies on the child account.'
     $exitCode = 0
   } elseif ($choice -eq '2') {

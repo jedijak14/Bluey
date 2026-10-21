@@ -16,7 +16,7 @@ def agent_health(agent, policy, today, now):
         state = 'stale'
     elif not current or report['day'] != today:
         state = 'policy_pending'
-    elif not report['time_service'] or not browsers or not all(browsers.values()) or report.get('error'):
+    elif report.get('signin_state') in {'error', 'starting', 'external_policy'} or not report['time_service'] or not browsers or not all(browsers.values()) or report.get('error'):
         state = 'attention'
     else:
         state = 'reporting'

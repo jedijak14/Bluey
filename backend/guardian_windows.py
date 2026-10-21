@@ -13,6 +13,8 @@ from urllib.parse import urlsplit
 
 from .enforcement_policy import Budget
 from .website_rules import build_rules, BLOCKLIST_VERSION
+from .guardian_signin import SignInGate, recover_signin
+from .guardian_screen import SessionWarnings
 
 SERVICE = 'BlueyGuardian'
 
@@ -159,11 +161,23 @@ class Gateway:
         return response.json()
 
 
+def validate_enrolled_identity(config, directory):
+    try:
+        if standard_local_user(config['username']) != config['sid']:
+            raise ValueError('Enrolled child identity changed.')
+    except Exception:
+        recover_signin(config, directory)
+        raise
+
+
 def run(config_path, stop):
     import win32ts
     config=json.loads(config_path.read_text())
-    if standard_local_user(config['username'])!=config['sid']:
-        raise RuntimeError('Account identity changed; administrator repair required.')
+    validate_enrolled_identity(config, config_path.parent)
+    if type(config.get('signin_blocking', False)) is not bool or type(config.get('native_warnings', False)) is not bool:
+        raise ValueError('Invalid administrator enforcement configuration.')
+    gate = None
+    warnings = SessionWarnings()
     gateway=Gateway(config['origin'],config['token'])
     state_path=config_path.parent/'usage.json'
     budget=Budget(json.loads(state_path.read_text()) if state_path.exists() else None)
@@ -173,7 +187,7 @@ def run(config_path, stop):
     lock=threading.RLock()
     previous=time.monotonic(); last_reason=''
     browsers = managed_browsers(config)
-    health={'edge_rules':False, 'browser_rules':{b:False for b in browsers}, 'applied_version':None}
+    health={'signin_state':'starting' if config.get('signin_blocking') else 'disabled', 'native_warning':'idle', 'edge_rules':False, 'browser_rules':{b:False for b in browsers}, 'applied_version':None}
     import win32com.shell.shell as shell
     import win32com.shell.shellcon as shellcon
     status_path=Path(shell.SHGetFolderPath(0,shellcon.CSIDL_COMMON_APPDATA,0,0))/'Bluey Guardian Status'/'status.json'
@@ -197,7 +211,7 @@ def run(config_path, stop):
                 health.update(edge_rules=results.get('edge',False), browser_rules=results, applied_version=policy['version'] if all(results.values()) and policy else None)
                 report={'policy_version':budget.bundle['policy']['version'] if budget.bundle else 0,
                     'day':budget.state['day'] or '1970-01-01','used_seconds':min(172800,int(budget.state['used_seconds'])),
-                    'time_service':True,'edge_rules':results.get('edge',False), 'browser_rules':results, 'blocklist_version':BLOCKLIST_VERSION if all(results.values()) else '', 'error':error}
+                    'time_service':True,'signin_state':health['signin_state'],'edge_rules':results.get('edge',False), 'browser_rules':results, 'blocklist_version':BLOCKLIST_VERSION if all(results.values()) else '', 'error':error}
                 pending=list(events[:10])
             try:
                 gateway.call('agent/report',report)
@@ -212,6 +226,9 @@ def run(config_path, stop):
     worker.start()
     while not stop(0):
         now=time.time();mono=time.monotonic()
+        # Revalidate the binding before ANY session or LSA mutation, not only at
+        # startup. A parent-promoted/replaced account must not remain a target.
+        validate_enrolled_identity(config, config_path.parent)
         active=sessions(config['sid'])
         with lock:
             reason=budget.tick(now,mono-previous,bool(active));previous=mono
@@ -219,12 +236,29 @@ def run(config_path, stop):
             if reason and reason != last_reason and reason in {'time_limit','bedtime','clock_error','offline_policy_expired'}:
                 events[:]=(events+[{'id':str(uuid.uuid4()),'kind':reason}])[-100:];save(event_path,events)
             last_reason=reason
+            if config.get('signin_blocking'):
+                try:
+                    if gate is None:
+                        gate = SignInGate(config['sid'], config_path.parent/'signin.json')
+                    health['signin_state'] = gate.apply(bool(reason))
+                except (OSError, ValueError, RuntimeError):
+                    health['signin_state'] = 'error'
+            if config.get('native_warnings'):
+                health['native_warning'] = warnings.update(active, budget, now, bool(reason))
             save(status_path,{'updated_at':time.time(), 'child_sid':config['sid'], 'restriction':reason,
+                'signin_state':health['signin_state'], 'native_warning':health['native_warning'],
                 'edge_rules':health['edge_rules'], 'browser_rules':health['browser_rules'], 'applied_version':health['applied_version'],
                 'blocklist_version':BLOCKLIST_VERSION, 'verified':False})
         if reason:
-            for identifier in active: win32ts.WTSDisconnectSession(None,identifier,False)
+            for identifier in active:
+                try:
+                    win32ts.WTSDisconnectSession(None,identifier,False)
+                except win32ts.error:
+                    # Session may end between enumeration and disconnect. Retry
+                    # next loop; one disappearing session must not kill Guardian.
+                    pass
         if stop(1): break
+    if gate is not None: gate.close()
     worker.join(timeout=2)
     if not worker.is_alive(): gateway.client.close()
 
@@ -240,6 +274,7 @@ def main():
     parser.add_argument('command',choices=['enroll','install','service','recover'])
     parser.add_argument('--config',required=True,type=Path)
     parser.add_argument('--origin');parser.add_argument('--username')
+    parser.add_argument('--enable-signin-blocking', action='store_true')
     args=parser.parse_args()
     import ctypes
     if not ctypes.windll.shell32.IsUserAnAdmin(): raise SystemExit('Admin Permissions is needed')
@@ -257,10 +292,15 @@ def main():
                     with winreg.OpenKey(winreg.HKEY_USERS,browser_path(sid,browser,kind)): pass
                 except FileNotFoundError: pass
                 else: raise SystemExit(f'Existing managed {browser} rules found. No settings were changed.')
+        if args.enable_signin_blocking:
+            gate = SignInGate(sid, args.config.parent/'signin.json')
+            try: gate.prepare()
+            finally: gate.close()
         gateway=Gateway(args.origin)
         try: identity=gateway.call('agent/enroll',{'code':getpass.getpass('One-use WINDOWS enrollment code from Bluey Home: ')})
         finally: gateway.client.close()
-        save(args.config,{'sid':sid,'username':args.username,'origin':args.origin,'token':identity['token'],'browsers':browsers})
+        save(args.config,{'sid':sid,'username':args.username,'origin':args.origin,'token':identity['token'],'browsers':browsers,
+            'signin_blocking':args.enable_signin_blocking, 'native_warnings':True})
     elif args.command=='install':
         entry=Path(__file__).resolve().parent.parent/'service_entry.py'
         win32serviceutil.InstallService('backend.guardian_windows.Guardian',SERVICE,'Bluey Guardian (experimental)',
@@ -279,6 +319,9 @@ def main():
         if args.config.exists():
             import winreg
             config=json.loads(args.config.read_text())
+            # LSA recovery does NOT require the child hive to be loaded. Restore
+            # sign-in first so the parent can then load that profile for browsers.
+            recover_signin(config, args.config.parent)
             try:
                 with winreg.OpenKey(winreg.HKEY_USERS,config['sid']): pass
             except FileNotFoundError:

@@ -34,6 +34,13 @@ export type ChildProfile = {
     report: {
       policy_version: number;
       time_service: boolean;
+      signin_state?:
+        | "disabled"
+        | "starting"
+        | "allowed"
+        | "blocked"
+        | "external_policy"
+        | "error";
       edge_rules: boolean;
       browser_rules?: Partial<Record<"edge" | "chrome", boolean>>;
       error: string;
