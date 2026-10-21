@@ -22,7 +22,6 @@ const endpoint = "http://127.0.0.1:8765";
 let main,
   overlay,
   backend,
-  pointerTimer,
   stopping = false,
   yieldingOverlay = false;
 const root = app.isPackaged
@@ -62,6 +61,19 @@ function load(window, hash = "") {
     ? window.loadURL(`http://localhost:5173/${hash}`)
     : window.loadFile(renderer, { hash: hash.replace("#", "") });
 }
+function overlayLayout() {
+  const { bounds, workArea } = screen.getPrimaryDisplay();
+  return {
+    x: workArea.x - bounds.x,
+    y: workArea.y - bounds.y,
+    width: workArea.width,
+    height: workArea.height,
+  };
+}
+ipcMain.handle("overlay-layout", (event) => {
+  if (!ours(event)) throw Error("Untrusted window.");
+  return overlayLayout();
+});
 function toggleOverlay() {
   if (!overlay || overlay.isDestroyed()) return;
   overlay.isVisible() ? overlay.hide() : overlay.showInactive();
@@ -111,19 +123,11 @@ function createWindows() {
   load(overlay, "#overlay");
   overlay.once("ready-to-show", () => overlay.showInactive());
   screen.on("display-metrics-changed", () => {
-    if (overlay && !overlay.isDestroyed())
-      overlay.setBounds(screen.getPrimaryDisplay().bounds);
-  });
-  pointerTimer = setInterval(() => {
     if (overlay && !overlay.isDestroyed()) {
-      const point = screen.getCursorScreenPoint(),
-        b = screen.getPrimaryDisplay().bounds;
-      overlay.webContents.send("pointer", {
-        x: point.x - b.x,
-        y: point.y - b.y,
-      });
+      overlay.setBounds(screen.getPrimaryDisplay().bounds);
+      overlay.webContents.send("overlay-layout", overlayLayout());
     }
-  }, 50);
+  });
   main.on("closed", () => app.quit());
   if (!globalShortcut.register("CommandOrControl+Shift+B", toggleOverlay))
     console.warn(
@@ -286,7 +290,6 @@ app.whenReady().then(() => {
 });
 app.on("before-quit", () => {
   stopping = true;
-  clearInterval(pointerTimer);
   globalShortcut.unregisterAll();
   backend?.kill();
 });
