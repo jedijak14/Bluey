@@ -10,6 +10,8 @@ This mode is not included in the previously published 0.5.7 installers.
 - **Approved HTTPS sites only.** The parent allowlist authorizes a domain and its
   subdomains. Unlisted sites are denied, not assumed safe. The exact configured
   family-service hostname is additionally allowed for enrollment and time requests.
+  Because TLS is not decrypted, this exception trusts the entire HTTPS origin,
+  not only `/api/family` paths. Do not host untrusted relays at that origin.
 - **Warn, then sign out.** With explicit consent, cutoff logs off all bound-child
   sessions, including disconnected sessions, instead of merely disconnecting them.
   Unsaved work can be lost. Existing LSA rights deny new interactive/RDP logons.

@@ -62,7 +62,15 @@ function guardianStatus(record, currentSid, now = Date.now() / 1000) {
   ].includes(record.signin_state)
     ? record.signin_state
     : "disabled";
-  const networkState = ["disabled", "starting", "filtered", "blocked", "error"].includes(record.network_state) ? record.network_state : "disabled";
+  const networkState = [
+    "disabled",
+    "starting",
+    "filtered",
+    "blocked",
+    "error",
+  ].includes(record.network_state)
+    ? record.network_state
+    : "disabled";
   return {
     networkState,
     signOutAtCutoff: record.signout_at_cutoff === true,

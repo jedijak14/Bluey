@@ -66,6 +66,17 @@ def sessions(sid, include_disconnected=False):
     return found
 
 
+def restrict_sessions(sid, active, signout):
+    import win32ts
+    targets = sessions(sid, include_disconnected=True) if signout else active
+    for identifier in targets:
+        try:
+            if signout: win32ts.WTSLogoffSession(None, identifier, False)
+            else: win32ts.WTSDisconnectSession(None, identifier, False)
+        except win32ts.error:
+            pass  # A disappearing session cannot prevent restricting the others.
+
+
 BROWSER_KEYS = {"edge": r"Software\Policies\Microsoft\Edge", "chrome": r"Software\Policies\Google\Chrome"}
 
 
@@ -295,16 +306,7 @@ def _run(config_path, stop, resources):
                 'edge_rules':health['edge_rules'], 'browser_rules':health['browser_rules'], 'applied_version':health['applied_version'],
                 'blocklist_version':BLOCKLIST_VERSION, 'verified':False})
         if reason:
-            for identifier in (sessions(config['sid'], include_disconnected=True) if config.get('signout_at_cutoff') else active):
-                try:
-                    if config.get('signout_at_cutoff'):
-                        win32ts.WTSLogoffSession(None,identifier,False)
-                    else:
-                        win32ts.WTSDisconnectSession(None,identifier,False)
-                except win32ts.error:
-                    # Session may end between enumeration and disconnect. Retry
-                    # next loop; one disappearing session must not kill Guardian.
-                    pass
+            restrict_sessions(config['sid'], active, bool(config.get('signout_at_cutoff')))
         if stop(1): break
     if gate is not None: gate.close()
     worker.join(timeout=2)

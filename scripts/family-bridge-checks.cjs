@@ -126,3 +126,24 @@ test("sign-in policy failures are never reported as healthy browser-only status"
   assert.equal(blocked.verified, false);
   assert.equal(guardianStatus(record, "child", 101).signInState, "disabled");
 });
+
+test("strict network failure requires attention; sign-out is explicit", () => {
+  const now = Date.now() / 1000;
+  const row = {
+    child_sid: "child",
+    updated_at: now,
+    edge_rules: true,
+    applied_version: 1,
+    network_state: "error",
+    signout_at_cutoff: true,
+  };
+  const health = guardianStatus(row, "child", now);
+  assert.equal(health.state, "attention");
+  assert.equal(health.networkState, "error");
+  assert.equal(health.signOutAtCutoff, true);
+  assert.equal(health.verified, false);
+  assert.equal(
+    guardianStatus({ ...row, network_state: "filtered" }, "child", now).state,
+    "reporting",
+  );
+});

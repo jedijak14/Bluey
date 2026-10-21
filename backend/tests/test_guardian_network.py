@@ -132,3 +132,36 @@ def test_restricted_child_web_denied_but_control_origin_available():
         with request(p,'example.com:443') as client: assert client.recv(4096).startswith(b'HTTP/1.1 403')
         with request(p,'family.example.net:443') as client: assert client.recv(4096).startswith(b'HTTP/1.1 200')
     finally: p.close()
+
+
+def test_cutoff_signs_out_all_child_sessions_not_just_active(monkeypatch):
+    import sys
+    from backend import guardian_windows as guardian
+    records = [dict(SessionId=i, State=state) for i, state in [(0,0),(1,0),(2,4),(3,0)]]
+    calls = []
+    ts = SimpleNamespace(WTSActive=0, WTSUserName=5, WTSDomainName=7, error=OSError,
+        WTSEnumerateSessions=lambda *a: records,
+        WTSQuerySessionInformation=lambda _, i, field: 'PC' if field==7 else ('Child' if i in (1,2) else 'Parent'),
+        WTSLogoffSession=lambda *a: calls.append(('signout',a)),
+        WTSDisconnectSession=lambda *a: calls.append(('disconnect',a)))
+    security = SimpleNamespace(LookupAccountName=lambda _, name: (SID if name.endswith('Child') else SID+'0',None,None),
+        ConvertSidToStringSid=lambda value:value)
+    monkeypatch.setitem(sys.modules, 'win32ts', ts)
+    monkeypatch.setitem(sys.modules, 'win32security', security)
+    assert guardian.sessions(SID) == [1]
+    guardian.restrict_sessions(SID,[1],True)
+    assert calls == [('signout',(None,1,False)),('signout',(None,2,False))]
+    calls.clear()
+    guardian.restrict_sessions(SID,[1],False)
+    assert calls == [('disconnect',(None,1,False))]
+
+
+def test_signout_warning_discloses_unsaved_work_loss(monkeypatch):
+    import sys
+    from backend.guardian_screen import send_warning
+    calls=[]
+    monkeypatch.setitem(sys.modules,'win32ts',SimpleNamespace(WTSSendMessage=lambda *a:calls.append(a)))
+    monkeypatch.setitem(sys.modules,'win32con',SimpleNamespace(MB_OK=0,MB_ICONWARNING=48))
+    send_warning(4,'time_limit',True)
+    assert 'SIGN OUT' in calls[0][3] and 'Unsaved work may be lost' in calls[0][3]
+    assert calls[0][-1] is False
