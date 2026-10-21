@@ -94,8 +94,20 @@ try {
     .click();
   await expect(home.getByLabel("Daily computer allowance")).toHaveValue("60");
   await home.getByLabel("Daily computer allowance").fill("90");
+  let releaseSave;
+  const saveGate = new Promise((resolve) => {
+    releaseSave = resolve;
+  });
+  await home.route("**/api/family/children/*/policy", async (route) => {
+    await saveGate;
+    await route.continue();
+  });
   await home.getByRole("button", { name: "Save rules", exact: true }).click();
+  await expect(home.getByLabel("Daily computer allowance")).toBeDisabled();
+  await expect(home.getByLabel("Parent allowlist exceptions")).toBeDisabled();
+  releaseSave();
   await expect(home.getByText("Rules saved.", { exact: false })).toBeVisible();
+  await home.unroute("**/api/family/children/*/policy");
 
   // Separate enrollment authorities, actually consumed by the live API.
   await home
@@ -290,15 +302,22 @@ try {
   const vaultCode = (await vaultCodeResponse.json()).code;
   const nativeContext = await browser.newContext({ reducedMotion: "reduce" });
   await nativeContext.addInitScript(() => {
-    let writes = 0;
+    let writes = 0,
+      clears = 0;
     window.blueyFamily = {
       guardianStatus: async () => ({ state: "admin_needed" }),
       openSetupGuide: async () => "",
-      vaultRead: async () => ({ token: "" }),
+      vaultRead: async () => {
+        if (!window.allowTestVaultRead)
+          throw Error("Simulated encrypted storage read failure");
+        return { token: "" };
+      },
       vaultWrite: async () => {
         if (++writes === 1) throw Error("Simulated encrypted storage failure");
       },
-      vaultClear: async () => {},
+      vaultClear: async () => {
+        if (++clears === 1) throw Error("Simulated clear failure");
+      },
       request: async (path, token, body, method) => {
         const response = await fetch(`/api/family/${path}`, {
           method,
@@ -315,6 +334,18 @@ try {
   const native = await nativeContext.newPage();
   native.on("pageerror", (e) => errors.push(e.message));
   await native.goto(base + "/#kids");
+  await expect(
+    native.getByText("Saved enrollment could not be read.", { exact: false }),
+  ).toBeVisible();
+  await native.evaluate(() => {
+    window.allowTestVaultRead = true;
+  });
+  await native
+    .getByRole("button", { name: "Retry saved enrollment", exact: true })
+    .click();
+  await expect(
+    native.getByText("Saved enrollment could not be read.", { exact: false }),
+  ).not.toBeVisible();
   await native.getByLabel("Code from your parent").fill(vaultCode);
   await native
     .getByRole("button", { name: "Connect my space", exact: true })
@@ -343,6 +374,24 @@ try {
   await expect(kids.getByLabel("Code from your parent")).toBeVisible();
   await expect(
     kids.getByRole("heading", { name: "Hey, Integration child." }),
+  ).not.toBeVisible();
+  await native
+    .getByRole("button", { name: "Forget this app’s enrollment", exact: true })
+    .click();
+  await expect(
+    native.getByText(
+      "The app disconnected, but encrypted enrollment could not be removed",
+      { exact: false },
+    ),
+  ).toBeVisible();
+  await native
+    .getByRole("button", { name: "Retry removing enrollment", exact: true })
+    .click();
+  await expect(
+    native.getByText(
+      "The app disconnected, but encrypted enrollment could not be removed",
+      { exact: false },
+    ),
   ).not.toBeVisible();
   await nativeContext.close();
   await home.getByRole("button", { name: "Sign out", exact: true }).click();

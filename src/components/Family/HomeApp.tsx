@@ -85,6 +85,7 @@ function ChildRules({
             Daily computer allowance
             <span className="home-number">
               <input
+                disabled={disabled}
                 type="number"
                 min={0}
                 max={720}
@@ -103,6 +104,7 @@ function ChildRules({
           <label>
             Timezone
             <input
+              disabled={disabled}
               value={policy.timezone}
               onChange={(e) =>
                 setPolicy({ ...policy, timezone: e.target.value })
@@ -114,6 +116,7 @@ function ChildRules({
           <label>
             Bedtime starts
             <input
+              disabled={disabled}
               type="time"
               value={policy.bedtime_start}
               onChange={(e) =>
@@ -125,6 +128,7 @@ function ChildRules({
           <label>
             Bedtime ends
             <input
+              disabled={disabled}
               type="time"
               value={policy.bedtime_end}
               onChange={(e) =>
@@ -137,6 +141,7 @@ function ChildRules({
         <label>
           Blocked website domains
           <textarea
+            disabled={disabled}
             rows={4}
             value={domains}
             onChange={(e) => setDomains(e.target.value)}
@@ -146,6 +151,7 @@ function ChildRules({
         <label>
           Parent allowlist exceptions
           <textarea
+            disabled={disabled}
             rows={3}
             value={allowed}
             onChange={(e) => setAllowed(e.target.value)}

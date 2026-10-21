@@ -215,6 +215,7 @@ export function KidsApp() {
             <label>
               Code from your parent
               <input
+                disabled={busy}
                 value={code}
                 onChange={(e) => setCode(e.target.value.trim())}
                 minLength={12}
@@ -255,6 +256,7 @@ export function KidsApp() {
               <label>
                 Extra minutes
                 <select
+                  disabled={busy}
                   value={minutes}
                   onChange={(e) => setMinutes(Number(e.target.value))}
                 >
@@ -268,6 +270,7 @@ export function KidsApp() {
               <label>
                 A note for your parent (optional)
                 <textarea
+                  disabled={busy}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   maxLength={240}
