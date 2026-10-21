@@ -7,8 +7,6 @@ required. Only a phone role can cross this transport. No LAN listener is needed.
 import asyncio
 import base64
 import secrets
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.exceptions import InvalidTag
 import json
 import os
 import re
@@ -105,6 +103,8 @@ class BluetoothRelay:
             self.socket = None
 
     async def accept_frame(self, frame):
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.exceptions import InvalidTag
         if frame['kind'] == 'hello':
             try:
                 key = base64.b64decode(frame.get('key', ''), validate=True)
@@ -132,6 +132,7 @@ class BluetoothRelay:
         await self.handle(packet)
 
     async def write(self, frame):
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
         async with self.write_lock:
             if not self.serial or self.key is None:
                 raise RuntimeError('Bluetooth disconnected.')
