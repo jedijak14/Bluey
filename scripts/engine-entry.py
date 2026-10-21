@@ -11,7 +11,12 @@ if __name__ == '__main__':
         from faster_whisper import WhisperModel
         import serial
         import websockets.asyncio.client
-        print("Bundled Windows desktop, speech and Bluetooth modules import successfully.")
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        cipher = AESGCM(AESGCM.generate_key(bit_length=256))
+        nonce = os.urandom(12)
+        sealed = cipher.encrypt(nonce, b"Bluetooth self-check", b"bluey-bt-v1:client")
+        assert cipher.decrypt(nonce, sealed, b"bluey-bt-v1:client") == b"Bluetooth self-check"
+        print("Windows desktop, speech and Bluetooth imports and AES-GCM self-check passed.")
     else:
         from backend.server import main
         main()

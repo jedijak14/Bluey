@@ -12,6 +12,7 @@ subprocess.run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '
     '--hidden-import', 'websockets.legacy.client',
     '--recursive-copy-metadata', 'windows-use',
     '--collect-data', 'litellm', '--hidden-import', 'tiktoken_ext.openai_public',
+    '--collect-submodules', 'mistralai',
     '--exclude-module', 'piper', '--exclude-module', 'tkinter',
     '--exclude-module', 'IPython', '--exclude-module', 'pytest',
     'scripts/engine-entry.py'], check=True)

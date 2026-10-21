@@ -339,6 +339,7 @@ jobs:
           set -euo pipefail
           trap 'python scripts/engine-build-diagnostics.py' ERR
           python -m pip install -r backend/requirements-native.txt pyinstaller pyserial 2>&1 | tee engine-bundle.log
+          python scripts/engine-entry.py --self-check 2>&1 | tee -a engine-bundle.log
           python scripts/package-engine.py 2>&1 | tee -a engine-bundle.log
           python scripts/engine-bundle-check.py 2>&1 | tee -a engine-bundle.log
       - run: npm run package:win
