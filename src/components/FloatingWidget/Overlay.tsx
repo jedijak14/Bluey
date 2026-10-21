@@ -22,7 +22,12 @@ import {
 import { load } from "../../lib/storage";
 import type { FaceState, Settings } from "../../lib/types";
 
+import { useMotionPreference } from "../MotionPreferences";
+
 export function Overlay() {
+  const { enabled: motionOn } = useMotionPreference();
+  const reducedMotion = useRef(!motionOn);
+  reducedMotion.current = !motionOn;
   const [face, setFace] = useState<FaceState>({
     mood: "listening",
     gazeX: 0,
@@ -214,7 +219,6 @@ export function Overlay() {
     let tilt = 0;
     let lastTime: number | undefined;
     const samples: { x: number; y: number }[] = [];
-    const reduced = matchMedia("(prefers-reduced-motion: reduce)");
     const step = (time: number) => {
       id = undefined;
       const p = position.current,
@@ -245,7 +249,7 @@ export function Overlay() {
       // Do not calculate an artificial end timestamp for reduced motion:
       // floating-point rounding can leave sampleFlight just short of done forever.
       const sample = flight
-        ? reduced.matches
+        ? reducedMotion.current
           ? { ...flight.to, done: true }
           : sampleFlight(flight, time)
         : { ...p, done: true };
@@ -260,10 +264,10 @@ export function Overlay() {
       const moving = !sample.done;
       // Gentle, frame-rate-independent lean; no full rotations or angle-wrap snaps.
       const desiredTilt =
-        moving && !reduced.matches
+        moving && !reducedMotion.current
           ? Math.max(-10, Math.min(10, ((p.x - oldX) / dt) * 10))
           : 0;
-      tilt = reduced.matches
+      tilt = reducedMotion.current
         ? 0
         : tilt + (desiredTilt - tilt) * (1 - Math.exp(-dt / 90));
       if (Math.abs(tilt) < 0.04) tilt = 0;
@@ -303,7 +307,7 @@ export function Overlay() {
       } else samples.length = 0;
       if (trail.current) {
         const path =
-          !moving || reduced.matches || trailStyle.current === "none"
+          !moving || reducedMotion.current || trailStyle.current === "none"
             ? ""
             : trailStyle.current === "string"
               ? `M${innerWidth / 2} ${innerHeight} Q${(innerWidth / 2 + p.x) / 2 + 45} ${innerHeight - 70} ${p.x + sizeRef.current / 2} ${p.y + sizeRef.current / 2}`
@@ -332,12 +336,10 @@ export function Overlay() {
       if (id === undefined) id = requestAnimationFrame(step);
     };
     wake.current = start;
-    reduced.addEventListener("change", start);
     start();
     return () => {
       if (id !== undefined) cancelAnimationFrame(id);
       wake.current = () => {};
-      reduced.removeEventListener("change", start);
     };
   }, []);
   useEffect(() => {
@@ -345,7 +347,7 @@ export function Overlay() {
   }, [size]);
   useEffect(() => {
     wake.current();
-  }, [caption, expanded, docked, settings.trail]);
+  }, [caption, expanded, docked, settings.trail, motionOn]);
   return (
     <div className="desktop-overlay">
       {expanded && (research || cardResponse) && (

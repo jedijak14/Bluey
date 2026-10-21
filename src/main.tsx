@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { Capacitor } from "@capacitor/core";
 import App from "./App";
+import { MotionProvider } from "./components/MotionPreferences";
 import { HomeApp } from "./components/Family/HomeApp";
 import { KidsApp } from "./components/Family/KidsApp";
 import { Overlay } from "./components/FloatingWidget/Overlay";
@@ -60,7 +61,9 @@ function Root() {
 }
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <Root />
+    <MotionProvider>
+      <Root />
+    </MotionProvider>
   </React.StrictMode>,
 );
 

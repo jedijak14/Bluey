@@ -856,9 +856,14 @@
     font-size: 28px;
   }
 }
+html[data-motion="off"] .bluey-home *,
+html[data-motion="off"] .bluey-kids * {
+  animation: none !important;
+  transition: none !important;
+}
 @media (prefers-reduced-motion: reduce) {
-  .bluey-home *,
-  .bluey-kids * {
+  html:not([data-motion]) .bluey-home *,
+  html:not([data-motion]) .bluey-kids * {
     animation: none !important;
     transition: none !important;
   }
@@ -985,9 +990,13 @@
     transform: scale(1) rotate(0);
   }
 }
+html[data-motion="off"] .safety-arrival,
+html[data-motion="off"] .safety-spark {
+  animation: none !important;
+}
 @media (prefers-reduced-motion: reduce) {
-  .safety-arrival,
-  .safety-spark {
+  html:not([data-motion]) .safety-arrival,
+  html:not([data-motion]) .safety-spark {
     animation: none !important;
   }
 }
