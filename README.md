@@ -12,21 +12,19 @@ Phones, iPads and tablets can explore a separate mobile information site. **Test
 
 ## Download Bluey
 
-**Windows companion 0.5.5:** [model picker and one-time setup](docs/RELEASE_0.5.5.md). Other platform/family downloads below remain at their listed releases.
+**Windows companion 0.5.5:** [model picker and one-time setup](docs/RELEASE_0.5.5.md). All older releases and assets have been deleted; Android, Home and Kids installers are currently unavailable.
 
-Family/Android preview: [v0.5.3-preview.1](https://github.com/jedijak14/Bluey/releases/tag/v0.5.3-preview.1).
+Published release: [v0.5.5-preview.1](https://github.com/jedijak14/Bluey/releases/tag/v0.5.5-preview.1).
 
 | Platform              | Download                                                                                                                                           |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Android               | [Bluey-0.5.3-Android.apk](https://github.com/jedijak14/Bluey/releases/download/v0.5.3-preview.1/Bluey-0.5.3-Android.apk)                           |
 | Windows x64 installer | [Bluey-0.5.5-Windows-x64-Setup.exe](https://github.com/jedijak14/Bluey/releases/download/v0.5.5-preview.1/Bluey-0.5.5-Windows-x64-Setup.exe)       |
 | Windows x64 portable  | [Bluey-0.5.5-Windows-x64-Portable.exe](https://github.com/jedijak14/Bluey/releases/download/v0.5.5-preview.1/Bluey-0.5.5-Windows-x64-Portable.exe) |
 
-Separate family downloads: [Kids Windows](https://github.com/jedijak14/Bluey/releases/download/v0.5.3-preview.1/Bluey-Kids-0.5.3-Windows-x64-Setup.exe) · [Home Windows](https://github.com/jedijak14/Bluey/releases/download/v0.5.3-preview.1/Bluey-Home-0.5.3-Windows-x64-Setup.exe) · [Kids Android](https://github.com/jedijak14/Bluey/releases/download/v0.5.3-preview.1/Bluey-Kids-0.5.3-Android.apk) · [Home Android](https://github.com/jedijak14/Bluey/releases/download/v0.5.3-preview.1/Bluey-Home-0.5.3-Android.apk).
 
-**Family preview, not complete protection:** production family hosting remains unconfigured; Guardian needs separate administrator setup. Edge/Chrome URL policies and session disconnection do not provide all-browser filtering, Android enforcement or a non-bypassable login barrier. See [0.5.3 scope](docs/RELEASE_0.5.3.md) and the [download page](https://bluey-plum.vercel.app/downloads.html). Existing 0.4.0 releases are archived, not overwritten.
+**Family preview, not complete protection:** production family hosting remains unconfigured; Guardian needs separate administrator setup. Edge/Chrome URL policies and session disconnection do not provide all-browser filtering, Android enforcement or a non-bypassable login barrier. See [0.5.3 scope](docs/RELEASE_0.5.3.md) and the [download page](https://bluey-plum.vercel.app/downloads.html). Older release downloads have been removed; source tags remain available.
 
-[Windows companion checksums](https://github.com/jedijak14/Bluey/releases/download/v0.5.5-preview.1/SHA256SUMS.txt) · [Family/Android checksums](https://github.com/jedijak14/Bluey/releases/download/v0.5.3-preview.1/SHA256SUMS.txt) · [Windows setup](docs/RELEASE_NOTES.md) · [Android setup](docs/ANDROID_RELEASE.md). Windows binaries are unsigned and still require the Python/model setup. Android is debug-signed; a different preview signing key can require uninstalling the previous APK (clears app data). **No spoken replies—text bubbles and a brief phone chirp. Update both apps and the Python engine.**
+[Windows companion checksums](https://github.com/jedijak14/Bluey/releases/download/v0.5.5-preview.1/SHA256SUMS.txt) · [Windows setup](docs/RELEASE_NOTES.md) · [Android setup](docs/ANDROID_RELEASE.md). Windows binaries are unsigned and still require the Python/model setup. Android is debug-signed; a different preview signing key can require uninstalling the previous APK (clears app data). **No spoken replies—text bubbles and a brief phone chirp. Update both apps and the Python engine.**
 
 Home Windows now includes **Install or recover Windows Guardian** on the child's test PC. A native confirmation and Windows UAC approval are required. Recovery can archive the previous installation safely so reinstall is not blocked by old folders. This is setup/recovery work, not full device protection; physical UAC/installer/reboot validation remains required. See [Guardian setup](guardian/README.md).
 
