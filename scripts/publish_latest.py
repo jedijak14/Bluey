@@ -4,7 +4,6 @@ import json
 import os
 from pathlib import Path
 import subprocess
-from urllib.parse import quote
 
 
 def expected_binaries(version):
@@ -62,11 +61,12 @@ def publish():
     files = sorted(p for p in directory.iterdir() if p.is_file())
     local_hashes = {p.name: digest(p) for p in files}
     tag = "v" + version
-    endpoint = f"repos/{os.environ['GH_REPO']}/releases/tags/{quote(tag, safe='')}"
+    releases_endpoint = f"repos/{os.environ['GH_REPO']}/releases"
     # Listing avoids treating authorization/network errors as a missing release.
-    releases = json.loads(gh("api", f"repos/{os.environ['GH_REPO']}/releases?per_page=100"))
+    releases = json.loads(gh("api", releases_endpoint + "?per_page=100"))
     existing = next((r for r in releases if r["tag_name"] == tag), None)
     if existing:
+        endpoint = f"{releases_endpoint}/{existing['id']}"
         if existing["target_commitish"] != os.environ["GITHUB_SHA"]:
             raise RuntimeError("Version already belongs to another commit; bump the version, never retag it")
         if not existing["draft"]:
@@ -76,6 +76,10 @@ def publish():
     else:
         gh("release", "create", tag, "--draft", "--target", os.environ["GITHUB_SHA"],
            "--title", "Bluey-Latest", "--notes-file", "docs/RELEASE_LATEST.md")
+        # /releases/tags/{tag} only finds published releases. Drafts need their ID.
+        created = next(r for r in json.loads(gh("api", releases_endpoint + "?per_page=100"))
+                       if r["tag_name"] == tag)
+        endpoint = f"{releases_endpoint}/{created['id']}"
     # Only an unpublished draft may have its uploads replaced during a retry.
     gh("release", "upload", tag, *(str(p) for p in files), "--clobber")
     verify_uploaded(json.loads(gh("api", endpoint)), local_hashes)
