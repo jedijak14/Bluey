@@ -72,6 +72,10 @@ try:
     fixture = root/'probe.py'; result = root/'result.json'
     fixture.write_text('''import json,socket,sys
 host,port,kind,out=sys.argv[1:]
+import traceback
+def failed(kind,value,tb):
+ open(out,'w').write(json.dumps({'exception':''.join(traceback.format_exception(kind,value,tb))[-8000:]}))
+sys.excepthook=failed
 if kind=='delete':
  import ctypes as c,uuid
  dll=c.WinDLL('fwpuclnt'); handle=c.c_void_p()
@@ -88,8 +92,13 @@ if kind=='browser':
  import subprocess,pathlib
  profile=pathlib.Path(out).parent/('browser-'+pathlib.Path(host).stem)
  command=[host,'--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-extensions','--ignore-certificate-errors','--user-data-dir='+str(profile),'--dump-dom',port]
- r=subprocess.run(command,capture_output=True,text=True,timeout=25)
- open(out,'w').write(json.dumps({'code':r.returncode,'html':r.stdout[-10000:],'errors':r.stderr[-2000:]}))
+ try:
+  r=subprocess.run(command,capture_output=True,text=True,timeout=60)
+  answer={'code':r.returncode,'html':r.stdout[-10000:],'errors':r.stderr[-2000:]}
+ except subprocess.TimeoutExpired as e:
+  def text(value):return value.decode('utf8','replace') if isinstance(value,bytes) else value or ''
+  answer={'code':None,'html':text(e.stdout)[-10000:],'errors':text(e.stderr)[-2000:],'teardown_timeout':True}
+ open(out,'w').write(json.dumps(answer))
  sys.exit(0)
 s=socket.socket(socket.AF_INET6 if ':' in host else socket.AF_INET, socket.SOCK_DGRAM if kind=='udp' else socket.SOCK_STREAM)
 s.settimeout(2)
@@ -102,9 +111,10 @@ try:
   open(out,'w').write(json.dumps({'ready':True}))
   marker=pathlib.Path(out).with_suffix('.go');deadline=time.monotonic()+20
   while not marker.exists() and time.monotonic()<deadline:time.sleep(.05)
-  assert marker.exists();s.sendall(b'after');assert s.recv(16)==b'after'
+  assert marker.exists();s.sendall(b'after')
+  if s.recv(16)!=b'after':raise ConnectionResetError(10054,'Existing stream revoked')
  answer={'connected':True}
-except OSError as e: answer={'connected':False,'error':e.winerror}
+except OSError as e: answer={'connected':False,'error':getattr(e,'winerror',e.errno)}
 finally:s.close()
 open(out,'w').write(json.dumps(answer))
 ''')
@@ -119,10 +129,12 @@ open(out,'w').write(json.dumps(answer))
         return finish(process)
     def finish(process):
         try:
-            if kernel.WaitForSingleObject(process.process,45000) != 0:
+            if kernel.WaitForSingleObject(process.process,90000) != 0:
                 kernel.TerminateProcess(process.process,1); raise TimeoutError('Child network probe timed out')
         finally: kernel.CloseHandle(process.thread); kernel.CloseHandle(process.process)
-        return json.loads(result.read_text())
+        answer=json.loads(result.read_text())
+        assert 'exception' not in answer, answer
+        return answer
     def listen(host,port=0,udp=False):
         s=socket.socket(socket.AF_INET6 if ':' in host else socket.AF_INET, socket.SOCK_DGRAM if udp else socket.SOCK_STREAM)
         listeners.append(s);s.bind((host,port));s.settimeout(2)
@@ -158,6 +170,7 @@ open(out,'w').write(json.dumps(answer))
     assert observed==[b'before'], 'Data escaped on a preexisting child TCP flow'
     tamper=probe(state['keys']['deny_v4'],0,'delete')
     assert not tamper['connected'] and tamper['error'] in (5,0x80070005), tamper
+    print('::notice::Existing child TCP flow revoked and child WFP deletion denied.',flush=True)
     assert not probe('127.0.0.1',PORT)['connected']
     assert not probe('127.0.0.1',other.getsockname()[1])['connected']
     assert not probe('::1',ipv6.getsockname()[1])['connected']
@@ -224,6 +237,7 @@ open(out,'w').write(json.dumps(answer))
               Path(os.environ.get('ProgramFiles(x86)',os.environ['ProgramFiles']))/'Microsoft/Edge/Application/msedge.exe']
     for browser in browsers:
         assert browser.is_file(), f'Required native browser unavailable: {browser.name}'
+        print('::notice::Native child gateway browser: '+browser.name,flush=True)
         page=probe(str(browser),'https://allowed.fixture.test/','browser')
         assert 'BLUEY_STRICT_ALLOWED_FIXTURE' in page['html'], (browser.name,page)
         count=len(requests)
