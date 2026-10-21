@@ -24,3 +24,5 @@ Length shown: 2:19. The page provided a transcript, **not accessible visual fram
 - Parent-supervised Guardian boot/Hello/PIN/recovery and every-browser architecture.
 
 Do not turn this checklist into a blanket “everything works” claim.
+
+Bluetooth release gate: reconnect isolation and encrypted frames are under active verification; do not install an unverified intermediate build.
