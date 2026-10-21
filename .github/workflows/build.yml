@@ -91,6 +91,7 @@ jobs:
       - run: npm run build && npm test && node --test scripts/family-bridge-checks.cjs scripts/family-vault-checks.cjs
       - run: pip install -r backend/requirements-dev.txt
       - run: python -m pytest backend/tests -q
+      - run: python scripts/test_publish_latest.py
       - name: Verify scratch-training math and curriculum
         run: |
           pip install -r training/requirements.txt
@@ -527,17 +528,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          set -euo pipefail
-          test "$(find release/latest -maxdepth 1 -name '*.exe' | wc -l)" -eq 4
-          test "$(find release/latest -maxdepth 1 -name '*.apk' | wc -l)" -eq 3
-          cp docs/RELEASE_LATEST.md release/latest/Setup-Instructions.md
-          (cd release/latest && sha256sum *.exe *.apk > SHA256SUMS.txt)
-          # Immutable version tags retain exact source history; the release title
-          # and GitHub latest pointer remain Bluey-Latest. Never retag old binaries.
-          tag="v$(python -c 'import json; print(json.load(open("package.json"))["version"])')"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA"
-            gh release upload "$tag" release/latest/* --clobber
-          else
-            gh release create "$tag" release/latest/* --target "$GITHUB_SHA" --title "Bluey-Latest" --latest --notes-file docs/RELEASE_LATEST.md
-          fi
+          python scripts/publish_latest.py

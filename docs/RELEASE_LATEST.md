@@ -11,6 +11,8 @@ This is an experimental build. The release is named **Bluey-Latest**, with immut
 - A persistent SQLite + HTTPS self-hosting setup is also included as an optional alternative; it is not deployed automatically.
 
 ## Downloads
+All seven installers are assembled in an unpublished draft, checked against the exact versioned filenames and GitHub upload SHA-256 digests, then published together. A published version is never silently overwritten. Native test and model inference gates remain required.
+
 - Bluey Windows installer and portable app: dedicated Windows companion dashboard, bottom-center overlay, model catalog, encrypted saved settings, and **bundled Python engine/runtime**. A separate Python installation is no longer needed for the companion engine. Ollama and your chosen model weights are still separate; use **Start local Ollama → Find models → Verify model reply** in Settings.
 - Bluey Android APK: foreground companion with device speech recognition and Wi-Fi pairing; new opt-in Bluetooth SPP transport.
 - Separate Bluey Home and Bluey Kids Windows installers and Android APKs are included again.
