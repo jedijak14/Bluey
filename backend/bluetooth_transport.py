@@ -7,6 +7,7 @@ required. Only a phone role can cross this transport. No LAN listener is needed.
 import asyncio
 import base64
 import secrets
+import time
 import json
 import os
 import re
@@ -49,6 +50,7 @@ class BluetoothRelay:
         self.key = None
         self.incoming, self.outgoing = -1, 0
         self.session_token = ''
+        self.last_seen = time.monotonic()
 
     def status(self):
         return {'enabled': bool(self.task and not self.task.done()), 'port': self.selected,
@@ -129,6 +131,7 @@ class BluetoothRelay:
         except (KeyError, ValueError, TypeError, InvalidTag):
             raise ValueError('Invalid or replayed Bluetooth frame.') from None
         self.incoming += 1
+        self.last_seen = time.monotonic()
         await self.handle(packet)
 
     async def write(self, frame):
@@ -208,11 +211,18 @@ class BluetoothRelay:
         finally:
             await self.write({'kind': 'closed'})
 
+    async def expire_connection(self):
+        # Windows virtual COM ports can survive radio disconnects without EOF.
+        # Do not leave a ghost phone that receives desktop session shortcuts.
+        if self.socket and time.monotonic() - self.last_seen > 15:
+            await self.close_socket()
+
     async def run(self):
         pending = bytearray()
         try:
             while True:
                 data = await asyncio.to_thread(self.serial.read, 4096)
+                await self.expire_connection()
                 if not data: continue
                 pending.extend(data)
                 if len(pending) > MAX_FRAME: raise ValueError('Bluetooth frame too large.')

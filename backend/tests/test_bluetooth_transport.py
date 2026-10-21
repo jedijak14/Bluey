@@ -126,3 +126,15 @@ async def test_each_phone_packet_must_match_current_session(tmp_path):
     del relay.pairing.devices['first']
     await relay.handle({'kind':'packet','token':'first','packet':{'type':'chat'}})
     assert len(forwarded)==1
+
+
+@pytest.mark.asyncio
+async def test_radio_loss_expires_stale_phone_without_serial_eof(tmp_path):
+    import time
+    relay=BluetoothRelay(Pairing(),FastAPI(),settings=tmp_path/'bt.json')
+    closed=[]
+    class Socket:
+        async def close(self):closed.append(True)
+    relay.socket=Socket();relay.session_token='phone';relay.last_seen=time.monotonic()-16
+    await relay.expire_connection()
+    assert closed and relay.socket is None and not relay.session_token

@@ -6,6 +6,7 @@ export class BlueyClient {
   private token = "";
   private retry?: ReturnType<typeof setTimeout>;
   private stopped = true;
+  private bluetoothHeartbeat?: ReturnType<typeof setInterval>;
   private attempts = 0;
   private listeners = new Set<(p: Packet) => void>();
   subscribe(listener: (p: Packet) => void) {
@@ -27,7 +28,14 @@ export class BlueyClient {
     this.stopped = false;
     this.onStatus("connecting");
     bluetooth.onPacket = (p) => {
-      if (p.type === "ready") this.onStatus("connected");
+      if (p.type === "ready") {
+        this.onStatus("connected");
+        clearInterval(this.bluetoothHeartbeat);
+        this.bluetoothHeartbeat = setInterval(
+          () => this.send({ type: "ping" }),
+          5000,
+        );
+      }
       this.dispatch(p);
     };
     bluetooth.onClose = () => {
@@ -147,6 +155,8 @@ export class BlueyClient {
     }
   }
   disconnect() {
+    clearInterval(this.bluetoothHeartbeat);
+    this.bluetoothHeartbeat = undefined;
     if (this.endpoint === "bluetooth:") {
       bluetooth.onClose = () => {};
       bluetooth.onPacket = () => {};
