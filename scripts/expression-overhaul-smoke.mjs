@@ -46,13 +46,32 @@ try {
   const phone = page.locator(".expression-view-grid .face-screen");
   const animate = async (view, part) => {
     const element = view.locator(part).first();
-    const sample = () =>
-      element.evaluate((el) => {
+    // The subject itself (not just its container) must be in the viewport.
+    // Offscreen compositor-only opacity effects may be deliberately culled.
+    await element.evaluate((el) =>
+      el.scrollIntoView({
+        block: "center",
+        inline: "center",
+        behavior: "instant",
+      }),
+    );
+    const sample = async () => {
+      // Opacity-only SVG effects can run entirely on the compositor. Request a
+      // painted frame before reading styles: headless Chromium may otherwise
+      // keep returning its last main-thread opacity while the effect advances.
+      // Do not fast-forward, disable, or alter the animation under test.
+      if (part === ".emotion-cheeks") {
+        const clip = await element.boundingBox();
+        if (!clip) throw new Error("Animated cheeks must be rendered");
+        await view.page().screenshot({ animations: "allow", clip });
+      }
+      return element.evaluate((el) => {
         const s = getComputedStyle(el);
         return s.transform + "|" + s.opacity;
       });
+    };
     const initial = await sample();
-    await expect.poll(sample, { timeout: 4000 }).not.toBe(initial);
+    await expect.poll(sample, { timeout: 10000 }).not.toBe(initial);
   };
   await fs.mkdir("artifacts/overhaul", { recursive: true });
   for (const [label, id, part] of samples) {
