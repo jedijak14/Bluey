@@ -13,7 +13,7 @@ Length shown: 2:19. The page provided a transcript, **not accessible visual fram
 | 1:15–1:20 | Positive feedback | Existing mascot expressions; no spoken replies per user instruction. Exact visual expression unknown without frames. |
 | 1:21–1:30 | Open Chrome and Twitter | Existing app catalog and URL actions. Original companion can open URLs after approval; managed Kids restrictions remain separate and X defaults blocked. |
 | 1:31–1:54 | Compose “building something cool”, ask confirmation, post | Existing typed text plus separately approved submission. No autonomous publishing. Account login and successful posting are not tested/claimed. |
-| 1:55–2:08 | Sleep command and sleeping mascot | Explicit Sleep/Wake control in native Windows dashboard; existing sleepy expression. Natural-language sleep command parity not yet verified. |
+| 1:55–2:08 | Sleep command and sleeping mascot | Explicit Sleep/Wake control in native Windows dashboard; existing sleepy expression. Exact explicit sleep/wake requests also set the mascot state without requiring a model; visual parity remains unverified. |
 | 2:09–2:19 | Public project and wake-up | GitHub release requested as Bluey-Latest. Android/Windows retained; iOS/Mac are not target builds. |
 
 ## Acceptance checks still requiring the supplied video / physical devices

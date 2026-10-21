@@ -301,18 +301,15 @@ def configure(config: ModelConfig):
 
 @app.post("/api/pair/create", dependencies=[Depends(desktop)])
 def create_pair():
-    if not LAN:
-        raise HTTPException(
-            409,
-            "Restart the Windows backend with --lan (BLUEY_LAN=1 in Electron) to allow Android pairing.",
-        )
-    addresses = sorted(
-        {
-            f"{a}:8765"
-            for a in socket.gethostbyname_ex(socket.gethostname())[2]
-            if not a.startswith("127.")
-        }
-    )
+    bluetooth_enabled = bool(bluetooth.task and not bluetooth.task.done())
+    if not LAN and not bluetooth_enabled:
+        raise HTTPException(409, "Enable Bluetooth in Connected devices, or restart the Windows backend with --lan (BLUEY_LAN=1) for private Wi-Fi pairing.")
+    try:
+        addresses = sorted({f"{a}:{bluetooth.port}" for a in socket.gethostbyname_ex(socket.gethostname())[2] if not a.startswith("127.")}) if LAN else []
+    except OSError:
+        addresses = []
+    if bluetooth_enabled:
+        addresses.append("Bluetooth: choose your paired Windows PC in the Android app")
     return {
         "code": pairing.create(),
         "expires_in": 120,
@@ -496,6 +493,7 @@ async def chat(ws, packet):
         return
     async with engine_lock:
         automation.stopped.clear()
+        final_mood = "listening"
         await face("thinking")
         try:
             raw = packet.get("messages", [])
@@ -513,6 +511,14 @@ async def chat(ws, packet):
             full = ""
             sources = []
             question = messages[-1]["content"]
+            # Only an exact latest user request, never background/screen text.
+            command = re.fullmatch(r"(?:(?:hey|okay|ok)[, ]+)?(?:bluey[, ]+)?(go to sleep|sleep|wake up)[.!]?", question.strip(), re.I)
+            if command:
+                final_mood = "listening" if command.group(1).lower() == "wake up" else "sleepy"
+                text = "I'm here." if final_mood == "listening" else "Resting. Start a new session or use Wake up when you need me."
+                await send(ws, {"type":"token", "request":request, "text":text})
+                await broadcast({"type":"caption", "text":text})
+                return
             if packet.get("session") and re.search(r"\bwhat(?:['’]s| is) this\b", question, re.I):
                 target = pointer_context.pop(ws, None)
                 if target:
@@ -627,8 +633,10 @@ async def chat(ws, packet):
             await send(ws, {"type": "error", "request": request, "text": text[:500]})
             await log(f"Request failed ({type(exc).__name__}).")
         finally:
-            await face("listening")
             await send(ws, {"type": "done", "request": request})
+            if final_mood == "sleepy":
+                await broadcast({"type": "companion_sleep"})
+            await face(final_mood)
 
 
 async def transcribe(ws, packet):
@@ -800,6 +808,8 @@ async def websocket(ws: WebSocket):
                         "sleepy",
                     }:
                         raise ValueError("Unknown expression.")
+                    if mood == "sleepy":
+                        await broadcast({"type": "companion_sleep"})
                     await face(mood)
                 elif kind == "ping":
                     await send(ws, {"type": "pong"})

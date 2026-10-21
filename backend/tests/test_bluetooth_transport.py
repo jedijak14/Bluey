@@ -58,3 +58,20 @@ def test_bluetooth_settings_are_desktop_only():
     api=TestClient(server.app)
     assert api.get('/api/bluetooth').status_code==401
     assert api.post('/api/bluetooth',json={'port':'COM5'}).status_code==401
+
+
+def test_bluetooth_code_generation_does_not_require_lan_or_dns(monkeypatch):
+    from backend import server
+    from backend.tests.test_backend import headers
+    class Running:
+        def done(self): return False
+    monkeypatch.setattr(server,'LAN',False)
+    monkeypatch.setattr(server.bluetooth,'task',Running())
+    def no_dns(*args):raise AssertionError('Bluetooth must not need LAN DNS')
+    monkeypatch.setattr(server.socket,'gethostbyname_ex',no_dns)
+    api=TestClient(server.app)
+    response=api.post('/api/pair/create',headers=headers())
+    assert response.status_code==200 and len(response.json()['code'])==6
+    assert 'Bluetooth' in response.json()['addresses'][0]
+    # Enabling Bluetooth must NOT enable HTTP pairing on a network interface.
+    assert api.post('/api/pair',json={'code':response.json()['code']}).status_code==403

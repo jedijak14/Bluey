@@ -632,7 +632,12 @@ export default function App() {
   }
   const composer = (
     <div className="composer-area">
-      <QuietSessionPanel session={quiet} client={client} />
+      {(!window.bluey ||
+        conversation ||
+        quiet.active ||
+        quiet.consentOpen ||
+        quiet.drafts.length > 0 ||
+        quiet.error) && <QuietSessionPanel session={quiet} client={client} />}
       <div className={`composer ${recording ? "recording" : ""}`}>
         <textarea
           ref={textarea}

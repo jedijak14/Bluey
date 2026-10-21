@@ -99,10 +99,12 @@ export function ConnectedDevices({
           )}
           <ol>
             <li>
-              <span>1</span>Start the Windows engine with LAN mode enabled.
+              <span>1</span>Enable Bluetooth below, or use Windows LAN mode for
+              Wi-Fi.
             </li>
             <li>
-              <span>2</span>Keep both devices on your trusted private network.
+              <span>2</span>Pair Bluetooth in system settings, or use your
+              trusted private Wi-Fi.
             </li>
             <li>
               <span>3</span>Enter the code below on the device you want to pair.

@@ -97,7 +97,10 @@ export function Phone() {
       }
       if (p.type === "error") setError(String(p.text));
       if (p.type === "home") {
-        setFace((f) => ({ ...f, mood: "listening" }));
+        setFace((f) => ({
+          ...f,
+          mood: f.mood === "sleepy" ? "sleepy" : "listening",
+        }));
         setCaption("");
       }
       // Audio packets are intentionally ignored. Bluey never speaks replies.
