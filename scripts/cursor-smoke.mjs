@@ -112,6 +112,28 @@ try {
   await page.evaluate(() => window.emitMouse({ x: 0, y: 0 }));
   socket.send(JSON.stringify({ type: "pointer", x: "bad", y: 30 }));
   expect(await position()).toEqual({ x: 604, y: 764 });
+  // A quick action must still reach its target before the automatic return.
+  socket.send(JSON.stringify({ type: "pointer", x: 200, y: 200 }));
+  socket.send(JSON.stringify({ type: "home", reason: "action_complete" }));
+  const visited = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        let hit = false,
+          frames = 0;
+        const sample = () => {
+          const m = new DOMMatrixReadOnly(
+            getComputedStyle(document.querySelector(".overlay-cursor"))
+              .transform,
+          );
+          hit ||= Math.abs(m.m41 - 220) < 1 && Math.abs(m.m42 - 144) < 1;
+          if (++frames < 180) requestAnimationFrame(sample);
+          else resolve(hit);
+        };
+        requestAnimationFrame(sample);
+      }),
+  );
+  expect(visited).toBe(true);
+  await expect.poll(position).toEqual({ x: 604, y: 764 });
   await page.setViewportSize({ width: 900, height: 700 });
   await page.evaluate(() =>
     window.changeLayout({ x: 0, y: 0, width: 900, height: 652 }),

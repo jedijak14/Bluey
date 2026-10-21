@@ -429,7 +429,7 @@ async def approved_action(action: DesktopAction):
     finally:
         approvals.pop(identifier, None)
         if cursor_moved:
-            await broadcast({"type": "home"}, desktop_only=True)
+            await broadcast({"type": "home", "reason": "action_complete"}, desktop_only=True)
         await broadcast({"type": "approval_resolved", "id": identifier}, desktop_only=True)
 
 

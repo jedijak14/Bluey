@@ -47,6 +47,7 @@ export function Overlay() {
   const trailStyle = useRef(settings.trail);
   trailStyle.current = settings.trail;
   const area = useRef<CursorArea | null>(null);
+  const returnAfterArrival = useRef(false);
   const requested = useRef<{ x: number; y: number } | null>(null);
   const target = useRef(cursorDock(innerWidth, innerHeight, size));
   const position = useRef({ ...target.current });
@@ -65,6 +66,7 @@ export function Overlay() {
     wake.current();
   };
   const home = () => {
+    returnAfterArrival.current = false;
     requested.current = null;
     reposition();
   };
@@ -96,13 +98,18 @@ export function Overlay() {
         p.type === "pointer" &&
         cursorDestination(p.x, p.y, innerWidth, innerHeight, sizeRef.current)
       ) {
+        returnAfterArrival.current = false;
         requested.current = { x: p.x as number, y: p.y as number };
         reposition();
       }
       if (p.type === "caption") setCaption(String(p.text));
       if (p.type === "home") {
         setExpanded(false);
-        home();
+        if (p.reason === "action_complete") {
+          // Finish pointing before returning, even if the action finishes first.
+          returnAfterArrival.current = true;
+          wake.current();
+        } else home();
         setCaption("");
       }
     });
@@ -228,7 +235,18 @@ export function Overlay() {
                   .join(" ");
         trail.current.setAttribute("d", path);
       }
-      if (moving || tilt !== 0) id = requestAnimationFrame(step);
+      const returnHome = sample.done && returnAfterArrival.current;
+      if (returnHome) {
+        returnAfterArrival.current = false;
+        requested.current = null;
+        target.current = cursorDock(
+          innerWidth,
+          innerHeight,
+          sizeRef.current,
+          area.current,
+        );
+      }
+      if (moving || tilt !== 0 || returnHome) id = requestAnimationFrame(step);
     };
     const start = () => {
       if (id === undefined) id = requestAnimationFrame(step);
