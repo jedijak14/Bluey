@@ -54,6 +54,21 @@ public class CompanionSmokeTest {
         return new JSONObject(bytes.toString("UTF-8")).getString("code");
     }
 
+    private boolean allowNearbyDialog(android.view.accessibility.AccessibilityNodeInfo node, StringBuilder visible) {
+        String id = node.getViewIdResourceName();
+        String owner = String.valueOf(node.getPackageName());
+        if (visible.length() < 3000) visible.append(owner).append("/").append(id)
+            .append("=").append(node.getText()).append("; ");
+        if (owner.contains("permissioncontroller") && id != null
+            && id.endsWith(":id/permission_allow_button") && node.isEnabled())
+            return node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
+        for (int i = 0; i < node.getChildCount(); i++) {
+            android.view.accessibility.AccessibilityNodeInfo child = node.getChild(i);
+            if (child != null && allowNearbyDialog(child, visible)) return true;
+        }
+        return false;
+    }
+
     @Test public void bluetoothChoiceRequestsNearbyPermissionAndResumeRefreshes() throws Exception {
         org.junit.Assume.assumeTrue(android.os.Build.VERSION.SDK_INT >= 31);
         android.content.Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
@@ -70,18 +85,26 @@ public class CompanionSmokeTest {
             assertEquals(android.content.pm.PackageManager.PERMISSION_DENIED,
                 context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT));
             evaluate(s, "(()=>{const e=document.querySelector('[aria-label=\"Connection transport\"]');e.value='bluetooth';e.dispatchEvent(new Event('change',{bubbles:true}));})()");
+            android.app.UiAutomation ui = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+            android.accessibilityservice.AccessibilityServiceInfo info = ui.getServiceInfo();
+            info.flags |= android.accessibilityservice.AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+                | android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
+            ui.setServiceInfo(info);
             long deadline = SystemClock.elapsedRealtime() + 15000;
             boolean clicked = false;
+            StringBuilder visible = new StringBuilder();
             while (!clicked && SystemClock.elapsedRealtime() < deadline) {
-                android.view.accessibility.AccessibilityNodeInfo root = InstrumentationRegistry.getInstrumentation().getUiAutomation().getRootInActiveWindow();
-                if (root != null) {
-                    for (android.view.accessibility.AccessibilityNodeInfo node : root.findAccessibilityNodeInfosByViewId("com.android.permissioncontroller:id/permission_allow_button")) {
-                        if (node.isEnabled()) clicked = node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
-                    }
+                visible.setLength(0);
+                // Google and AOSP images use different permission-controller namespaces.
+                // Inspect system windows, not just a potentially stale WebView active root.
+                for (android.view.accessibility.AccessibilityWindowInfo window : ui.getWindows()) {
+                    android.view.accessibility.AccessibilityNodeInfo root = window.getRoot();
+                    if (root != null) clicked |= allowNearbyDialog(root, visible);
                 }
                 if (!clicked) SystemClock.sleep(100);
             }
-            assertTrue("Choosing Bluetooth must display the actual Android Nearby Devices permission prompt", clicked);
+            assertTrue("Choosing Bluetooth must display the actual Android Nearby Devices permission prompt"
+                + "\nWindows: " + visible + "\nDOM: " + evaluate(s, "document.body.innerText"), clicked);
             waitFor(s, "!document.body.innerText.includes('Checking paired devices…')");
             assertEquals(android.content.pm.PackageManager.PERMISSION_GRANTED,
                 context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT));
