@@ -1233,7 +1233,7 @@ export default function App() {
               a tool.
             </span>
             <button
-              className="outline-button widget-toggle"
+              className="outline-button companion-launcher"
               onClick={() => {
                 if (window.bluey) window.bluey.window("overlay");
                 else {
@@ -1245,8 +1245,8 @@ export default function App() {
               }}
             >
               <MousePointer2 size={14} />
-              Open companion
-              <ExternalLink size={12} />
+              <span>Open companion</span>
+              <ExternalLink size={12} aria-hidden="true" />
             </button>
           </div>
         </div>

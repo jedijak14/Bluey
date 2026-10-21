@@ -476,6 +476,7 @@ nav > button.selected svg {
 }
 .subbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   padding: 24px 34px 0;
@@ -537,11 +538,17 @@ nav > button.selected svg {
 .outline-button:hover {
   background: #ffffff09;
 }
-.widget-toggle {
-  font-size: 10px;
-  padding: 8px 11px;
+.companion-launcher {
+  flex: 0 0 auto;
+  min-height: 36px;
+  white-space: nowrap;
+  font-size: 11px;
+  padding: 8px 12px;
 }
-.widget-toggle > svg:last-child {
+.companion-launcher > svg {
+  flex-shrink: 0;
+}
+.companion-launcher > svg:last-child {
   opacity: 0.6;
   margin-left: 3px;
 }
@@ -2509,11 +2516,11 @@ label > input::placeholder {
     min-width: 68px;
     font-size: 10px;
   }
-  .widget-toggle {
-    font-size: 9px;
+  .companion-launcher {
+    font-size: 11px;
     padding: 8px;
   }
-  .widget-toggle > svg:last-child {
+  .companion-launcher > svg:last-child {
     display: none;
   }
   .chat-content {
@@ -4621,7 +4628,7 @@ html[data-motion="off"] .desktop-task-grid button {
   gap: 6px;
   align-items: center;
 }
-.widget-toggle {
+.desktop-overlay .widget-toggle {
   border-radius: 50%;
   width: 30px;
   height: 30px;
