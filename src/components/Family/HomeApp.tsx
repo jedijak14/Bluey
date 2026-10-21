@@ -839,7 +839,7 @@ export function HomeApp() {
                       </p>
                       <a
                         className="home-text"
-                        href="https://github.com/jedijak14/Bluey/blob/arena/d8ea8f13-bluey/guardian/README.md"
+                        href="https://github.com/jedijak14/Bluey/blob/arena/1cef984e-bluey/guardian/README.md"
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -958,8 +958,10 @@ export function HomeApp() {
                     The experimental Guardian service needs separate
                     administrator setup and its own Windows agent code. It
                     supports cached session-time limits, Edge/Chrome policies
-                    and parent recovery. It is unsigned and is not an
-                    all-browser or Windows sign-in barrier.
+                    and parent recovery. New administrator setup also offers
+                    optional Windows LSA new-logon denial. It is unsigned, does
+                    not cover every browser, and still needs Hello/PIN and
+                    reconnect testing.
                   </p>
                 </article>
               </div>

@@ -1,5 +1,6 @@
 const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("bluey", {
+  startOllama: () => ipcRenderer.invoke("start-ollama"),
   connection: () => ipcRenderer.invoke("connection"),
   window: (action) => ipcRenderer.send("window-action", action),
   openExternal: (url) => ipcRenderer.invoke("open-external", url),

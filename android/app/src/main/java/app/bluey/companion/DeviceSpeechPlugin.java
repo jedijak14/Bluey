@@ -41,6 +41,9 @@ public class DeviceSpeechPlugin extends Plugin {
     private boolean foreground = false;
     private boolean preferOnDevice = true;
     private Session session;
+    // Keep the system-service connection between completed quiet-session segments.
+    // Repeated destroy/rebind during hold/release races Android's remote shutdown.
+    private SpeechRecognizer idleRecognizer;
     private final AtomicInteger captureGeneration = new AtomicInteger();
     private TextToSpeech tts;
     private boolean ttsReady;
@@ -54,7 +57,7 @@ public class DeviceSpeechPlugin extends Plugin {
         SpeechRecognizer recognizer;
         boolean complete;
         String text = "", error;
-        PluginCall stopCall;
+        PluginCall startCall, stopCall;
         Runnable timeout;
     }
 
@@ -63,7 +66,7 @@ public class DeviceSpeechPlugin extends Plugin {
             JSObject result = new JSObject();
             result.put("recognition", SpeechRecognizer.isRecognitionAvailable(getContext()));
             result.put("onDevice", onDeviceAvailable());
-            result.put("listening", session != null && !session.complete);
+            result.put("listening", session != null && session.startCall == null && !session.complete);
             result.put("speaking", speechCall != null);
             result.put("synthesisInitialized", tts != null);
             result.put("synthesis", !getContext().getPackageManager().queryIntentServices(
@@ -96,7 +99,7 @@ public class DeviceSpeechPlugin extends Plugin {
                 call.reject("Return to Bluey and hold again to speak.", "BACKGROUND");
                 return;
             }
-            cancelRecognitionSession();
+            if (session != null) cancelRecognitionSession();
             if (!onDeviceAvailable() && !SpeechRecognizer.isRecognitionAvailable(getContext())) {
                 call.reject("No Android speech recognition service is installed. Enable one in Android Settings or type your question.", "UNAVAILABLE");
                 return;
@@ -104,12 +107,24 @@ public class DeviceSpeechPlugin extends Plugin {
             getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             Session current = new Session();
             session = current;
+            current.startCall = call;
             try {
-                current.recognizer = onDeviceAvailable()
-                    ? SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext())
-                    : SpeechRecognizer.createSpeechRecognizer(getContext());
+                current.recognizer = idleRecognizer;
+                idleRecognizer = null;
+                if (current.recognizer == null) {
+                    current.recognizer = onDeviceAvailable()
+                        ? SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext())
+                        : SpeechRecognizer.createSpeechRecognizer(getContext());
+                }
                 current.recognizer.setRecognitionListener(new RecognitionListener() {
-                    public void onReadyForSpeech(Bundle b) {}
+                    public void onReadyForSpeech(Bundle b) {
+                        if (session != current || current.complete || current.startCall == null) return;
+                        if (current.timeout != null) main.removeCallbacks(current.timeout);
+                        PluginCall started = current.startCall;current.startCall = null;
+                        current.timeout = () -> finishRecognition(current, "", "Listening timed out. Hold again or type your question.");
+                        main.postDelayed(current.timeout, 60000);
+                        JSObject result = new JSObject();result.put("id", current.id);started.resolve(result);
+                    }
                     public void onBeginningOfSpeech() {}
                     public void onRmsChanged(float rms) {}
                     public void onBufferReceived(byte[] b) {}
@@ -127,12 +142,12 @@ public class DeviceSpeechPlugin extends Plugin {
                 intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag());
                 intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
                 intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+                // Do not tell JS "listening" until Android actually reports readiness.
+                current.timeout = () -> finishRecognition(current, "", "Android speech service did not become ready. Try again or type your question.");
+                main.postDelayed(current.timeout, 10000);
                 current.recognizer.startListening(intent);
-                // Native timeout also applies when the WebView's timers are suspended.
-                current.timeout = () -> finishRecognition(current, "", "Listening timed out. Hold again or type your question.");
-                main.postDelayed(current.timeout, 60000);
-                JSObject result = new JSObject(); result.put("id", current.id); call.resolve(result);
             } catch (RuntimeException e) {
+                current.startCall = null;
                 cancelRecognitionSession();
                 call.reject("Android could not start speech recognition. Check your speech service and microphone settings.", "UNAVAILABLE");
             }
@@ -160,13 +175,23 @@ public class DeviceSpeechPlugin extends Plugin {
         if (session != current || current.complete) return;
         current.complete = true; current.text = text; current.error = error;
         if (current.timeout != null) main.removeCallbacks(current.timeout);
-        current.recognizer.destroy(); current.recognizer = null;
+        if (error != null && current.recognizer != null) {current.recognizer.destroy();current.recognizer = null;}
+        if (current.startCall != null) {
+            PluginCall started = current.startCall;current.startCall = null;
+            if (error != null) {session = null;started.reject(error, "RECOGNITION_FAILED");return;}
+            // Some providers deliver a completed result without a readiness callback.
+            JSObject result = new JSObject();result.put("id", current.id);started.resolve(result);
+        }
         // Automatic end-of-speech results are held until the user releases.
         if (current.stopCall != null) deliverRecognition(current);
     }
 
     private void deliverRecognition(Session current) {
         PluginCall call = current.stopCall;
+        if (current.error == null) {
+            idleRecognizer = current.recognizer;
+            current.recognizer = null;
+        }
         current.stopCall = null; session = null;
         if (current.error != null) call.reject(current.error, "RECOGNITION_FAILED");
         else { JSObject result = new JSObject(); result.put("text", current.text); call.resolve(result); }
@@ -179,6 +204,7 @@ public class DeviceSpeechPlugin extends Plugin {
             case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS: return "Microphone permission is required. Check Android Settings.";
             case SpeechRecognizer.ERROR_NETWORK:
             case SpeechRecognizer.ERROR_NETWORK_TIMEOUT: return "Your Android speech service needs a connection or an offline language pack.";
+            case SpeechRecognizer.ERROR_SERVER_DISCONNECTED: return "Android speech service disconnected. Restart the session or choose a working speech service in Android Settings.";
             case SpeechRecognizer.ERROR_RECOGNIZER_BUSY: return "Android speech recognition is busy. Please try again.";
             default: return "Android speech recognition failed (" + code + "). Try again or type your question.";
         }
@@ -191,9 +217,11 @@ public class DeviceSpeechPlugin extends Plugin {
 
     private void cancelRecognitionSession() {
         getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (idleRecognizer != null) {idleRecognizer.destroy();idleRecognizer = null;}
         Session old = session; session = null;
         if (old == null) return;
         if (old.timeout != null) main.removeCallbacks(old.timeout);
+        if (old.startCall != null) old.startCall.reject("Listening cancelled.", "CANCELLED");
         if (old.recognizer != null) { old.recognizer.cancel(); old.recognizer.destroy(); }
         if (old.stopCall != null) old.stopCall.reject("Listening cancelled.", "CANCELLED");
     }

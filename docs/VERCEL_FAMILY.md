@@ -1,8 +1,24 @@
-# Bluey Home on Vercel + Supabase
+# Bluey Home on Vercel + PostgreSQL
 
-The family API runs on Vercel; a separate Python host is not required. Supabase provides persistent PostgreSQL storage. Connecting storage enables accounts and remote management, **not device protection**. Until it is connected, Bluey deliberately returns `setup_required: database`, not a fake working account.
+The family API runs on Vercel; a separate Python host is not required. A managed PostgreSQL provider supplies persistent storage; Supabase is not required. Connecting storage enables accounts and remote management, **not device protection**. Until it is connected, Bluey deliberately returns `setup_required: database`, not a fake working account.
 
-## No-paid-plan setup
+## Neon through Vercel (current deployment)
+
+The Bluey project now has a Neon integration connected to Production. The deployed family status endpoint was verified to return `status: ready` after an actual database query. Parent registration remains **closed by the operator's choice** because no setup invite is configured. Storage readiness does not certify a parent login or Windows protection.
+
+For a new deployment:
+1. In Vercel Marketplace select Neon and explicitly choose the Free plan, if offered to your account. Connect it to the Bluey project and Production. Do not approve paid compute, add-ons or upgrades.
+2. The integration provides `DATABASE_URL` / `POSTGRES_URL` privately. Bluey accepts either without Supabase keys. The URL stays server-only; TLS is required and prepared statements are disabled for pooled connections.
+3. To enable new parent registration, privately set `BLUEY_FAMILY_SETUP_INVITE` in Vercel Production to a long random value saved in your password manager. Without it, registration intentionally stays closed. Do not share it in chat or in a frontend variable.
+4. Redeploy; `/api/family/status` must return `ready`. If you chose to enable registration, also require `registration_available: true`.
+5. Register with your private invite, add only a test nickname, sign out and sign in from another device to verify persistence. Use separate Kids and Windows-agent enrollment codes. Clear the registration invite when intended accounts are enrolled.
+
+Bluey uses its own role-scoped family accounts, not Neon Auth. Do not replace the database URL with `NEON_AUTH_BASE_URL` or an API key. Free-tier limits, inactivity and backups still need review; availability is not guaranteed. No paid plan has been requested by the agent.
+
+For a database you operate yourself instead, see the [persistent SQLite host](../deploy/family/README.md).
+
+## Optional Supabase setup (not required)
+
 
 1. Connect your Supabase account privately in Arena when ready. No password, database URL, API key or registration invite belongs in chat. No account/project has been provisioned by these code changes.
 2. Create a **dedicated project on the Free plan**, only if that option is available to your account. Do not select Pro, paid compute, paid add-ons or a billing upgrade. Review the current limits in your own dashboard before confirming. Free-tier capacity, inactivity pauses, backup availability and uptime restrictions still apply; this is not a promise of unlimited free hosting. Do not run artificial keep-alive traffic to evade provider restrictions.

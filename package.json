@@ -1,7 +1,7 @@
 {
   "name": "bluey-companion",
   "private": true,
-  "version": "0.5.5",
+  "version": "0.5.7",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -74,6 +74,10 @@
           "*.py",
           "*.txt"
         ]
+      },
+      {
+        "from": "artifacts/engine/BlueyEngine",
+        "to": "engine"
       }
     ],
     "win": {

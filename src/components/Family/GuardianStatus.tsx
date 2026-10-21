@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 export type GuardianHealth = {
   state: string;
+  signInState?: string;
+  nativeWarning?: string;
   restriction?: string;
   policyVersion?: number;
   blocklistVersion?: string;
@@ -57,6 +59,20 @@ export function GuardianStatus() {
                   )} policy writes and session-time enforcement are reported, not independently verified. Other browsers are not covered.`
               : "No verified protection status. Keep your existing parental controls enabled."}
         </p>
+        {health.signInState && (
+          <p>
+            Windows sign-in policy: {health.signInState.replaceAll("_", " ")}.
+            {health.signInState === "disabled"
+              ? " A parent can opt in to new-logon blocking in administrator setup. Existing installations are not changed automatically."
+              : " This is Windows LSA policy for the enrolled child, not a fullscreen lock. Hello/PIN unlock and existing-session reconnect still require device testing."}
+          </p>
+        )}
+        {health.nativeWarning === "failed" && (
+          <p role="alert">
+            Windows could not display the save-your-work warning. The time limit
+            is still enforced independently.
+          </p>
+        )}
         {health.restriction && (
           <p>
             Windows restriction: {health.restriction.replaceAll("_", " ")}.

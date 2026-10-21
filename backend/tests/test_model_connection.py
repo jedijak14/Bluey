@@ -81,7 +81,7 @@ async def test_real_auth_probe_and_keyless_local_ollama(monkeypatch, tmp_path):
     assert result['inference_checked']
     assert [r.url.path for r in requests] == ['/v1/models', '/v1/chat/completions']
     assert all('authorization' not in r.headers for r in requests)
-    assert json.loads(requests[-1].content)['max_tokens'] == 1
+    assert json.loads(requests[-1].content)['max_tokens'] == 32
 
 
 @pytest.mark.asyncio
@@ -210,3 +210,13 @@ def test_setup_completion_survives_restart_without_secret(tmp_path):
     restored=Model(store)
     assert restored.status()['setup_complete']
     assert restored.config.model=='picked-model'
+
+
+@pytest.mark.asyncio
+async def test_inference_probe_rejects_empty_success(monkeypatch,tmp_path):
+    def handler(request):
+        if request.method=='GET': return httpx.Response(200,json={'data':[{'id':'llama3.2'}]})
+        return httpx.Response(200,json={'choices':[{'message':{'content':None}}]})
+    client_with(monkeypatch,handler)
+    with pytest.raises(RuntimeError,match='returned no text'):
+        await Model(ModelStore(tmp_path/'config')).test(ModelConfig())

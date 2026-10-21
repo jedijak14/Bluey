@@ -2,7 +2,8 @@ param(
   [Parameter(Mandatory=$true)][string]$ChildAccount,
   [Parameter(Mandatory=$true)][string]$Python,
   [string]$FamilyOrigin = 'https://bluey-plum.vercel.app',
-  [switch]$AcceptExperimentalEnforcement
+  [switch]$AcceptExperimentalEnforcement,
+  [switch]$EnableSignInBlocking
 )
 $ErrorActionPreference = 'Stop'
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -42,7 +43,9 @@ $runtime = Join-Path $root 'runtime\Scripts\python.exe'
 & $runtime -I -m pip --isolated install --index-url https://pypi.org/simple -r (Join-Path $PSScriptRoot 'requirements.txt')
 if ($LASTEXITCODE) { throw 'Runtime dependencies failed; service was not installed.' }
 $config = Join-Path $data 'config.json'
-& $runtime -I (Join-Path $root 'service_entry.py') enroll --config $config --username $ChildAccount --origin $FamilyOrigin
+$enrollArgs = @('-I', (Join-Path $root 'service_entry.py'), 'enroll', '--config', $config, '--username', $ChildAccount, '--origin', $FamilyOrigin)
+if ($EnableSignInBlocking) { $enrollArgs += '--enable-signin-blocking' }
+& $runtime @enrollArgs
 if ($LASTEXITCODE) { throw 'Enrollment failed; service was not installed.' }
 & $runtime -I (Join-Path $root 'service_entry.py') install --config $config
 if ($LASTEXITCODE) { throw 'Service startup failed. Run Recover-Guardian.ps1 as the parent administrator.' }

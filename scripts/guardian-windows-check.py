@@ -37,6 +37,7 @@ import winreg
 
 sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
 from backend.guardian_windows import standard_local_user,apply_browser_rules,browser_path,SERVICE
+from backend.guardian_signin import WindowsRights, DENY_RIGHTS
 from backend.enforcement_policy import Budget
 from backend.family_service import Policy
 from datetime import datetime,timezone
@@ -50,13 +51,23 @@ try: win32serviceutil.QueryServiceStatus(SERVICE)
 except win32service.error as error:
     if error.winerror != 1060: raise
 else: raise RuntimeError('Refusing to touch an existing Guardian service.')
-name='BlueyGuardianCI';created=False;profile=None;token=None;installed=False
+name='BlueyGuardianCI';control='BlueyParentCI';control_created=False;created=False;profile=None;token=None;installed=False
 runtime_python=sys.executable
 try:
     password='Aa1!'+secrets.token_hex(20)
     win32net.NetUserAdd(None,1,{'name':name,'password':password,'priv':win32netcon.USER_PRIV_USER,
         'home_dir':'','comment':'Disposable Bluey CI account','flags':win32netcon.UF_SCRIPT,'script_path':''})
     created=True
+    control_password='Aa1!'+secrets.token_hex(20)
+    win32net.NetUserAdd(None,1,{'name':control,'password':control_password,'priv':win32netcon.USER_PRIV_USER,
+        'home_dir':'','comment':'Disposable Bluey parent control','flags':win32netcon.UF_SCRIPT,'script_path':''})
+    control_created=True
+    admin_group,_,_=win32security.LookupAccountSid(None,win32security.ConvertStringSidToSid('S-1-5-32-544'))
+    control_sid,_,_=win32security.LookupAccountName(None,control)
+    win32net.NetLocalGroupAddMembers(None,admin_group,0,[{'sid':control_sid}])
+    try: standard_local_user(control)
+    except ValueError: pass
+    else: raise AssertionError('Parent administrator accepted for enrollment')
     group,_,_=win32security.LookupAccountSid(None,win32security.ConvertStringSidToSid('S-1-5-32-545'))
     sid,_,_=win32security.LookupAccountName(None,name)
     try:win32net.NetLocalGroupAddMembers(None,group,0,[{'sid':sid}])
@@ -94,19 +105,20 @@ try:
     command([sys.executable,'-I','-m','venv','--system-site-packages',str(root/'runtime')])
     runtime_python=str(root/'runtime'/'Scripts'/'python.exe')
     config=data/'config.json'
-    config.write_text(json.dumps({'sid':sid_text,'username':name,'origin':'https://127.0.0.1:9','token':'ci-only-invalid-token','browsers':['edge','chrome']}))
+    config.write_text(json.dumps({'sid':sid_text,'username':name,'origin':'https://127.0.0.1:9','token':'ci-only-invalid-token','browsers':['edge','chrome'],'signin_blocking':True,'native_warnings':True}))
     now=time.time();budget=Budget();budget.sync({'policy':policy,'day':datetime.now(timezone.utc).date().isoformat(),'extra_minutes_today':0,'server_time':now,'valid_until':now+86400},now)
     (data/'usage.json').write_text(json.dumps(budget.state))
     installed=True
     command([runtime_python,'-I',str(root/'service_entry.py'),'install','--config',str(config)])
+    report=None
     deadline=time.monotonic()+45
     while time.monotonic()<deadline:
         try:
             report=json.loads((status/'status.json').read_text())
-            if report.get('browser_rules') == {'edge':True,'chrome':True} and report['applied_version']==1:break
+            if report.get('browser_rules') == {'edge':True,'chrome':True} and report['applied_version']==1 and report.get('signin_state')=='allowed':break
         except (OSError,ValueError):pass
         time.sleep(.5)
-    else:raise AssertionError('No applied policy heartbeat from the actual Windows service')
+    else:raise AssertionError(f'No applied policy heartbeat from Windows service; last public status: {report}')
     assert report['child_sid']==sid_text and report['verified'] is False
     assert win32serviceutil.QueryServiceStatus(SERVICE)[1]==win32service.SERVICE_RUNNING
     win32security.ImpersonateLoggedOnUser(token)
@@ -118,6 +130,84 @@ try:
         else:win32service.CloseServiceHandle(service);raise AssertionError('Child could open service for stopping')
         finally:win32service.CloseServiceHandle(manager)
     finally:win32security.RevertToSelf()
+    def await_signin(expected):
+        deadline=time.monotonic()+30
+        while time.monotonic()<deadline:
+            try:
+                value=json.loads((status/'status.json').read_text())
+                if value.get('signin_state')==expected and time.time()-value['updated_at']<3:
+                    return value
+            except (OSError,ValueError):pass
+            time.sleep(.25)
+        raise AssertionError('Windows sign-in state did not become '+expected)
+
+    def restart_with_usage(seconds, extra=0):
+        win32serviceutil.StopService(SERVICE)
+        win32serviceutil.WaitForServiceStatus(SERVICE,win32service.SERVICE_STOPPED,30)
+        state=json.loads((data/'usage.json').read_text())
+        state['used_seconds']=seconds
+        state['bundle']['extra_minutes_today']=extra
+        (data/'usage.json').write_text(json.dumps(state))
+        # Delete only the disposable public heartbeat so a previous state cannot
+        # satisfy the assertion before the restarted service has performed work.
+        (status/'status.json').unlink(missing_ok=True)
+        win32serviceutil.StartService(SERVICE)
+
+    def logon_denied():
+        try:
+            unexpected=win32security.LogonUser(name,'.',password,win32con.LOGON32_LOGON_INTERACTIVE,win32con.LOGON32_PROVIDER_DEFAULT)
+        except win32security.error as error:
+            assert error.winerror==1385, error  # ERROR_LOGON_TYPE_NOT_GRANTED
+        else:
+            unexpected.Close()
+            raise AssertionError('Restricted child could perform a new interactive Windows logon')
+
+    restart_with_usage(720*60)
+    await_signin('blocked')
+    logon_denied()
+    win32security.ImpersonateLoggedOnUser(token)
+    try:
+        child_rights=None
+        try:
+            child_rights=WindowsRights()
+            child_rights.remove(sid_text, DENY_RIGHTS)
+        except OSError: pass
+        else: raise AssertionError('Standard child could remove Windows sign-in denial')
+        finally:
+            if child_rights is not None: child_rights.close()
+        try:
+            descriptor=os.open(data/'signin.json', os.O_WRONLY)
+        except PermissionError: pass
+        else:
+            os.close(descriptor)
+            raise AssertionError('Standard child could write the recovery journal')
+    finally: win32security.RevertToSelf()
+    rights=WindowsRights()
+    try:
+        assert DENY_RIGHTS <= rights.read(sid_text)
+        assert not DENY_RIGHTS & rights.read(win32security.ConvertSidToStringSid(control_sid))
+    finally:rights.close()
+    parent_token=win32security.LogonUser(control,'.',control_password,win32con.LOGON32_LOGON_INTERACTIVE,win32con.LOGON32_PROVIDER_DEFAULT)
+    parent_token.Close()
+    restart_with_usage(720*60)  # persisted deny survives service restart
+    await_signin('blocked');logon_denied()
+    restart_with_usage(720*60, extra=15)
+    await_signin('allowed')
+    restored=win32security.LogonUser(name,'.',password,win32con.LOGON32_LOGON_INTERACTIVE,win32con.LOGON32_PROVIDER_DEFAULT)
+    restored.Close()
+    restart_with_usage(720*60)
+    await_signin('blocked');logon_denied()
+    win32serviceutil.StopService(SERVICE)
+    win32serviceutil.WaitForServiceStatus(SERVICE,win32service.SERVICE_STOPPED,30)
+    win32profile.UnloadUserProfile(token,profile);profile=None
+    # Recovery must unblock LSA BEFORE demanding a loaded child browser hive.
+    incomplete=subprocess.run([runtime_python,'-I',str(root/'service_entry.py'),'recover','--config',str(config)],capture_output=True,text=True,timeout=60)
+    assert incomplete.returncode != 0 and config.exists()
+    assert 'profile is unloaded' in incomplete.stdout+incomplete.stderr
+    restored=win32security.LogonUser(name,'.',password,win32con.LOGON32_LOGON_INTERACTIVE,win32con.LOGON32_PROVIDER_DEFAULT)
+    restored.Close()
+    profile=win32profile.LoadUserProfile(token,{'UserName':name})
+    print('Windows: real LSA new-logon denial, restart persistence, parent logon isolation, extra-time unlock and offline unloaded-hive recovery passed. Interactive Hello/PIN/reconnect and screen rendering are not tested.')
     print('Windows: real service startup, cached policy, registry ACL, child stop denial and heartbeat passed. No interactive-session disconnect test performed.')
 finally:
     win32security.RevertToSelf()
@@ -138,6 +228,7 @@ finally:
     if profile:win32profile.UnloadUserProfile(token,profile)
     if token:token.Close()
     if created:win32net.NetUserDel(None,name)
+    if control_created:win32net.NetUserDel(None,control)
     for folder in (root,data,status):
         if folder.exists():shutil.rmtree(folder)
 print('Windows parent recovery and cleanup passed.')

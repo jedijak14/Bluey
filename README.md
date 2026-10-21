@@ -2,7 +2,7 @@
 
 A local-first desktop companion with a Windows workspace, a separate animated desktop pointer, and a paired Android face. Built with Electron, React, TypeScript, Tailwind, FastAPI, `windows-use`, faster-whisper, and Piper.
 
-**Status: preview, not a validated production release.** Published Windows and Android previews are available under [GitHub Releases](https://github.com/jedijak14/Bluey/releases). The current website changes are checked with production builds, client/backend tests, and browser smoke tests. Those checks do not validate Windows UI Automation, microphone/Piper quality on physical devices, or a user's private HTTPS/VPN setup. Python and model files remain external prerequisites.
+**Status: preview, not a validated production release.** Published Windows and Android previews are available under [GitHub Releases](https://github.com/jedijak14/Bluey/releases). The current website changes are checked with production builds, client/backend tests, and browser smoke tests. Those checks do not validate Windows UI Automation, microphone/Piper quality on physical devices, or a user's private HTTPS/VPN setup. The 0.5.7 Windows companion bundles its Python engine. Ollama/model weights remain separate. Guardian still requires its documented system-wide Python setup.
 
 ## Gemma website preview
 
@@ -12,19 +12,19 @@ Phones, iPads and tablets can explore a separate mobile information site. **Test
 
 ## Download Bluey
 
-**Windows companion 0.5.5:** [model picker and one-time setup](docs/RELEASE_0.5.5.md). All older releases and assets have been deleted; Android, Home and Kids installers are currently unavailable.
+**Bluey-Latest · 0.5.7 preview:** [setup and limitations](docs/RELEASE_LATEST.md). The release workflow publishes these seven packages together after their checks pass. See [release status](https://github.com/jedijak14/Bluey/releases/tag/v0.5.7).
 
-Published release: [v0.5.5-preview.1](https://github.com/jedijak14/Bluey/releases/tag/v0.5.5-preview.1).
+| App | Windows x64 | Android APK |
+| --- | --- | --- |
+| Bluey | [Installer](https://github.com/jedijak14/Bluey/releases/download/v0.5.7/Bluey-0.5.7-Windows-x64-Setup.exe) · [Portable](https://github.com/jedijak14/Bluey/releases/download/v0.5.7/Bluey-0.5.7-Windows-x64-Portable.exe) | [Bluey Android](https://github.com/jedijak14/Bluey/releases/download/v0.5.7/Bluey-0.5.7-Android.apk) |
+| Home | [Home installer](https://github.com/jedijak14/Bluey/releases/download/v0.5.7/Bluey-Home-0.5.7-Windows-x64-Setup.exe) | [Home Android](https://github.com/jedijak14/Bluey/releases/download/v0.5.7/Bluey-Home-0.5.7-Android.apk) |
+| Kids | [Kids installer](https://github.com/jedijak14/Bluey/releases/download/v0.5.7/Bluey-Kids-0.5.7-Windows-x64-Setup.exe) | [Kids Android](https://github.com/jedijak14/Bluey/releases/download/v0.5.7/Bluey-Kids-0.5.7-Android.apk) |
 
-| Platform              | Download                                                                                                                                           |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Windows x64 installer | [Bluey-0.5.5-Windows-x64-Setup.exe](https://github.com/jedijak14/Bluey/releases/download/v0.5.5-preview.1/Bluey-0.5.5-Windows-x64-Setup.exe)       |
-| Windows x64 portable  | [Bluey-0.5.5-Windows-x64-Portable.exe](https://github.com/jedijak14/Bluey/releases/download/v0.5.5-preview.1/Bluey-0.5.5-Windows-x64-Portable.exe) |
+[Checksums](https://github.com/jedijak14/Bluey/releases/download/v0.5.7/SHA256SUMS.txt) · [Downloads page](https://bluey-plum.vercel.app/downloads.html) · [Reference-video checklist](docs/VIDEO_REFERENCE.md)
 
+The native Windows dashboard is distinct from the website. Start local Ollama, find installed models, choose one and optionally **Verify model reply**. The bundled engine does not include model weights. Bluetooth uses an explicitly enabled incoming Windows SPP COM port and an OS-paired Android device; physical radio compatibility remains unverified. [Bluetooth setup](docs/RELEASE_LATEST.md#bluetooth-setup).
 
-**Family preview, not complete protection:** production family hosting remains unconfigured; Guardian needs separate administrator setup. Edge/Chrome URL policies and session disconnection do not provide all-browser filtering, Android enforcement or a non-bypassable login barrier. See [0.5.3 scope](docs/RELEASE_0.5.3.md) and the [download page](https://bluey-plum.vercel.app/downloads.html). Older release downloads have been removed; source tags remain available.
-
-[Windows companion checksums](https://github.com/jedijak14/Bluey/releases/download/v0.5.5-preview.1/SHA256SUMS.txt) · [Windows setup](docs/RELEASE_NOTES.md) · [Android setup](docs/ANDROID_RELEASE.md). Windows binaries are unsigned and still require the Python/model setup. Android is debug-signed; a different preview signing key can require uninstalling the previous APK (clears app data). **No spoken replies—text bubbles and a brief phone chirp. Update both apps and the Python engine.**
+**Family preview, not complete protection:** production family hosting remains unconfigured; installing Home/Kids does not connect the database. Guardian needs separate administrator setup. Windows CI verified opt-in new-logon denial and offline recovery; not universal Hello/PIN/reconnect/all-browser protection. Keep established family controls enabled. Windows binaries are unsigned; Android is debug-signed and an older signing key may require uninstalling the prior APK (clears local data). **No spoken replies.**
 
 Home Windows now includes **Install or recover Windows Guardian** on the child's test PC. A native confirmation and Windows UAC approval are required. Recovery can archive the previous installation safely so reinstall is not blocked by old folders. This is setup/recovery work, not full device protection; physical UAC/installer/reboot validation remains required. See [Guardian setup](guardian/README.md).
 

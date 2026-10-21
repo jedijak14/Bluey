@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import {
   BookOpen,
+  ChevronDown,
+  ChevronUp,
   Check,
   Copy,
   Download,
@@ -99,11 +101,15 @@ export function AnswerText({ text }: { text: string }) {
 export function ResponseCard({
   response,
   onClose,
+  initialCollapsed = false,
+  overlay = false,
 }: {
   response: CompanionResponse;
   onClose: () => void;
+  initialCollapsed?: boolean;
+  overlay?: boolean;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   function notes() {
@@ -128,14 +134,30 @@ export function ResponseCard({
         </div>
         <button
           title={collapsed ? "Expand response" : "Minimize response"}
+          aria-expanded={!collapsed}
           onClick={() => setCollapsed(!collapsed)}
         >
-          <Minus size={17} />
+          {collapsed ? <ChevronDown size={17} /> : <ChevronUp size={17} />}
         </button>
         <button title="Close response" onClick={onClose}>
-          <X size={17} />
+          {overlay ? <Minus size={17} /> : <X size={17} />}
         </button>
       </header>
+      {collapsed && (
+        <button
+          className="response-preview"
+          title="Read full report"
+          onClick={() => setCollapsed(false)}
+        >
+          <span>{response.text}</span>
+          <small>
+            Click to read more
+            {response.sources.length
+              ? ` · ${response.sources.length} source${response.sources.length === 1 ? "" : "s"}`
+              : ""}
+          </small>
+        </button>
+      )}
       {!collapsed && (
         <>
           <div className="response-paper">

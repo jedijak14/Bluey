@@ -58,6 +58,13 @@ export function AgentSummary({
           offline.
         </p>
       )}
+      {report?.signin_state && (
+        <p>
+          Windows sign-in policy: {report.signin_state.replaceAll("_", " ")}.
+          This is agent-reported status, not independent verification of every
+          Windows sign-in method.
+        </p>
+      )}
       <p className="home-fine">
         Session time is not mouse activity. A heartbeat or policy write is not
         proof of protection. Check limits and Edge/Chrome policies on the child

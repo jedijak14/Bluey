@@ -17,7 +17,9 @@ export function HomeDeviceSetup() {
       </p>
       <p className="home-fine">
         Install requires system-wide Python 3.11+ under Program Files, a loaded
-        standard child profile and a one-use Windows agent code. Recovery works
+        standard child profile and a one-use Windows agent code. The wizard
+        offers optional Windows new-logon blocking and native save-your-work
+        notices. Keep a separate parent administrator account; recovery works
         offline. This does not enable Android or all-browser protection.
       </p>
       <button

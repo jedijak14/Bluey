@@ -100,3 +100,29 @@ test("administrator launcher is Home-only and uses fixed escaped paths", () => {
     /Bypass|Stop-Service|ExecutionPolicy Unrestricted/,
   );
 });
+test("sign-in policy failures are never reported as healthy browser-only status", () => {
+  const record = {
+    child_sid: "child",
+    updated_at: 100,
+    edge_rules: true,
+    applied_version: 1,
+  };
+  for (const state of ["error", "starting", "external_policy"]) {
+    const health = guardianStatus(
+      { ...record, signin_state: state },
+      "child",
+      101,
+    );
+    assert.equal(health.state, "attention");
+    assert.equal(health.signInState, state);
+  }
+  const blocked = guardianStatus(
+    { ...record, signin_state: "blocked", native_warning: "failed" },
+    "child",
+    101,
+  );
+  assert.equal(blocked.signInState, "blocked");
+  assert.equal(blocked.nativeWarning, "failed");
+  assert.equal(blocked.verified, false);
+  assert.equal(guardianStatus(record, "child", 101).signInState, "disabled");
+});

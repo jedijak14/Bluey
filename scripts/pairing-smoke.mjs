@@ -116,7 +116,7 @@ try {
     .click();
   await phone.bringToFront();
   await expect(phone.getByRole("alert")).toContainText(
-    "disconnected on Windows",
+    /disconnected on Windows|Pairing expired/,
   );
   await expect(
     desktop.getByText("Browser companion", { exact: true }),

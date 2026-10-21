@@ -6,7 +6,7 @@ export type CursorArea = {
   width: number;
   height: number;
 };
-export const CURSOR_DOCK_GAP = 16;
+export const CURSOR_DOCK_GAP = 0;
 export function cursorSize(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value)
     ? Math.max(48, Math.min(120, value))

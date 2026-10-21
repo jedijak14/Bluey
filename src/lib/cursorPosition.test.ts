@@ -1,16 +1,16 @@
 import { expect, it } from "vitest";
 import { cursorDestination, cursorDock, cursorSize } from "./cursorPosition";
-it("centers the whole cursor above the bottom edge, not its left corner", () => {
-  expect(cursorDock(1280, 900, 72)).toEqual({ x: 604, y: 812 });
-  expect(cursorDock(1280, 900, 120)).toEqual({ x: 580, y: 764 });
+it("centers the dock container flush to the usable edge for its triangle tip", () => {
+  expect(cursorDock(1280, 900, 72)).toEqual({ x: 604, y: 828 });
+  expect(cursorDock(1280, 900, 120)).toEqual({ x: 580, y: 780 });
 });
 it("respects bottom and side taskbars in native work-area coordinates", () => {
   expect(
     cursorDock(1280, 900, 72, { x: 0, y: 0, width: 1280, height: 852 }),
-  ).toEqual({ x: 604, y: 764 });
+  ).toEqual({ x: 604, y: 780 });
   expect(
     cursorDock(1280, 900, 72, { x: 80, y: 0, width: 1200, height: 900 }),
-  ).toEqual({ x: 644, y: 812 });
+  ).toEqual({ x: 644, y: 828 });
 });
 it("clamps explicit targets and rejects invalid packets", () => {
   expect(cursorDestination(500, 500, 1280, 900, 72)).toEqual({
@@ -31,5 +31,5 @@ it("keeps corrupted settings and tiny viewports finite", () => {
   expect(cursorDock(20, 20, 72)).toEqual({ x: 0, y: 0 });
   expect(
     cursorDock(1280, 900, 72, { x: NaN, y: 0, width: 1, height: 1 }),
-  ).toEqual({ x: 604, y: 812 });
+  ).toEqual({ x: 604, y: 828 });
 });

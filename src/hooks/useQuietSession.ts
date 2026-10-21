@@ -322,6 +322,7 @@ export function useQuietSession(
     const off = client.subscribe((p) => {
       if (p.type === "session_toggle") actions.current.toggle();
       if (p.type === "stopped") actions.current.cancel("Stopped.");
+      if (p.type === "companion_sleep") actions.current.cancel();
       if (p.type === "token" && p.request === s.request) {
         s.reply = (s.reply + String(p.text)).slice(0, 16000);
         patch({ reply: s.reply });

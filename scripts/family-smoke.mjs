@@ -204,13 +204,14 @@ try {
       .toBe(true);
   }
   const downloads = page.locator('a[href$=".exe"], a[href$=".apk"]');
-  await expect(downloads).toHaveCount(2);
-  await expect(page.locator('a[href$=".apk"]')).toHaveCount(0);
+  await expect(downloads).toHaveCount(7);
+  await expect(page.locator('a[href$=".apk"]')).toHaveCount(3);
+  await expect(page.locator('a[href$=".exe"]')).toHaveCount(4);
   for (const href of await downloads.evaluateAll((nodes) =>
     nodes.map((node) => node.href),
   )) {
     expect(href).toMatch(
-      /^https:\/\/github\.com\/jedijak14\/Bluey\/releases\/download\/v0\.5\.5-preview\.1\//,
+      /^https:\/\/github\.com\/jedijak14\/Bluey\/releases\/download\/v0\.5\.7\//,
     );
   }
   for (const width of [1440, 390]) {

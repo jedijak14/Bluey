@@ -52,8 +52,23 @@ function guardianStatus(record, currentSid, now = Date.now() / 1000) {
             .map((name) => [name, record.browser_rules[name] === true]),
         )
       : { edge: record.edge_rules === true };
+  const signInState = [
+    "disabled",
+    "starting",
+    "allowed",
+    "blocked",
+    "external_policy",
+    "error",
+  ].includes(record.signin_state)
+    ? record.signin_state
+    : "disabled";
   return {
+    signInState,
+    nativeWarning: ["idle", "sent", "failed"].includes(record.native_warning)
+      ? record.native_warning
+      : "idle",
     state:
+      !["starting", "external_policy", "error"].includes(signInState) &&
       Object.keys(browserRules).length > 0 &&
       Object.values(browserRules).every(Boolean) &&
       Number.isInteger(record.applied_version)
