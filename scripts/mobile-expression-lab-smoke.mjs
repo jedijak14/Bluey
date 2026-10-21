@@ -34,6 +34,7 @@ try {
       forbidden.push(request.url());
   });
   await page.addInitScript(() => {
+    localStorage.setItem("bluey.motion-preference.v1", "off");
     window.Audio = function () {
       throw new Error("Expression lab must not play audio");
     };
@@ -52,11 +53,11 @@ try {
     name: "Choose a Bluey expression",
   });
   await expect(selector.locator("option")).toHaveCount(13);
-  await expect(lab.locator("button[aria-pressed=true]")).toHaveCount(2); // selected preset + enabled motion
+  await expect(lab.locator("button[aria-pressed=true]")).toHaveCount(1); // selected preset only; no motion settings
   await expect(stage).not.toHaveClass(/lab-paused/);
   await expect(stage).toHaveAttribute("data-preset", "computer");
   const samples = [
-    ["computer", ".lab-paw"],
+    ["computer", ".lab-powered-key"],
     ["idea", ".lab-idea-rays"],
     ["celebrate", ".lab-confetti"],
     ["listening", ".berry-body"],
@@ -96,12 +97,12 @@ try {
         .every((a) => a.playState === "paused"),
     ),
   ).toBe(true);
-  const paw = stage.locator(".lab-paw").first();
-  const frozen = await sample(paw);
+  const poweredKey = stage.locator(".lab-powered-key").first();
+  const frozen = await sample(poweredKey);
   await page.waitForTimeout(350);
-  expect(await sample(paw)).toBe(frozen);
+  expect(await sample(poweredKey)).toBe(frozen);
   await page.getByRole("button", { name: "Resume scene" }).click();
-  await expect.poll(() => sample(paw)).not.toBe(frozen);
+  await expect.poll(() => sample(poweredKey)).not.toBe(frozen);
   const previousScene = await stage.locator(".lab-scene").elementHandle();
   await page.getByRole("button", { name: "Replay scene" }).click();
   expect(await previousScene.evaluate((el) => el.isConnected)).toBe(false);
@@ -120,27 +121,49 @@ try {
   await page.waitForTimeout(4700);
   await expect(stage).toHaveAttribute("data-preset", "happy");
 
-  // OS reduction is respected until the user's explicit On override.
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect(page.locator("html")).toHaveAttribute("data-motion", "off");
-  expect(
-    await stage.evaluate((el) => el.getAnimations({ subtree: true }).length),
-  ).toBe(0);
-  await expect(page.getByRole("button", { name: "Play tour" })).toBeDisabled();
-  await selector.selectOption("idea");
-  await expect(stage).toHaveAttribute("data-preset", "idea");
-  await page
-    .getByRole("button", { name: "Turn motion on", exact: true })
-    .click();
-  await stage.scrollIntoViewIfNeeded();
-  await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
-  const rays = stage.locator(".lab-idea-rays");
-  const still = await sample(rays);
-  await expect.poll(() => sample(rays)).not.toBe(still);
-  await page.reload();
+  // Mobile motion is automatic even with a stored Off preference and OS reduction.
   await expect(
     page.getByRole("combobox", { name: "Motion", exact: true }),
-  ).toHaveValue("on");
+  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Turn motion/ })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.locator(
+      '.mobile-site a[href="#account"], .mobile-site a[href="#home"]',
+    ),
+  ).toHaveCount(0);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
+  await expect(page.getByRole("button", { name: "Play tour" })).toBeEnabled();
+  await selector.selectOption("computer");
+  await stage.scrollIntoViewIfNeeded();
+  const power = stage.locator(".lab-power-spark");
+  const still = await sample(power);
+  await expect.poll(() => sample(power)).not.toBe(still);
+  const flow = () =>
+    stage
+      .locator(".lab-power-flow")
+      .evaluate((el) => getComputedStyle(el).strokeDashoffset);
+  const beforeFlow = await flow();
+  await expect.poll(flow).not.toBe(beforeFlow);
+  await expect(stage.locator(".lab-paw")).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("bluey.motion-preference.v1"),
+    ),
+  ).toBe("off");
+  // Leaving the mobile site restores the saved preference; no forced motion leaks into Home.
+  await page.evaluate(() => {
+    location.hash = "account";
+  });
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "off");
+  await page.evaluate(() => {
+    location.hash = "expression-lab";
+  });
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
   await stage.scrollIntoViewIfNeeded();
 
   // Visibility gates pause CSS and tour work, without losing the selected scene.
@@ -209,18 +232,11 @@ try {
     await stage.scrollIntoViewIfNeeded();
     await stage.screenshot({ path: `artifacts/mobile-lab/${id}.png` });
   }
-  await page
-    .getByRole("button", { name: "Turn motion off", exact: true })
-    .click();
-  await expect(page.locator("html")).toHaveAttribute("data-motion", "off");
-  expect(
-    await stage.evaluate((el) => el.getAnimations({ subtree: true }).length),
-  ).toBe(0);
   expect(errors).toEqual([]);
   expect(forbidden).toEqual([]);
   await context.close();
   console.log(
-    "Mobile Expression Lab passed: 13 animated presets, pause/replay/tour, reduced-motion override, visibility gates, touch/keyboard controls, 320–1024px layouts, silent/no device access, AI restriction.",
+    "Mobile Expression Lab passed: 13 animated presets, pause/replay/tour, automatic mobile motion, unchanged saved desktop preference, power-driven typing, no account link, visibility gates, touch/keyboard controls, 320–1024px layouts, silent/no device access, AI restriction.",
   );
 } finally {
   await browser.close();

@@ -8,7 +8,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Avatar } from "./FloatingWidget/Avatar";
-import { useMotionPreference } from "./MotionPreferences";
 import type { Mood } from "../lib/types";
 import "./MobileExpressionLab.css";
 
@@ -26,7 +25,7 @@ export const LAB_PRESETS: readonly Preset[] = [
     id: "computer",
     label: "Deep work",
     description:
-      "Tiny paws. Big plans. Bluey types away at his very own computer.",
+      "A little focus, a little power. Bluey makes the keys type all by themselves.",
     mood: "listening",
     scene: "computer",
   },
@@ -220,29 +219,53 @@ export function ExpressionScene({ preset }: { preset: Preset }) {
                 ))}
               </g>
             ))}
-            <path
-              className="lab-paw paw-left"
-              d="M201 255Q219 244 242 274Q251 278 265 281Q272 287 265 291Q245 295 232 284L207 275Z"
-              fill="#6c86f5"
-              stroke="#4254d6"
-              strokeWidth="2"
-            />
-            <path
-              className="lab-paw paw-right"
-              d="M220 244Q250 248 279 272Q290 275 300 280Q309 286 302 290Q285 296 269 284L218 263Z"
-              fill="#8198fa"
-              stroke="#4254d6"
-              strokeWidth="2"
-            />
-            <rect
-              className="lab-key-light"
-              x="308"
-              y="289"
-              width="11"
-              height="4"
-              rx="1"
-              fill="#fff4ae"
-            />
+            <g className="lab-power" fill="none" strokeLinecap="round">
+              <circle
+                className="lab-power-source"
+                cx="132"
+                cy="122"
+                r="17"
+                fill="#b4a0ff"
+                fillOpacity=".18"
+                stroke="#b4a0ff"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M132 122C238 78 194 250 308 288"
+                stroke="#b4a0ff"
+                strokeWidth="8"
+                opacity=".12"
+              />
+              <path
+                className="lab-power-flow"
+                d="M132 122C238 78 194 250 308 288"
+                stroke="#a18bdf"
+                strokeWidth="2"
+                strokeDasharray="3 17"
+              />
+              <path
+                className="lab-power-spark"
+                d="M214 208l3 7 7 3-7 3-3 7-3-7-7-3 7-3Z"
+                fill="#beacf6"
+                stroke="#a18bdf"
+                strokeWidth="1"
+              />
+            </g>
+            {[0, 1, 2].map((key) => (
+              <rect
+                key={key}
+                className="lab-powered-key"
+                x={280 + key * 28}
+                y={284 + key * 5}
+                width="10"
+                height="3"
+                rx="1"
+                fill="#f3e7ff"
+                stroke="#ad90e2"
+                strokeWidth="1"
+                style={{ animationDelay: `${-key * 0.4}s` }}
+              />
+            ))}
             <path
               d="M64 310L58 346M418 310L424 346"
               stroke="#c6b8df"
@@ -305,7 +328,6 @@ export function ExpressionScene({ preset }: { preset: Preset }) {
 }
 
 export function MobileExpressionLab({ active = true }: { active?: boolean }) {
-  const { enabled, setPreference } = useMotionPreference();
   const [index, setIndex] = useState(0);
   const [replay, setReplay] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -316,7 +338,7 @@ export function MobileExpressionLab({ active = true }: { active?: boolean }) {
   );
   const stage = useRef<HTMLDivElement>(null);
   const preset = LAB_PRESETS[index];
-  const running = enabled && !paused && inView && !hidden && active;
+  const running = !paused && inView && !hidden && active;
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => setInView(entry.isIntersecting),
@@ -348,7 +370,7 @@ export function MobileExpressionLab({ active = true }: { active?: boolean }) {
       if (rect.top < 0 || rect.bottom > innerHeight)
         stage.current.scrollIntoView({
           block: "center",
-          behavior: enabled ? "smooth" : "auto",
+          behavior: "smooth",
         });
     }
   };
@@ -375,7 +397,7 @@ export function MobileExpressionLab({ active = true }: { active?: boolean }) {
           <div className="lab-preview-top">
             <span>
               <span className="lab-status-dot" />
-              {running ? "IN MOTION" : enabled ? "PAUSED" : "STILL PREVIEW"}
+              {running ? "IN MOTION" : "PAUSED"}
             </span>
             <span>
               <VolumeX size={13} /> ALWAYS SILENT
@@ -431,7 +453,6 @@ export function MobileExpressionLab({ active = true }: { active?: boolean }) {
             aria-label="Scene playback"
           >
             <button
-              disabled={!enabled}
               onClick={() => setPaused(!paused)}
               aria-label={paused ? "Resume scene" : "Pause scene"}
             >
@@ -439,7 +460,6 @@ export function MobileExpressionLab({ active = true }: { active?: boolean }) {
               {paused ? "Resume" : "Pause"}
             </button>
             <button
-              disabled={!enabled}
               onClick={() => {
                 setReplay((value) => value + 1);
                 setPaused(false);
@@ -449,7 +469,6 @@ export function MobileExpressionLab({ active = true }: { active?: boolean }) {
               Replay scene
             </button>
             <button
-              disabled={!enabled}
               aria-pressed={touring}
               onClick={() => {
                 setTouring(!touring);
@@ -460,20 +479,6 @@ export function MobileExpressionLab({ active = true }: { active?: boolean }) {
               {touring ? "Stop tour" : "Play tour"}
             </button>
           </div>
-          <button
-            className="lab-motion"
-            aria-pressed={enabled}
-            onClick={() => setPreference(enabled ? "off" : "on")}
-          >
-            {enabled ? "Turn motion off" : "Turn motion on"}
-            <ArrowRight size={14} />
-          </button>
-          {!enabled && (
-            <p className="lab-motion-note">
-              Still by choice. Turn motion on here to override your device’s
-              reduced-motion setting.
-            </p>
-          )}
         </div>
         <div className="lab-picker">
           <div className="lab-picker-heading">
@@ -498,7 +503,7 @@ export function MobileExpressionLab({ active = true }: { active?: boolean }) {
                   <small>
                     {
                       [
-                        "At the computer",
+                        "Typing with a little power",
                         "A bright idea",
                         "A happy celebration",
                       ][i]

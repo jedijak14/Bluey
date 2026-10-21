@@ -23,12 +23,19 @@ const MotionContext = createContext({
 });
 export const useMotionPreference = () => useContext(MotionContext);
 
-export function MotionProvider({ children }: { children: ReactNode }) {
+export function MotionProvider({
+  children,
+  forceOn = false,
+}: {
+  children: ReactNode;
+  forceOn?: boolean;
+}) {
   const [preference, updatePreference] = useState(readMotionPreference);
   const [systemReduced, setSystemReduced] = useState(
     () => matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
-  const enabled = motionEnabled(preference, systemReduced);
+  // Mobile marketing pages always animate, without rewriting the saved desktop preference.
+  const enabled = forceOn || motionEnabled(preference, systemReduced);
   useEffect(() => {
     const media = matchMedia("(prefers-reduced-motion: reduce)");
     const changed = () => setSystemReduced(media.matches);

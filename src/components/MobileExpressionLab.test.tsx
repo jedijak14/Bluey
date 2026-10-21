@@ -34,8 +34,9 @@ it("includes animated SVG parts for typing, ideas and celebrations", () => {
   const scenes = LAB_PRESETS.slice(0, 3).map((preset) =>
     renderToStaticMarkup(<ExpressionScene preset={preset} />),
   );
-  expect(scenes[0]).toContain("lab-paw paw-left");
-  expect(scenes[0]).toContain("lab-paw paw-right");
+  expect(scenes[0]).not.toContain("lab-paw");
+  expect(scenes[0]).toContain("lab-power-flow");
+  expect(scenes[0]).toContain("lab-powered-key");
   expect(scenes[0]).toContain("lab-screen-caret");
   expect(scenes[1]).toContain("lab-idea-rays");
   expect(scenes[2]).toContain("lab-confetti");

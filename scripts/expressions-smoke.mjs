@@ -214,33 +214,19 @@ try {
       .evaluate((el) => getComputedStyle(el).animationName),
   ).toBe("blink");
   await phone.emulateMedia({ reducedMotion: "reduce" });
-  await expect(phone.locator("html")).toHaveAttribute("data-motion", "off");
-  await expect
-    .poll(() =>
-      sad.evaluate((el) => el.getAnimations({ subtree: true }).length),
-    )
-    .toBe(0);
-  await phone
-    .getByRole("combobox", { name: "Motion", exact: true })
-    .selectOption("on");
   await expect(phone.locator("html")).toHaveAttribute("data-motion", "on");
+  await expect(
+    phone.getByRole("combobox", { name: "Motion", exact: true }),
+  ).toHaveCount(0);
   expect(
     await sad
       .locator(".eye")
       .first()
       .evaluate((el) => getComputedStyle(el).animationName),
   ).toBe("blink");
-  await phone
-    .getByRole("combobox", { name: "Motion", exact: true })
-    .selectOption("off");
-  await expect
-    .poll(() =>
-      sad.evaluate((el) => el.getAnimations({ subtree: true }).length),
-    )
-    .toBe(0);
   expect(errors).toEqual([]);
   console.log(
-    "PASS: all seven moods change rendered frames; autoplay, manual selection, replay, parked pointer, mobile blink, System/On/Off overrides, reload persistence, blocked storage, welcome replay and live OS preferences.",
+    "PASS: all seven moods change rendered frames; autoplay, manual selection, replay, parked pointer, automatic mobile blink, desktop System/On/Off overrides, reload persistence, blocked storage, welcome replay and live OS preferences.",
   );
 } finally {
   await browser.close();
