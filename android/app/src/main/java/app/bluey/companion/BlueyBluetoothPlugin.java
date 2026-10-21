@@ -126,10 +126,10 @@ public class BlueyBluetoothPlugin extends Plugin {
         if (old != null) try {old.close();} catch(Exception ignored){}
     }
     @PluginMethod public void disconnect(PluginCall call) {closeSocket();call.resolve();}
-    @Override protected void handleOnPause() {
+    @Override protected void handleOnStop() {
         closeSocket();
         JSObject data = new JSObject();data.put("kind", "closed");notifyListeners("disconnect", data);
-        super.handleOnPause();
+        super.handleOnStop();
     }
     @Override protected void handleOnDestroy() {closeSocket();workers.shutdownNow();super.handleOnDestroy();}
 }
