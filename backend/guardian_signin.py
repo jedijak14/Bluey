@@ -21,11 +21,10 @@ def validate_sid(sid):
 class WindowsRights:
     def __init__(self):
         import win32security
-        import ntsecuritycon
         self.api = win32security
         try:
             self.handle = win32security.LsaOpenPolicy(None,
-                ntsecuritycon.POLICY_LOOKUP_NAMES | ntsecuritycon.POLICY_CREATE_ACCOUNT)
+                win32security.POLICY_LOOKUP_NAMES | win32security.POLICY_CREATE_ACCOUNT)
         except win32security.error as error:
             raise OSError('Could not open Windows sign-in policy.') from error
 

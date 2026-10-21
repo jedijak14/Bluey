@@ -110,6 +110,7 @@ try:
     (data/'usage.json').write_text(json.dumps(budget.state))
     installed=True
     command([runtime_python,'-I',str(root/'service_entry.py'),'install','--config',str(config)])
+    report=None
     deadline=time.monotonic()+45
     while time.monotonic()<deadline:
         try:
@@ -117,7 +118,7 @@ try:
             if report.get('browser_rules') == {'edge':True,'chrome':True} and report['applied_version']==1 and report.get('signin_state')=='allowed':break
         except (OSError,ValueError):pass
         time.sleep(.5)
-    else:raise AssertionError('No applied policy heartbeat from the actual Windows service')
+    else:raise AssertionError(f'No applied policy heartbeat from Windows service; last public status: {report}')
     assert report['child_sid']==sid_text and report['verified'] is False
     assert win32serviceutil.QueryServiceStatus(SERVICE)[1]==win32service.SERVICE_RUNNING
     win32security.ImpersonateLoggedOnUser(token)

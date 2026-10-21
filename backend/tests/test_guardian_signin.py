@@ -157,3 +157,25 @@ def test_signin_report_is_bounded_and_backward_compatible():
     assert AgentReport(**data, signin_state='blocked').signin_state == 'blocked'
     for invalid in ['verified', True, {'state': 'blocked'}]:
         with pytest.raises(ValidationError): AgentReport(**data, signin_state=invalid)
+
+
+def test_pywin32_binding_uses_exported_policy_constants_and_normalizes_errors(monkeypatch):
+    from backend.guardian_signin import WindowsRights
+    class NativeError(Exception):
+        winerror = 5
+    handle = SimpleNamespace(Close=lambda: None)
+    calls = []
+    api = SimpleNamespace(error=NativeError, POLICY_LOOKUP_NAMES=0x800, POLICY_CREATE_ACCOUNT=0x10,
+        LsaOpenPolicy=lambda host, mask: calls.append((host, mask)) or handle,
+        ConvertStringSidToSid=lambda sid: sid,
+        LsaEnumerateAccountRights=lambda *a: (_ for _ in ()).throw(NativeError()),
+        LsaAddAccountRights=lambda *a: (_ for _ in ()).throw(NativeError()),
+        LsaRemoveAccountRights=lambda *a: (_ for _ in ()).throw(NativeError()))
+    monkeypatch.setitem(sys.modules, 'win32security', api)
+    rights = WindowsRights()
+    assert calls == [(None, 0x810)]
+    for action in [lambda: rights.read(SID), lambda: rights.add(SID, DENY_RIGHTS), lambda: rights.remove(SID, DENY_RIGHTS)]:
+        with pytest.raises(OSError): action()
+    NativeError.winerror = 2
+    assert rights.read(SID) == set()
+    rights.close()
