@@ -1,5 +1,7 @@
 # Bluey Guardian — experimental Windows enforcement
 
+**New opt-in source:** [Strict Windows mode](STRICT_WINDOWS.md) adds SID-scoped persistent WFP containment, an approved-HTTPS gateway, actual blocked-domain event queueing and explicitly consented sign-out at cutoff. It is not in the published 0.5.7 installer and is not a blanket bypass-proof claim. The legacy mode described below is unchanged.
+
 **Test-PC implementation, not certified parental protection. Do not replace existing family controls.** This source contains real Windows calls, not a simulated fullscreen lock. It has not been validated on a physical Windows machine in this Linux workspace.
 
 Native Windows CI now checks real service start/stop/recovery, a loaded disposable child profile, policy-key write denial, child service-stop denial, and cached-policy heartbeat. A separate CI check exercises real Edge and Chrome navigation against harmless local fixture sites using the runner’s own HKCU policies: block, allowlist exception, and exception revocation. This is not an interactive standard-child browser/login test or validation of the complete PowerShell installer on a physical family PC. Check the current CI result before relying on these checks.

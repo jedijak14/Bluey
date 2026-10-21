@@ -319,7 +319,7 @@ jobs:
             android-*.log
   guardian-check:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -330,6 +330,7 @@ jobs:
           python -m pip install -r guardian/requirements.txt playwright==1.64.0
           python -m pip install -r backend/requirements-dev.txt
           python -m pytest backend/tests/test_model_connection.py -q
+          python scripts/guardian-network-check.py
           python scripts/guardian-windows-check.py
           python scripts/guardian-browser-check.py
           python scripts/guardian-setup-check.py

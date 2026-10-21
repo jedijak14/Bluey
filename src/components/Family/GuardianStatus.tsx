@@ -3,6 +3,8 @@ export type GuardianHealth = {
   state: string;
   signInState?: string;
   nativeWarning?: string;
+  networkState?: string;
+  signOutAtCutoff?: boolean;
   restriction?: string;
   policyVersion?: number;
   blocklistVersion?: string;
@@ -56,9 +58,24 @@ export function GuardianStatus() {
                   .map(([browser]) => (browser === "edge" ? "Edge" : "Chrome"))
                   .join(
                     " and ",
-                  )} policy writes and session-time enforcement are reported, not independently verified. Other browsers are not covered.`
+                  )} policy writes and session-time enforcement are reported, not independently verified. ${health.networkState === "filtered" ? "Strict network containment is also reported; unsupported browsers/apps are denied direct access." : "Other browsers are not covered by these browser policies."}`
               : "No verified protection status. Keep your existing parental controls enabled."}
         </p>
+        {health.networkState && health.networkState !== "disabled" && (
+          <p>
+            Strict Windows network mode: {health.networkState}. Only
+            parent-approved HTTPS sites and the family control service are
+            allowed through the gateway. This status is not independent proof
+            against every bypass.
+          </p>
+        )}
+        {health.signOutAtCutoff && (
+          <p>
+            At cutoff Windows signs out this child account, including
+            disconnected sessions. Save your work before the warning expires;
+            unsaved changes may be lost.
+          </p>
+        )}
         {health.signInState && (
           <p>
             Windows sign-in policy: {health.signInState.replaceAll("_", " ")}.

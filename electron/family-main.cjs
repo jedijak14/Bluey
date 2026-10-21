@@ -22,7 +22,41 @@ app.setPath(
   "userData",
   path.join(app.getPath("appData"), `Bluey-${variant}-Desktop`),
 );
+// Strict gateway checks visible TLS SNI; never send encrypted ClientHello.
+if (variant === "kids")
+  app.commandLine.appendSwitch("disable-features", "EncryptedClientHello");
 let main;
+let controlProxyMode;
+async function familyFetch(url, options) {
+  if (variant !== "kids" || process.platform !== "win32")
+    return fetch(url, options);
+  const user = await identity();
+  let proxy = false;
+  try {
+    const file = path.join(user.data, "Bluey Guardian Status", "status.json");
+    if ((await fs.stat(file)).size > 8192)
+      throw Error("Invalid Guardian status");
+    const state = JSON.parse(await fs.readFile(file, "utf8"));
+    proxy =
+      state.child_sid === user.sid &&
+      ["starting", "filtered", "blocked", "error"].includes(
+        state.network_state,
+      );
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  if (!proxy) return fetch(url, options);
+  const transport = session.fromPartition("guardian-control");
+  if (controlProxyMode !== "strict") {
+    await transport.setProxy({
+      mode: "fixed_servers",
+      proxyRules: "127.0.0.1:18768",
+      proxyBypassRules: "<-loopback>",
+    });
+    controlProxyMode = "strict";
+  }
+  return transport.fetch(url, options);
+}
 const own = (event) =>
   main &&
   !main.isDestroyed() &&
@@ -70,7 +104,7 @@ ipcMain.handle(
   authorized(async (p, token, body, method) => {
     validateRequest(variant, p, token, body, method);
     try {
-      const response = await fetch(
+      const response = await familyFetch(
         "https://bluey-plum.vercel.app/api/family/" + p,
         {
           method,

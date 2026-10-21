@@ -3,7 +3,9 @@ param(
   [Parameter(Mandatory=$true)][string]$Python,
   [string]$FamilyOrigin = 'https://bluey-plum.vercel.app',
   [switch]$AcceptExperimentalEnforcement,
-  [switch]$EnableSignInBlocking
+  [switch]$EnableSignInBlocking,
+  [switch]$StrictNetwork,
+  [switch]$SignOutAtCutoff
 )
 $ErrorActionPreference = 'Stop'
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -13,6 +15,7 @@ if (!(New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Secur
   throw 'Admin Permissions is needed'
 }
 if (!$AcceptExperimentalEnforcement) { throw 'Read guardian/README.md. Use a test PC and pass -AcceptExperimentalEnforcement only after arranging parent recovery.' }
+if ($SignOutAtCutoff -and !$EnableSignInBlocking) { throw 'Sign-out requires explicit sign-in blocking consent.' }
 $origin = [Uri]$FamilyOrigin
 if ($origin.Scheme -ne 'https' -or $origin.UserInfo -or $origin.AbsolutePath -ne '/' -or $origin.Query -or $origin.Fragment) { throw 'A public HTTPS family origin without a path is required.' }
 # Check connectivity before creating privileged directories or installing code.
@@ -45,10 +48,29 @@ if ($LASTEXITCODE) { throw 'Runtime dependencies failed; service was not install
 $config = Join-Path $data 'config.json'
 $enrollArgs = @('-I', (Join-Path $root 'service_entry.py'), 'enroll', '--config', $config, '--username', $ChildAccount, '--origin', $FamilyOrigin)
 if ($EnableSignInBlocking) { $enrollArgs += '--enable-signin-blocking' }
+if ($StrictNetwork) { $enrollArgs += '--strict-network' }
+if ($SignOutAtCutoff) { $enrollArgs += '--signout-at-cutoff' }
 & $runtime @enrollArgs
 if ($LASTEXITCODE) { throw 'Enrollment failed; service was not installed.' }
+$boundSid = (Get-Content -LiteralPath $config -Raw | ConvertFrom-Json).sid
+$startedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() / 1000.0
 & $runtime -I (Join-Path $root 'service_entry.py') install --config $config
 if ($LASTEXITCODE) { throw 'Service startup failed. Run Recover-Guardian.ps1 as the parent administrator.' }
 & sc.exe failure BlueyGuardian reset= 86400 actions= restart/5000/restart/15000/restart/30000 | Out-Null
 if ($LASTEXITCODE) { throw 'Could not configure service failure recovery.' }
-Write-Host 'Guardian installed. Verify time disconnect, edge://policy and chrome://policy on the test child account. This does not mean all browsers or Android are protected.'
+if ($StrictNetwork) {
+  $ready = $false
+  for ($i=0; $i -lt 20; $i++) {
+    Start-Sleep -Seconds 1
+    try {
+      $record = Get-Content (Join-Path $status 'status.json') -Raw | ConvertFrom-Json
+      $age = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() / 1000.0 - [double]$record.updated_at
+      if ($record.network_state -eq 'filtered' -and $record.proxy_settings -eq $true -and
+          $record.child_sid -eq $boundSid -and [double]$record.updated_at -ge $startedAt -and
+          $age -ge -5 -and $age -le 10 -and $null -ne $record.applied_version -and
+          (!$EnableSignInBlocking -or $record.signin_state -in @('allowed','blocked'))) { $ready = $true; break }
+    } catch {}
+  }
+  if (!$ready) { throw 'Strict network startup was not confirmed. Use parent recovery; do not treat this PC as protected.' }
+}
+Write-Host 'Guardian installed. Verify the child network, browser policies, time cutoff and separate parent recovery on this test PC. Android OS enforcement is not included.'

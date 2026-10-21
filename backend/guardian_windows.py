@@ -1,9 +1,10 @@
-"""Experimental Windows service: session disconnection + per-user Edge/Chrome policies.
+"""Opt-in Windows service: child-scoped network, session and browser enforcement.
 
-No HTTP listener, arbitrary commands, hidden installation, or child-facing admin
+No remote listener, arbitrary commands, hidden installation, or child-facing admin
 credentials. Install/recover only with the explicit administrator setup script.
 """
 import json
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import sys
@@ -14,7 +15,9 @@ from urllib.parse import urlsplit
 from .enforcement_policy import Budget
 from .website_rules import build_rules, BLOCKLIST_VERSION
 from .guardian_signin import SignInGate, recover_signin
-from .guardian_screen import SessionWarnings
+from .guardian_screen import SessionWarnings, send_warning
+from .guardian_network import NetworkGate, recover_network
+from . import guardian_proxy_settings
 
 SERVICE = 'BlueyGuardian'
 
@@ -26,6 +29,33 @@ def save(path, value):
         file.flush()
         os.fsync(file.fileno())
     os.replace(temporary, path)
+
+
+@contextmanager
+def enrollment_journals(config_path, names):
+    """Prepare-only journals are rollbackable; committed enrollment is retained.
+
+    No prepare operation may mutate Windows policy. The directory is protected
+    for SYSTEM/admins; an exclusive marker also refuses concurrent enrollments.
+    """
+    if any(name not in {'signin.json','network.json','proxy.json'} for name in names):
+        raise ValueError('Unknown enrollment journal')
+    marker = config_path.parent/'enrollment.lock'
+    with marker.open('x'): pass
+    paths = [config_path.parent/name for name in names]
+    try:
+        if config_path.exists(): raise RuntimeError('Enrollment already committed')
+        if any(path.exists() for path in paths):
+            raise RuntimeError('Previous enrollment journals found; recover/archive before retrying')
+        try:
+            yield
+        except BaseException:
+            if not config_path.exists():
+                for path in paths:
+                    path.unlink(missing_ok=True); path.with_suffix('.new').unlink(missing_ok=True)
+            raise
+    finally:
+        marker.unlink()
 
 
 def standard_local_user(name):
@@ -47,13 +77,13 @@ def standard_local_user(name):
     return win32security.ConvertSidToStringSid(sid)
 
 
-def sessions(sid):
+def sessions(sid, include_disconnected=False):
     import win32ts
     import win32security
     found = []
     for session in win32ts.WTSEnumerateSessions(None, 1, 0):
         identifier = session['SessionId']
-        if identifier == 0 or session['State'] != win32ts.WTSActive:
+        if identifier == 0 or (not include_disconnected and session['State'] != win32ts.WTSActive):
             continue
         user = win32ts.WTSQuerySessionInformation(None, identifier, win32ts.WTSUserName)
         domain = win32ts.WTSQuerySessionInformation(None, identifier, win32ts.WTSDomainName)
@@ -62,6 +92,17 @@ def sessions(sid):
         if win32security.ConvertSidToStringSid(actual) == sid:
             found.append(identifier)
     return found
+
+
+def restrict_sessions(sid, active, signout):
+    import win32ts
+    targets = sessions(sid, include_disconnected=True) if signout else active
+    for identifier in targets:
+        try:
+            if signout: win32ts.WTSLogoffSession(None, identifier, False)
+            else: win32ts.WTSDisconnectSession(None, identifier, False)
+        except win32ts.error:
+            pass  # A disappearing session cannot prevent restricting the others.
 
 
 BROWSER_KEYS = {"edge": r"Software\Policies\Microsoft\Edge", "chrome": r"Software\Policies\Google\Chrome"}
@@ -166,18 +207,25 @@ def validate_enrolled_identity(config, directory):
         if standard_local_user(config['username']) != config['sid']:
             raise ValueError('Enrolled child identity changed.')
     except Exception:
-        recover_signin(config, directory)
+        try: recover_network(config, directory)
+        finally: recover_signin(config, directory)
         raise
 
 
 def run(config_path, stop):
+    from contextlib import ExitStack
+    with ExitStack() as resources:
+        _run(config_path, stop, resources)
+
+
+def _run(config_path, stop, resources):
     import win32ts
     config=json.loads(config_path.read_text())
     validate_enrolled_identity(config, config_path.parent)
-    if type(config.get('signin_blocking', False)) is not bool or type(config.get('native_warnings', False)) is not bool:
+    if any(type(config.get(key, False)) is not bool for key in ('signin_blocking', 'native_warnings', 'strict_network', 'signout_at_cutoff')):
         raise ValueError('Invalid administrator enforcement configuration.')
     gate = None
-    warnings = SessionWarnings()
+    warnings = SessionWarnings(lambda session, reason: send_warning(session, reason, config.get('signout_at_cutoff', False)))
     gateway=Gateway(config['origin'],config['token'])
     state_path=config_path.parent/'usage.json'
     budget=Budget(json.loads(state_path.read_text()) if state_path.exists() else None)
@@ -185,17 +233,40 @@ def run(config_path, stop):
     events=json.loads(event_path.read_text()) if event_path.exists() else []
     import threading
     lock=threading.RLock()
-    previous=time.monotonic(); last_reason=''
+    previous=time.monotonic(); last_reason='awaiting_policy'
     browsers = managed_browsers(config)
-    health={'signin_state':'starting' if config.get('signin_blocking') else 'disabled', 'native_warning':'idle', 'edge_rules':False, 'browser_rules':{b:False for b in browsers}, 'applied_version':None}
+    health={'signin_state':'starting' if config.get('signin_blocking') else 'disabled', 'native_warning':'idle', 'edge_rules':False, 'browser_rules':{b:False for b in browsers}, 'applied_version':None, 'network_state':'starting' if config.get('strict_network') else 'disabled', 'proxy_settings':not config.get('strict_network')}
     import win32com.shell.shell as shell
     import win32com.shell.shellcon as shellcon
     status_path=Path(shell.SHGetFolderPath(0,shellcon.CSIDL_COMMON_APPDATA,0,0))/'Bluey Guardian Status'/'status.json'
 
+    network = proxy = None
+    blocked_recent = {}
+    if config.get('strict_network'):
+        from .guardian_proxy import Proxy
+        network = NetworkGate(config['sid'], config_path.parent/'network.json')
+        resources.callback(network.close)
+        network.apply(False)  # fail closed BEFORE opening any privileged proxy
+        def access():
+            with lock:
+                policy = dict(budget.bundle['policy']) if budget.bundle else None
+                version = policy['version'] if policy else -1
+                return policy, bool(last_reason), (version, last_reason)
+        def blocked(host):
+            with lock:
+                now = time.monotonic()
+                if now - blocked_recent.get(host, -60) < 60: return
+                if len(blocked_recent) >= 256: blocked_recent.pop(next(iter(blocked_recent)))
+                blocked_recent[host] = now
+                events[:] = (events + [{'id':str(uuid.uuid4()), 'kind':'site_blocked', 'domain':host}])[-100:]
+                save(event_path, events)
+        proxy = Proxy(config['sid'], urlsplit(config['origin']).hostname, access, blocked)
+        proxy.start(); resources.callback(proxy.close)
+
     def sync_worker():
         # Network failures never block the independent session-enforcement loop.
         while not stop(0):
-            error='';results={b:False for b in browsers}
+            error='';results={b:False for b in browsers};proxy_ready=not config.get('strict_network')
             try:
                 bundle=gateway.call('agent/policy')
                 with lock:
@@ -207,11 +278,15 @@ def run(config_path, stop):
             if policy is not None:
                 results = apply_browser_rules(config['sid'], policy, browsers)
                 if not all(results.values()): error='Child hive unavailable or browser policy write failed.'
+                if config.get('strict_network'):
+                    try:
+                        guardian_proxy_settings.apply(config['sid'], config_path.parent/'proxy.json');proxy_ready=True
+                    except (OSError, ValueError): error='Strict browser proxy configuration needs parent attention.'
             with lock:
-                health.update(edge_rules=results.get('edge',False), browser_rules=results, applied_version=policy['version'] if all(results.values()) and policy else None)
+                health.update(proxy_settings=proxy_ready, edge_rules=results.get('edge',False), browser_rules=results, applied_version=policy['version'] if all(results.values()) and policy else None)
                 report={'policy_version':budget.bundle['policy']['version'] if budget.bundle else 0,
                     'day':budget.state['day'] or '1970-01-01','used_seconds':min(172800,int(budget.state['used_seconds'])),
-                    'time_service':True,'signin_state':health['signin_state'],'edge_rules':results.get('edge',False), 'browser_rules':results, 'blocklist_version':BLOCKLIST_VERSION if all(results.values()) else '', 'error':error}
+                    'time_service':True,'signin_state':health['signin_state'],'edge_rules':results.get('edge',False), 'browser_rules':results, 'blocklist_version':BLOCKLIST_VERSION if all(results.values()) else '', 'error':error or ('Strict network policy needs parent attention.' if health['network_state']=='error' else '')}
                 pending=list(events[:10])
             try:
                 gateway.call('agent/report',report)
@@ -235,6 +310,15 @@ def run(config_path, stop):
             save(state_path,budget.state)
             if reason and reason != last_reason and reason in {'time_limit','bedtime','clock_error','offline_policy_expired'}:
                 events[:]=(events+[{'id':str(uuid.uuid4()),'kind':reason}])[-100:];save(event_path,events)
+            if network is not None:
+                try:
+                    # The control origin remains reachable for extra-time requests;
+                    # the proxy itself refuses all other hosts while restricted.
+                    health['network_state'] = network.apply(proxy.thread.is_alive())
+                    if not proxy.thread.is_alive():
+                        health['network_state'] = 'error'; reason = reason or 'network_unavailable'
+                except (OSError, ValueError, RuntimeError):
+                    health['network_state'] = 'error'; reason = reason or 'network_unavailable'
             last_reason=reason
             if config.get('signin_blocking'):
                 try:
@@ -247,16 +331,11 @@ def run(config_path, stop):
                 health['native_warning'] = warnings.update(active, budget, now, bool(reason))
             save(status_path,{'updated_at':time.time(), 'child_sid':config['sid'], 'restriction':reason,
                 'signin_state':health['signin_state'], 'native_warning':health['native_warning'],
+                'network_state':health['network_state'], 'proxy_settings':health['proxy_settings'], 'signout_at_cutoff':bool(config.get('signout_at_cutoff')),
                 'edge_rules':health['edge_rules'], 'browser_rules':health['browser_rules'], 'applied_version':health['applied_version'],
                 'blocklist_version':BLOCKLIST_VERSION, 'verified':False})
         if reason:
-            for identifier in active:
-                try:
-                    win32ts.WTSDisconnectSession(None,identifier,False)
-                except win32ts.error:
-                    # Session may end between enumeration and disconnect. Retry
-                    # next loop; one disappearing session must not kill Guardian.
-                    pass
+            restrict_sessions(config['sid'], active, bool(config.get('signout_at_cutoff')))
         if stop(1): break
     if gate is not None: gate.close()
     worker.join(timeout=2)
@@ -275,6 +354,8 @@ def main():
     parser.add_argument('--config',required=True,type=Path)
     parser.add_argument('--origin');parser.add_argument('--username')
     parser.add_argument('--enable-signin-blocking', action='store_true')
+    parser.add_argument('--strict-network', action='store_true')
+    parser.add_argument('--signout-at-cutoff', action='store_true')
     args=parser.parse_args()
     import ctypes
     if not ctypes.windll.shell32.IsUserAnAdmin(): raise SystemExit('Admin Permissions is needed')
@@ -282,6 +363,8 @@ def main():
         import getpass
         import winreg
         if args.config.exists(): raise SystemExit('Already enrolled. Recover/uninstall before changing the child.')
+        if args.signout_at_cutoff and not args.enable_signin_blocking:
+            raise SystemExit('Sign-out enforcement also requires explicit sign-in blocking consent.')
         sid=standard_local_user(args.username)
         # Child must have logged in once; refuse to overwrite existing managed rules.
         with winreg.OpenKey(winreg.HKEY_USERS,sid): pass
@@ -292,15 +375,35 @@ def main():
                     with winreg.OpenKey(winreg.HKEY_USERS,browser_path(sid,browser,kind)): pass
                 except FileNotFoundError: pass
                 else: raise SystemExit(f'Existing managed {browser} rules found. No settings were changed.')
-        if args.enable_signin_blocking:
-            gate = SignInGate(sid, args.config.parent/'signin.json')
-            try: gate.prepare()
-            finally: gate.close()
-        gateway=Gateway(args.origin)
-        try: identity=gateway.call('agent/enroll',{'code':getpass.getpass('One-use WINDOWS enrollment code from Bluey Home: ')})
-        finally: gateway.client.close()
-        save(args.config,{'sid':sid,'username':args.username,'origin':args.origin,'token':identity['token'],'browsers':browsers,
-            'signin_blocking':args.enable_signin_blocking, 'native_warnings':True})
+        if args.strict_network:
+            from .guardian_proxy import public_addresses
+            if urlsplit(args.origin).port not in (None,443):
+                raise ValueError('Strict network mode requires the family HTTPS origin on port 443')
+            public_addresses(urlsplit(args.origin).hostname)
+        names = (['signin.json'] if args.enable_signin_blocking else []) + (['proxy.json','network.json'] if args.strict_network else [])
+        with enrollment_journals(args.config, names):
+            if args.enable_signin_blocking:
+                gate = SignInGate(sid, args.config.parent/'signin.json')
+                try: gate.prepare()
+                finally: gate.close()
+            if args.strict_network:
+                guardian_proxy_settings.prepare(sid, args.config.parent/'proxy.json')
+                network = NetworkGate(sid, args.config.parent/'network.json')
+                try: network.prepare()
+                finally: network.close()
+            gateway=Gateway(args.origin)
+            try: identity=gateway.call('agent/enroll',{'code':getpass.getpass('One-use WINDOWS enrollment code from Bluey Home: ')})
+            finally: gateway.client.close()
+            save(args.config,{'sid':sid,'username':args.username,'origin':args.origin,'token':identity['token'],'browsers':browsers,
+                'signin_blocking':args.enable_signin_blocking, 'native_warnings':True,
+                'strict_network':args.strict_network, 'signout_at_cutoff':args.signout_at_cutoff})
+            # Cache a validated first policy before starting time enforcement. This
+            # avoids signing out an allowed child simply because startup awaits sync.
+            gateway=Gateway(args.origin,identity['token'])
+            try:
+                budget=Budget();budget.sync(gateway.call('agent/policy'),time.time())
+                save(args.config.parent/'usage.json',budget.state)
+            finally: gateway.client.close()
     elif args.command=='install':
         entry=Path(__file__).resolve().parent.parent/'service_entry.py'
         win32serviceutil.InstallService('backend.guardian_windows.Guardian',SERVICE,'Bluey Guardian (experimental)',
@@ -321,11 +424,14 @@ def main():
             config=json.loads(args.config.read_text())
             # LSA recovery does NOT require the child hive to be loaded. Restore
             # sign-in first so the parent can then load that profile for browsers.
-            recover_signin(config, args.config.parent)
+            try: recover_network(config, args.config.parent)
+            finally: recover_signin(config, args.config.parent)
             try:
                 with winreg.OpenKey(winreg.HKEY_USERS,config['sid']): pass
             except FileNotFoundError:
                 raise SystemExit('Child profile is unloaded. Service stopped; configuration retained. Load the child profile under parent supervision and run recovery again.')
+            if config.get('strict_network'):
+                guardian_proxy_settings.recover(config['sid'], args.config.parent/'proxy.json')
             for browser in managed_browsers(config):
                 for kind in ['URLAllowlist','URLBlocklist']:
                     try: winreg.DeleteKeyEx(winreg.HKEY_USERS,browser_path(config['sid'],browser,kind),winreg.KEY_WOW64_64KEY)

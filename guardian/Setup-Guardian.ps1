@@ -10,7 +10,8 @@ try {
   Write-Host 'Run on the child Windows PC, not just the parent laptop.'
   Write-Host 'This experimental service manages a separate LOCAL STANDARD child account.'
   Write-Host 'It disconnects over-budget sessions and writes Edge/Chrome policies.'
-  Write-Host 'It is NOT all-browser filtering or a non-bypassable login lock.'
+  Write-Host 'Optional strict mode blocks direct child-account traffic and allows approved HTTPS sites through a local gateway.'
+  Write-Host 'This is not certified against every Windows sign-in or system-service bypass.'
   Write-Host 'Keep existing parental controls and a separate parent administrator account.'
   Write-Host ''
   Write-Host '1: Install and enroll Guardian'
@@ -27,7 +28,13 @@ try {
     Write-Host 'Keep a working separate parent administrator account. Offline recovery removes Bluey-owned deny rights.'
     Write-Host 'Hello/PIN unlock, reconnect and reboot behavior still require supervised device testing.'
     $signIn = (Read-Host 'Type BLOCK-SIGNIN to enable this experimental OS policy, or Enter to keep session-only limits') -ceq 'BLOCK-SIGNIN'
-    & (Join-Path $PSScriptRoot 'Install-Guardian.ps1') -ChildAccount $child -Python $python -AcceptExperimentalEnforcement -EnableSignInBlocking:$signIn
+    Write-Host 'Strict mode: only parent-approved HTTPS sites plus the family control service. Other apps/traffic may stop working.'
+    Write-Host 'Browsers must use the local proxy with ECH disabled. Edge, Chrome and Firefox policies are configured for this child only.'
+    $strict = (Read-Host 'Type STRICT-WEB to enable persistent child network containment, or Enter to skip') -ceq 'STRICT-WEB'
+    Write-Host 'Sign-out closes ALL child sessions at cutoff, including disconnected sessions. UNSAVED WORK MAY BE LOST.'
+    $signOut = (Read-Host 'Type SIGN-OUT to consent to forced child sign-out, or Enter to preserve open apps') -ceq 'SIGN-OUT'
+    if ($signOut) { $signIn = $true }
+    & (Join-Path $PSScriptRoot 'Install-Guardian.ps1') -ChildAccount $child -Python $python -AcceptExperimentalEnforcement -EnableSignInBlocking:$signIn -StrictNetwork:$strict -SignOutAtCutoff:$signOut
     Write-Host 'Installer finished. Verify the service and both browser policies on the child account.'
     $exitCode = 0
   } elseif ($choice -eq '2') {

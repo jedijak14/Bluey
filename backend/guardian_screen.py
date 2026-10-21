@@ -14,14 +14,15 @@ def warning_reason(budget, wall):
     return ''
 
 
-def send_warning(session_id, reason):
+def send_warning(session_id, reason, signout=False):
     import win32ts
     import win32con
     if session_id <= 0 or reason not in {'time_limit', 'bedtime'}:
         raise ValueError('A child session and supported warning are required.')
     message = ('Your daily computer time ends in one minute or less.' if reason == 'time_limit'
                else 'Bedtime starts in one minute or less.')
-    message += '\nSave your work now. Windows will disconnect this child session. Dismissing this notice does not add time. Ask your parent in Bluey Home for help.'
+    message += ('\nSave your work now. Windows will SIGN OUT this child account. Unsaved work may be lost.' if signout else '\nSave your work now. Windows will disconnect this child session.')
+    message += ' Dismissing this notice does not add time. Ask your parent in Bluey Home for help.'
     # The Windows Terminal Services API displays a real native dialog in the
     # selected session. Never run a SYSTEM process on the child's desktop, and
     # never wait for an OK click in the enforcement loop.
