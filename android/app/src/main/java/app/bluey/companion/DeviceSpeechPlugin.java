@@ -41,6 +41,9 @@ public class DeviceSpeechPlugin extends Plugin {
     private boolean foreground = false;
     private boolean preferOnDevice = true;
     private Session session;
+    // Keep the system-service connection between completed quiet-session segments.
+    // Repeated destroy/rebind during hold/release races Android's remote shutdown.
+    private SpeechRecognizer idleRecognizer;
     private final AtomicInteger captureGeneration = new AtomicInteger();
     private TextToSpeech tts;
     private boolean ttsReady;
@@ -96,7 +99,7 @@ public class DeviceSpeechPlugin extends Plugin {
                 call.reject("Return to Bluey and hold again to speak.", "BACKGROUND");
                 return;
             }
-            cancelRecognitionSession();
+            if (session != null) cancelRecognitionSession();
             if (!onDeviceAvailable() && !SpeechRecognizer.isRecognitionAvailable(getContext())) {
                 call.reject("No Android speech recognition service is installed. Enable one in Android Settings or type your question.", "UNAVAILABLE");
                 return;
@@ -106,9 +109,13 @@ public class DeviceSpeechPlugin extends Plugin {
             session = current;
             current.startCall = call;
             try {
-                current.recognizer = onDeviceAvailable()
-                    ? SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext())
-                    : SpeechRecognizer.createSpeechRecognizer(getContext());
+                current.recognizer = idleRecognizer;
+                idleRecognizer = null;
+                if (current.recognizer == null) {
+                    current.recognizer = onDeviceAvailable()
+                        ? SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext())
+                        : SpeechRecognizer.createSpeechRecognizer(getContext());
+                }
                 current.recognizer.setRecognitionListener(new RecognitionListener() {
                     public void onReadyForSpeech(Bundle b) {
                         if (session != current || current.complete || current.startCall == null) return;
@@ -168,7 +175,7 @@ public class DeviceSpeechPlugin extends Plugin {
         if (session != current || current.complete) return;
         current.complete = true; current.text = text; current.error = error;
         if (current.timeout != null) main.removeCallbacks(current.timeout);
-        if (current.recognizer != null) current.recognizer.destroy(); current.recognizer = null;
+        if (error != null && current.recognizer != null) {current.recognizer.destroy();current.recognizer = null;}
         if (current.startCall != null) {
             PluginCall started = current.startCall;current.startCall = null;
             if (error != null) {session = null;started.reject(error, "RECOGNITION_FAILED");return;}
@@ -181,6 +188,10 @@ public class DeviceSpeechPlugin extends Plugin {
 
     private void deliverRecognition(Session current) {
         PluginCall call = current.stopCall;
+        if (current.error == null) {
+            idleRecognizer = current.recognizer;
+            current.recognizer = null;
+        }
         current.stopCall = null; session = null;
         if (current.error != null) call.reject(current.error, "RECOGNITION_FAILED");
         else { JSObject result = new JSObject(); result.put("text", current.text); call.resolve(result); }
@@ -206,6 +217,7 @@ public class DeviceSpeechPlugin extends Plugin {
 
     private void cancelRecognitionSession() {
         getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (idleRecognizer != null) {idleRecognizer.destroy();idleRecognizer = null;}
         Session old = session; session = null;
         if (old == null) return;
         if (old.timeout != null) main.removeCallbacks(old.timeout);
