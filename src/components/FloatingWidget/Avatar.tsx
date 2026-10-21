@@ -1,6 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { Mood } from "../../lib/types";
 
+export type AvatarExpression =
+  "wink" | "sad" | "alarmed" | "curious" | "determined" | "love";
+
 // Geometry and palette adapted from rbrown101010/bluey-by-riley (Unlicense).
 export function Avatar({
   mood = "listening",
@@ -11,7 +14,7 @@ export function Avatar({
   expression,
 }: {
   mood?: Mood;
-  expression?: "wink" | "sad" | "alarmed";
+  expression?: AvatarExpression;
   className?: string;
   gaze?: { x: number; y: number };
   talk?: number;
@@ -36,8 +39,22 @@ export function Avatar({
     window.addEventListener("pointermove", move, { passive: true });
     return () => window.removeEventListener("pointermove", move);
   }, [gaze]);
-  const x = mood === "thinking" ? 7 : mood === "pointing" ? 0 : look.x * 13;
-  const y = mood === "thinking" ? -14 : mood === "pointing" ? -3 : look.y * 12;
+  const x =
+    expression === "curious"
+      ? 10
+      : mood === "thinking"
+        ? 7
+        : mood === "pointing"
+          ? 0
+          : look.x * 13;
+  const y =
+    expression === "curious"
+      ? -6
+      : mood === "thinking"
+        ? -14
+        : mood === "pointing"
+          ? -3
+          : look.y * 12;
   return (
     <svg
       ref={node}
@@ -45,7 +62,7 @@ export function Avatar({
       className={`avatar mood-${mood} expression-${expression || "default"} ${className}`}
       onClick={onClick}
       role="img"
-      aria-label={`Bluey is ${expression === "alarmed" ? "surprised" : expression === "sad" ? "sad" : expression === "wink" ? "winking" : mood}`}
+      aria-label={`Bluey is ${expression === "alarmed" ? "surprised" : expression === "wink" ? "winking" : expression === "love" ? "feeling loved" : expression || mood}`}
     >
       <defs>
         <linearGradient
@@ -93,7 +110,7 @@ export function Avatar({
         />
         <g
           fill="#f3a6d8"
-          opacity={mood === "happy" ? 0.7 : 0.38}
+          opacity={mood === "happy" || expression === "love" ? 0.7 : 0.38}
           filter={`url(#${id}blush)`}
         >
           <ellipse cx="77" cy="192" rx="19" ry="9" />
@@ -104,18 +121,31 @@ export function Avatar({
             <path
               className={`eyebrow brow-${i}`}
               d={
-                expression === "sad"
-                  ? `M${cx - 21} ${i === 0 ? 87 : 72}Q${cx} 73 ${cx + 21} ${i === 0 ? 72 : 87}`
-                  : mood === "pointing"
-                    ? `M${cx - 21} 80Q${cx} 76 ${cx + 21} 80`
-                    : `M${cx - 21} 82Q${cx} ${mood === "thinking" && i === 1 ? 68 : 70} ${cx + 21} 82`
+                expression === "determined"
+                  ? `M${cx - 24} ${i === 0 ? 75 : 94}Q${cx} 84 ${cx + 24} ${i === 0 ? 94 : 75}`
+                  : expression === "curious"
+                    ? `M${cx - 21} ${i === 0 ? 83 : 66}Q${cx} ${i === 0 ? 78 : 49} ${cx + 21} ${i === 0 ? 83 : 66}`
+                    : expression === "sad"
+                      ? `M${cx - 21} ${i === 0 ? 87 : 72}Q${cx} 73 ${cx + 21} ${i === 0 ? 72 : 87}`
+                      : mood === "pointing"
+                        ? `M${cx - 21} 80Q${cx} 76 ${cx + 21} 80`
+                        : `M${cx - 21} 82Q${cx} ${mood === "thinking" && i === 1 ? 68 : 70} ${cx + 21} 82`
               }
               fill="none"
               stroke="#1c1f66"
               strokeWidth="6"
               strokeLinecap="round"
             />
-            {expression === "wink" && i === 1 ? (
+            {expression === "love" ? (
+              <path
+                className="heart-eye"
+                style={{ transformOrigin: `${cx}px 136px` }}
+                d={`M${cx} 161C${cx - 55} 128 ${cx - 20} 103 ${cx} 122C${cx + 20} 103 ${cx + 55} 128 ${cx} 161Z`}
+                fill="#f6b6d9"
+                stroke="#6e397e"
+                strokeWidth="3"
+              />
+            ) : expression === "wink" && i === 1 ? (
               <path
                 d={`M${cx - 25} 136Q${cx} 152 ${cx + 25} 136`}
                 fill="none"
@@ -171,6 +201,13 @@ export function Avatar({
                       opacity=".8"
                     />
                   </g>
+                  {expression === "determined" && (
+                    <path
+                      className="determined-lid"
+                      d={`M${cx - 44} 88H${cx + 44}V${i === 0 ? 117 : 101}L${cx - 44} ${i === 0 ? 101 : 117}Z`}
+                      fill="#8198fa"
+                    />
+                  )}
                   {mood === "sleepy" && (
                     <>
                       <rect
@@ -202,7 +239,31 @@ export function Avatar({
             )}
           </g>
         ))}
-        {expression === "sad" ? (
+        {expression === "love" ? (
+          <path
+            className="love-smile"
+            d="M148 199Q170 239 192 199Q170 208 148 199Z"
+            fill="#1c1f66"
+          />
+        ) : expression === "curious" ? (
+          <path
+            className="curious-smile"
+            d="M158 207Q172 213 186 202"
+            fill="none"
+            stroke="#1c1f66"
+            strokeWidth="6"
+            strokeLinecap="round"
+          />
+        ) : expression === "determined" ? (
+          <path
+            className="determined-smile"
+            d="M150 207Q171 212 191 201"
+            fill="none"
+            stroke="#1c1f66"
+            strokeWidth="7"
+            strokeLinecap="round"
+          />
+        ) : expression === "sad" ? (
           <path
             d="M150 216Q170 198 190 216"
             fill="none"

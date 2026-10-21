@@ -52,13 +52,17 @@ try {
   const selector = page.getByRole("combobox", {
     name: "Choose a Bluey expression",
   });
-  await expect(selector.locator("option")).toHaveCount(13);
+  await expect(selector.locator("option")).toHaveCount(17);
   await expect(lab.locator("button[aria-pressed=true]")).toHaveCount(1); // selected preset only; no motion settings
   await expect(stage).not.toHaveClass(/lab-paused/);
   await expect(stage).toHaveAttribute("data-preset", "computer");
   const samples = [
     ["computer", ".lab-powered-key"],
     ["idea", ".lab-idea-rays"],
+    ["super", ".lab-actor"],
+    ["curious", ".brow-1"],
+    ["determined", ".brow-0"],
+    ["love", ".heart-eye"],
     ["celebrate", ".lab-confetti"],
     ["listening", ".berry-body"],
     ["thinking", ".thinking-dots circle"],
@@ -120,6 +124,39 @@ try {
   );
   await page.waitForTimeout(4700);
   await expect(stage).toHaveAttribute("data-preset", "happy");
+
+  // The upcoming paid plan is an honest, free visual preview with no checkout.
+  await expect(
+    page.getByRole("complementary", { name: "Super Bluey paid plan preview" }),
+  ).toContainText("the new paid plan isn’t available yet");
+  await page
+    .getByRole("button", { name: "Preview Super Bluey", exact: true })
+    .click();
+  await expect(stage).toHaveAttribute("data-preset", "super");
+  await expect(stage).toBeInViewport({ ratio: 0.9 });
+  const cape = stage.locator(".lab-super-cape");
+  const opacity = () =>
+    cape.evaluate((el) => Number(getComputedStyle(el).opacity));
+  await expect.poll(opacity, { timeout: 5000 }).toBeGreaterThan(0.9);
+  await expect(lab.locator(".lab-caption")).toContainText(
+    "PAID PLAN PREVIEW · COMING SOON",
+  );
+  await page.getByRole("button", { name: "Pause scene", exact: true }).click();
+  const superFrame = await sample(cape);
+  await page.waitForTimeout(250);
+  expect(await sample(cape)).toBe(superFrame);
+  expect(
+    await stage.evaluate((el) =>
+      el
+        .getAnimations({ subtree: true })
+        .every((a) => a.playState === "paused"),
+    ),
+  ).toBe(true);
+  await page.getByRole("button", { name: "Replay scene", exact: true }).click();
+  await expect.poll(opacity).toBeLessThan(0.05);
+  await expect(
+    lab.locator('a[href*="checkout"], a[href*="stripe"]'),
+  ).toHaveCount(0);
 
   // Mobile motion is automatic even with a stored Off preference and OS reduction.
   await expect(
@@ -227,16 +264,24 @@ try {
     await lab.screenshot({ path: `artifacts/mobile-lab/lab-${width}.png` });
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const id of ["idea", "celebrate"]) {
+  for (const id of [
+    "idea",
+    "celebrate",
+    "super",
+    "curious",
+    "determined",
+    "love",
+  ]) {
     await selector.selectOption(id);
     await stage.scrollIntoViewIfNeeded();
+    if (id === "super") await page.waitForTimeout(3400);
     await stage.screenshot({ path: `artifacts/mobile-lab/${id}.png` });
   }
   expect(errors).toEqual([]);
   expect(forbidden).toEqual([]);
   await context.close();
   console.log(
-    "Mobile Expression Lab passed: 13 animated presets, pause/replay/tour, automatic mobile motion, unchanged saved desktop preference, power-driven typing, no account link, visibility gates, touch/keyboard controls, 320–1024px layouts, silent/no device access, AI restriction.",
+    "Mobile Expression Lab passed: 17 animated presets, pause/replay/tour, automatic mobile motion, unchanged saved desktop preference, power-driven typing, Super Bluey paid-plan preview, three new facial expressions, no account link, visibility gates, touch/keyboard controls, 320–1024px layouts, silent/no device access, AI restriction.",
   );
 } finally {
   await browser.close();

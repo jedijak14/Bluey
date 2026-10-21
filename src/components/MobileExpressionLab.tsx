@@ -7,17 +7,18 @@ import {
   VolumeX,
   Sparkles,
 } from "lucide-react";
-import { Avatar } from "./FloatingWidget/Avatar";
+import { Avatar, type AvatarExpression } from "./FloatingWidget/Avatar";
 import type { Mood } from "../lib/types";
 import "./MobileExpressionLab.css";
 
-type Scene = "computer" | "idea" | "celebrate";
+type Scene = "computer" | "idea" | "celebrate" | "super";
 type Preset = {
   id: string;
   label: string;
   description: string;
   mood: Mood;
-  expression?: "wink" | "sad" | "alarmed";
+  expression?: AvatarExpression;
+  subtitle?: string;
   scene?: Scene;
 };
 export const LAB_PRESETS: readonly Preset[] = [
@@ -28,6 +29,7 @@ export const LAB_PRESETS: readonly Preset[] = [
       "A little focus, a little power. Bluey makes the keys type all by themselves.",
     mood: "listening",
     scene: "computer",
+    subtitle: "Typing with a little power",
   },
   {
     id: "idea",
@@ -35,6 +37,7 @@ export const LAB_PRESETS: readonly Preset[] = [
     description: "A little thought turns into a bright idea. There it is!",
     mood: "thinking",
     scene: "idea",
+    subtitle: "A bright idea",
   },
   {
     id: "celebrate",
@@ -43,6 +46,40 @@ export const LAB_PRESETS: readonly Preset[] = [
       "That finally-worked feeling, complete with a happy hop and confetti.",
     mood: "happy",
     scene: "celebrate",
+    subtitle: "A happy celebration",
+  },
+  {
+    id: "super",
+    label: "Super Bluey",
+    mood: "pointing",
+    scene: "super",
+    subtitle: "Paid plan preview · Coming soon",
+    description:
+      "A little blueberry. A super-sized spark. Watch Bluey power up, reveal his cape, and take flight.",
+  },
+  {
+    id: "curious",
+    label: "Curious",
+    mood: "listening",
+    expression: "curious",
+    description:
+      "One eyebrow up, eyes to the side. Wait… what’s that over there?",
+  },
+  {
+    id: "determined",
+    label: "Determined",
+    mood: "listening",
+    expression: "determined",
+    description:
+      "Brows down, eyes focused, a tiny determined smile. Bluey isn’t giving up.",
+  },
+  {
+    id: "love",
+    label: "Feeling loved",
+    mood: "listening",
+    expression: "love",
+    description:
+      "Heart-shaped eyes, rosy cheeks, and a smile that says it all.",
   },
   {
     id: "listening",
@@ -121,7 +158,55 @@ export function ExpressionScene({ preset }: { preset: Preset }) {
     >
       <div className="lab-scene-art" aria-hidden="true">
         <div className="lab-floor" />
+        {preset.scene === "super" && (
+          <svg className="lab-props lab-super-aura" viewBox="0 0 480 360">
+            <ellipse
+              cx="240"
+              cy="196"
+              rx="144"
+              ry="145"
+              fill="#ffeec0"
+              opacity=".5"
+            />
+            <ellipse
+              className="lab-super-ring"
+              cx="240"
+              cy="196"
+              rx="151"
+              ry="149"
+              fill="none"
+              stroke="#d7b66d"
+              strokeWidth="2"
+              strokeDasharray="3 16"
+            />
+            <g className="lab-super-sparks" fill="#e6c46f">
+              <path d="M92 95l5 13 13 5-13 5-5 13-5-13-13-5 13-5Z M386 141l4 10 10 4-10 4-4 10-4-10-10-4 10-4Z M331 48l4 10 10 4-10 4-4 10-4-10-10-4 10-4Z" />
+            </g>
+          </svg>
+        )}
         <div className="lab-actor">
+          {preset.scene === "super" && (
+            <svg
+              className="lab-super-costume lab-super-cape"
+              viewBox="0 0 340 280"
+            >
+              <g className="lab-super-cape-wave">
+                <path
+                  d="M80 144Q170 130 260 144Q290 200 358 250L300 247L325 277Q247 263 232 252H106Q65 278-10 257L29 236L-8 233Q51 193 80 144Z"
+                  fill="#7357c5"
+                  stroke="#e7c473"
+                  strokeWidth="3"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M82 154Q65 218 30 244M258 154Q277 224 322 254"
+                  fill="none"
+                  stroke="#a18add"
+                  strokeWidth="3"
+                />
+              </g>
+            </svg>
+          )}
           <Avatar
             mood={preset.mood}
             expression={preset.expression}
@@ -129,6 +214,25 @@ export function ExpressionScene({ preset }: { preset: Preset }) {
               preset.scene === "computer" ? { x: 0.9, y: 0.2 } : { x: 0, y: 0 }
             }
           />
+          {preset.scene === "super" && (
+            <svg
+              className="lab-super-costume lab-super-badge"
+              viewBox="0 0 340 280"
+            >
+              <path
+                d="M170 224l17 13-17 25-17-25Z"
+                fill="#f6da87"
+                stroke="#c79848"
+                strokeWidth="2"
+              />
+              <path d="M173 230l-12 13h8l-2 11 12-16h-8Z" fill="#5740a3" />
+              <path
+                className="lab-super-crown"
+                d="M170 15L177 31L194 28L181 41L186 56L170 47L154 56L159 41L146 28L163 31Z"
+                fill="#f6da87"
+              />
+            </svg>
+          )}
         </div>
         {preset.scene === "computer" && (
           <svg className="lab-props" viewBox="0 0 480 360">
@@ -392,6 +496,29 @@ export function MobileExpressionLab({ active = true }: { active?: boolean }) {
           connection needed.
         </p>
       </div>
+      <aside
+        className="lab-super-preview"
+        aria-label="Super Bluey paid plan preview"
+      >
+        <div>
+          <span className="lab-coming-soon">COMING SOON · PAID PLAN</span>
+          <h3>A super side of Bluey.</h3>
+          <p>
+            Meet Super Bluey. Try his transformation for free here—the new paid
+            plan isn’t available yet.
+          </p>
+        </div>
+        <button
+          onClick={(event) =>
+            choose(
+              LAB_PRESETS.findIndex((item) => item.id === "super"),
+              event.detail > 0,
+            )
+          }
+        >
+          <Sparkles size={17} /> Preview Super Bluey
+        </button>
+      </aside>
       <div className="lab-layout">
         <div className="lab-preview">
           <div className="lab-preview-top">
@@ -417,14 +544,14 @@ export function MobileExpressionLab({ active = true }: { active?: boolean }) {
               }
             >
               <optgroup label="New animated scenes">
-                {LAB_PRESETS.slice(0, 3).map((item) => (
+                {LAB_PRESETS.filter((item) => item.scene).map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.label}
                   </option>
                 ))}
               </optgroup>
               <optgroup label="Everyday Bluey">
-                {LAB_PRESETS.slice(3).map((item) => (
+                {LAB_PRESETS.filter((item) => !item.scene).map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.label}
                   </option>
@@ -444,6 +571,11 @@ export function MobileExpressionLab({ active = true }: { active?: boolean }) {
             aria-live={touring ? "off" : "polite"}
             aria-atomic="true"
           >
+            {preset.scene === "super" && (
+              <span className="lab-coming-soon">
+                PAID PLAN PREVIEW · COMING SOON
+              </span>
+            )}
             <h3>{preset.label}</h3>
             <p>{preset.description}</p>
           </div>
@@ -491,24 +623,18 @@ export function MobileExpressionLab({ active = true }: { active?: boolean }) {
             role="group"
             aria-label="New animated scenes"
           >
-            {LAB_PRESETS.slice(0, 3).map((item, i) => (
+            {LAB_PRESETS.filter((item) => item.scene).map((item, i) => (
               <button
                 key={item.id}
-                aria-pressed={index === i}
-                onClick={(event) => choose(i, event.detail > 0)}
+                aria-pressed={preset.id === item.id}
+                onClick={(event) =>
+                  choose(LAB_PRESETS.indexOf(item), event.detail > 0)
+                }
               >
                 <span className="lab-scene-number">0{i + 1}</span>
                 <span>
                   {item.label}
-                  <small>
-                    {
-                      [
-                        "Typing with a little power",
-                        "A bright idea",
-                        "A happy celebration",
-                      ][i]
-                    }
-                  </small>
+                  <small>{item.subtitle}</small>
                 </span>
                 <ArrowRight size={16} />
               </button>
@@ -520,11 +646,13 @@ export function MobileExpressionLab({ active = true }: { active?: boolean }) {
             role="group"
             aria-label="Bluey expressions"
           >
-            {LAB_PRESETS.slice(3).map((item, i) => (
+            {LAB_PRESETS.filter((item) => !item.scene).map((item) => (
               <button
                 key={item.id}
-                aria-pressed={index === i + 3}
-                onClick={(event) => choose(i + 3, event.detail > 0)}
+                aria-pressed={preset.id === item.id}
+                onClick={(event) =>
+                  choose(LAB_PRESETS.indexOf(item), event.detail > 0)
+                }
               >
                 {item.label}
               </button>
