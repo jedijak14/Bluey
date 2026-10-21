@@ -57,10 +57,11 @@ public class CompanionSmokeTest {
     @Test public void bluetoothChoiceRequestsNearbyPermissionAndResumeRefreshes() throws Exception {
         org.junit.Assume.assumeTrue(android.os.Build.VERSION.SDK_INT >= 31);
         android.content.Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
-        boolean previouslyGranted = context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
-            == android.content.pm.PackageManager.PERMISSION_GRANTED;
-        shell("pm revoke app.bluey.companion android.permission.BLUETOOTH_CONNECT");
-        shell("pm clear-permission-flags app.bluey.companion android.permission.BLUETOOTH_CONNECT user-set user-fixed");
+        // Reset permission from adb BEFORE instrumentation starts. Revoking a
+        // granted permission in this process kills the test runner itself.
+        assertEquals("Start this test with Nearby Devices permission revoked externally",
+            android.content.pm.PackageManager.PERMISSION_DENIED,
+            context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT));
         try (ActivityScenario<MainActivity> s = ActivityScenario.launch(MainActivity.class)) {
             waitFor(s, "document.querySelector('.phone-pairing')");
             evaluate(s, "window.__btDenied=null;Capacitor.Plugins.BlueyBluetooth.devices({requestPermission:false}).then(()=>window.__btDenied='unexpected success',e=>window.__btDenied=e.message)");
@@ -91,8 +92,6 @@ public class CompanionSmokeTest {
             waitFor(s, "window.__btChanges>0");
             // The emulator has no real paired PC: no claim of radio connectivity.
             assertEquals("No device is authorized by discovery alone", "null", evaluate(s, "document.querySelector('.face-screen')"));
-        } finally {
-            if (!previouslyGranted) shell("pm revoke app.bluey.companion android.permission.BLUETOOTH_CONNECT");
         }
     }
 
