@@ -21,7 +21,9 @@ export function selectPairedDevice(
   const computers = devices.filter((device) => device.computer);
   // Selection is only a convenience. Never connect, send data or authorize a PC here.
   if (computers.length === 1) return computers[0].address;
-  return devices.length === 1 ? devices[0].address : "";
+  return devices.length === 1 && devices[0].computer !== false
+    ? devices[0].address
+    : "";
 }
 
 /** Only starts on the user's Bluetooth choice. Automatic refresh never prompts. */

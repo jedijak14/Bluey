@@ -211,7 +211,7 @@ try {
     nodes.map((node) => node.href),
   )) {
     expect(href).toMatch(
-      /^https:\/\/github\.com\/jedijak14\/Bluey\/releases\/download\/Bluey-Latest\//,
+      /^https:\/\/github\.com\/jedijak14\/Bluey\/releases\/download\/v0\.5\.7\//,
     );
   }
   for (const width of [1440, 390]) {

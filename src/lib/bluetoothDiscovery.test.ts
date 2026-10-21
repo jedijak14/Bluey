@@ -102,5 +102,6 @@ describe("OS-paired Bluetooth discovery", () => {
     );
     expect(selectPairedDevice([pc, second], "")).toBe("");
     expect(selectPairedDevice([], pc.address)).toBe("");
+    expect(selectPairedDevice([headphones], "")).toBe("");
   });
 });
