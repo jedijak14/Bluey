@@ -79,3 +79,24 @@ test("browser-specific status exposes partial failure and legacy Edge-only cover
     "attention",
   );
 });
+test("administrator launcher is Home-only and uses fixed escaped paths", () => {
+  const { setupInvocation } = require("../electron/guardian-setup.cjs");
+  assert.throws(() => setupInvocation("kids", "C:\\Bluey", "C:\\Windows"));
+  assert.throws(() => setupInvocation("home", "relative", "C:\\Windows"));
+  const launch = setupInvocation(
+    "home",
+    "C:\\Program Files\\Bluey's Home\\resources",
+    "C:\\Windows",
+  );
+  assert.equal(
+    launch.script,
+    "C:\\Program Files\\Bluey's Home\\resources\\guardian\\Setup-Guardian.ps1",
+  );
+  assert.match(launch.args.at(-1), /-Verb RunAs/);
+  assert.match(launch.args.at(-1), /Bluey''s Home/);
+  assert.match(launch.args.at(-1), /RemoteSigned/);
+  assert.doesNotMatch(
+    launch.args.join(" "),
+    /Bypass|Stop-Service|ExecutionPolicy Unrestricted/,
+  );
+});

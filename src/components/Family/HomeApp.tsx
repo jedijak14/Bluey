@@ -1,3 +1,4 @@
+import { HomeDeviceSetup } from "./HomeDeviceSetup";
 import { useEffect, useRef, useState } from "react";
 import {
   Home,
@@ -450,6 +451,7 @@ export function HomeApp() {
               )}
             </form>
           </section>
+          <HomeDeviceSetup />
           {message && (
             <p role="alert" className="home-message">
               {message}
@@ -701,6 +703,7 @@ export function HomeApp() {
                   {child && (
                     <section className="home-rule-panel">
                       <h2>Windows enforcement setup</h2>
+                      <HomeDeviceSetup />
                       <p>
                         Use a separate parent administrator and a standard child
                         account. This experimental service disconnects
@@ -753,7 +756,7 @@ export function HomeApp() {
                       </p>
                       <a
                         className="home-text"
-                        href="https://github.com/jedijak14/Bluey/blob/arena/e3f2fd55-bluey/guardian/README.md"
+                        href="https://github.com/jedijak14/Bluey/blob/arena/8b36c0e7-bluey/guardian/README.md"
                         target="_blank"
                         rel="noreferrer"
                       >

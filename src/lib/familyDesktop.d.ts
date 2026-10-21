@@ -9,6 +9,7 @@ declare global {
         method: string,
       ): Promise<{ status: number; data: any }>;
       guardianStatus(): Promise<GuardianHealth>;
+      openGuardianSetup(): Promise<string>;
       openSetupGuide(): Promise<string>;
       vaultRead(): Promise<{ token: string }>;
       vaultWrite(options: { token: string }): Promise<void>;
