@@ -33,7 +33,32 @@ try {
       }
     });
     expect(denied).toBe(true);
+    expect(
+      await page.evaluate(async () => {
+        try {
+          await window.blueyFamily.openGuardianSetup();
+          return false;
+        } catch {
+          return true;
+        }
+      }),
+    ).toBe(true);
+
     await expect(page.locator(".kids-welcome .avatar")).toBeVisible();
+  }
+  if (variant === "home") {
+    await expect(
+      page.getByRole("button", { name: "Install or recover Windows Guardian" }),
+    ).toBeVisible();
+    await fs.access(
+      path.join(
+        path.dirname(executablePath),
+        "resources",
+        "guardian",
+        "Setup-Guardian.ps1",
+      ),
+    );
+    // Never click UAC in unattended CI. A parent must approve on the real PC.
   }
   expect(await page.evaluate(() => typeof window.require)).toBe("undefined");
   console.log(

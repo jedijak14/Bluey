@@ -5,12 +5,14 @@ const {
   shell,
   safeStorage,
   session,
+  dialog,
 } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const { validateRequest, guardianStatus } = require("./family-bridge.cjs");
+const { setupInvocation } = require("./guardian-setup.cjs");
 const variant = require("../package.json").blueyVariant;
 if (!["home", "kids"].includes(variant))
   throw Error("Build a separate family desktop package.");
@@ -102,6 +104,48 @@ ipcMain.handle(
       );
     } catch (e) {
       return { state: e.code === "ENOENT" ? "admin_needed" : "unavailable" };
+    }
+  }),
+);
+let setupRunning = false;
+ipcMain.handle(
+  "guardian-setup",
+  authorized(async () => {
+    if (variant !== "home" || process.platform !== "win32")
+      throw Error("Windows parent Home app required.");
+    if (setupRunning)
+      throw Error("An administrator setup window is already open.");
+    setupRunning = true;
+    try {
+      const consent = await dialog.showMessageBox(main, {
+        type: "warning",
+        buttons: ["Cancel", "Open administrator setup"],
+        defaultId: 0,
+        cancelId: 0,
+        title: "Set up Guardian on this Windows PC",
+        message:
+          "Continue only on the child's test PC using a separate parent administrator account.",
+        detail:
+          "Windows will request administrator approval. The local wizard can install Guardian or recover/remove it. Installing the Home app alone does not protect this PC. Keep existing parental controls enabled.",
+      });
+      if (consent.response !== 1)
+        return "Cancelled. No administrator setup was started.";
+      const invocation = setupInvocation(
+        variant,
+        process.resourcesPath,
+        process.env.SystemRoot || "C:\\Windows",
+      );
+      await fs.access(invocation.script);
+      await promisify(execFile)(invocation.executable, invocation.args, {
+        timeout: 20 * 60 * 1000,
+        windowsHide: true,
+        maxBuffer: 8192,
+      });
+      return "Administrator wizard finished. This is not a protection check; verify the child account, service and both browser policies.";
+    } catch {
+      return "Setup did not report successful completion. Check the administrator window. Admin Permissions is needed; cancellation or a missing prerequisite does not enable protection.";
+    } finally {
+      setupRunning = false;
     }
   }),
 );

@@ -1,0 +1,8 @@
+# Bluey 0.5.2 preview — parent administrator setup and recovery
+
+- Home Windows now has a local **Install or recover Windows Guardian** entry point, including offline access to recovery from the account screen. It opens a native confirmation, requests Windows UAC approval, then launches the bundled local wizard. Kids cannot invoke this privileged entry point. No arbitrary renderer commands or credentials are passed to PowerShell.
+- Installation checks family-service readiness before creating privileged directories. A missing database still prevents enrollment; no fake account, protection status or local-only policy is substituted.
+- Recovery can archive the fixed installation folders after safely removing service/configuration, preserving their contents and ACLs. This resolves the previous recovery/reinstall directory conflict. Unloaded child profiles and incomplete recovery retain configuration.
+- Windows CI covers setup-script parsing, failed preflight, incomplete recovery, protected archival and retries, alongside the existing service, standard-child permissions, browser-policy and recovery checks. Packaged Home/Kids tests check the setup button and Kids denial without automating UAC.
+
+**Not full device protection:** a physical parent-supervised installer/UAC/reboot test remains necessary. Supported enforcement is still Windows session disconnection and Edge/Chrome URL policies, not a non-bypassable login lock, every browser, VPN resistance or Android filtering. Administrator approval alone is not protection. Keep existing parental controls enabled. Windows previews remain unsigned; Android APKs are debug-signed. Existing Guardian enrollment requires a parent-managed upgrade/re-enrollment; app installation alone does not upgrade the service.

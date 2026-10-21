@@ -12,6 +12,12 @@ if (!(New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Secur
   throw 'Admin Permissions is needed'
 }
 if (!$AcceptExperimentalEnforcement) { throw 'Read guardian/README.md. Use a test PC and pass -AcceptExperimentalEnforcement only after arranging parent recovery.' }
+$origin = [Uri]$FamilyOrigin
+if ($origin.Scheme -ne 'https' -or $origin.UserInfo -or $origin.AbsolutePath -ne '/' -or $origin.Query -or $origin.Fragment) { throw 'A public HTTPS family origin without a path is required.' }
+# Check connectivity before creating privileged directories or installing code.
+$health = Invoke-RestMethod -Uri ($FamilyOrigin.TrimEnd('/') + '/api/family/status') -TimeoutSec 12 -MaximumRedirection 0
+if ($health.status -ne 'ready') { throw 'Family service is not ready. Connect its database before enrollment. No installation directories were created.' }
+if (Get-Service -Name BlueyGuardian -ErrorAction SilentlyContinue) { throw 'Guardian service already exists. Recover it before reinstalling.' }
 $programFiles = [Environment]::GetFolderPath('ProgramFiles')
 $programData = [Environment]::GetFolderPath('CommonApplicationData')
 $Python = (Resolve-Path $Python).Path
@@ -42,4 +48,4 @@ if ($LASTEXITCODE) { throw 'Enrollment failed; service was not installed.' }
 if ($LASTEXITCODE) { throw 'Service startup failed. Run Recover-Guardian.ps1 as the parent administrator.' }
 & sc.exe failure BlueyGuardian reset= 86400 actions= restart/5000/restart/15000/restart/30000 | Out-Null
 if ($LASTEXITCODE) { throw 'Could not configure service failure recovery.' }
-Write-Host 'Guardian installed. Verify time disconnect and edge://policy on the test child account. This does not mean all browsers or Android are protected.'
+Write-Host 'Guardian installed. Verify time disconnect, edge://policy and chrome://policy on the test child account. This does not mean all browsers or Android are protected.'
