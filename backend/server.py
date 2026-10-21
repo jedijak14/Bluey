@@ -497,15 +497,21 @@ async def chat(ws, packet):
         automation.stopped.clear()
         final_mood = "listening"
         research_active = False
+        research_succeeded = False
         research_outcome = "cancelled"
         async def perform(action):
-            nonlocal research_active
+            nonlocal research_active, research_succeeded, research_outcome
             if action.action not in {"search_web", "research_web"}:
                 return await approved_action(action)
             research_active = True
             await broadcast({"type": "research_state", "request": request, "state": "waiting"}, desktop_only=True)
-            result = await approved_action(action, research_request=request)
+            try:
+                result = await approved_action(action, research_request=request)
+            except Exception:
+                research_outcome = "error"
+                raise
             if not result.get("denied"):
+                research_succeeded = True
                 await broadcast({"type": "research_state", "request": request, "state": "writing"}, desktop_only=True)
             return result
         await face("thinking")
@@ -630,12 +636,14 @@ async def chat(ws, packet):
                     "Reached the six-step limit. Review the result and ask again to continue."
                 )
             if full.strip():
-                research_outcome = "complete"
+                if research_succeeded:
+                    research_outcome = "complete"
                 await broadcast({"type": "response", "request": request, "title": question[:100], "text": full,
-                                 "format": "research" if research_active or sources or wants_research or len(full) > 700 else "quick",
+                                 "format": "research" if research_succeeded or sources or (len(full) > 700 and not research_active) else "quick",
                                  "sources": sources[:12]})
 
         except asyncio.CancelledError:
+            research_outcome = "cancelled"
             await log("Stopped. Pending actions were cancelled.")
             raise
         except Exception as exc:
