@@ -70,6 +70,13 @@ with tempfile.TemporaryDirectory() as folder:
             raise
         finally:
             for process in reversed(processes):
-                process.terminate()
+                if process.poll() is None:
+                    if sys.platform == 'win32':
+                        # Ollama spawns a runner that maps model files. Kill only this
+                        # test's process tree before TemporaryDirectory removes them.
+                        subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'],
+                                       capture_output=True, timeout=30, check=True)
+                    else:
+                        process.terminate()
                 try:process.wait(timeout=15)
                 except subprocess.TimeoutExpired:process.kill();process.wait()
