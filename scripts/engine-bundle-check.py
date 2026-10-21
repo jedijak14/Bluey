@@ -1,6 +1,7 @@
 """Boot the frozen engine, verify auth and catalog without a system Python fallback."""
 import json, os, secrets, subprocess, tempfile, time, urllib.request
 from pathlib import Path
+subprocess.run(['artifacts/engine/BlueyEngine/BlueyEngine.exe','--self-check'], check=True, timeout=120)
 with tempfile.TemporaryDirectory() as folder:
     token=secrets.token_hex(32)
     env={**os.environ,'BLUEY_TOKEN':token,'BLUEY_MODEL_CONFIG':str(Path(folder)/'model.json'),

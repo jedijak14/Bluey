@@ -69,7 +69,7 @@ export function DesktopHome({
               disabled={!connected}
             >
               <Mic size={16} />
-              Start a quiet session
+              Start quiet session
             </button>
             <button
               className="outline-button"

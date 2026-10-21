@@ -318,9 +318,11 @@ jobs:
       - run: npm ci
       - name: Bundle Python engine, desktop tools and local speech runtime
         run: |
-          python -m pip install -r backend/requirements-native.txt pyinstaller pyserial
-          python scripts/package-engine.py
-          python scripts/engine-bundle-check.py
+          set -euo pipefail
+          trap 'python scripts/engine-build-diagnostics.py' ERR
+          python -m pip install -r backend/requirements-native.txt pyinstaller pyserial 2>&1 | tee engine-bundle.log
+          python scripts/package-engine.py 2>&1 | tee -a engine-bundle.log
+          python scripts/engine-bundle-check.py 2>&1 | tee -a engine-bundle.log
       - run: npm run package:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
