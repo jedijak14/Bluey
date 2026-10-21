@@ -10,21 +10,23 @@ Open **Test AI** in the sidebar or `/#gemma`. The configured model is exactly `k
 
 Phones, iPads and tablets can explore a separate mobile information site. **Test AI** and direct AI links remain desktop/laptop-only. Desktop visitors get a skippable wink-and-logo intro; mobile visitors see a sad Bluey, a device illustration and a clear notice. Detection uses browser signals—not CPU/GPU identification or hardware authentication. The native Android paired companion remains separate. Automatic Wi-Fi PC discovery is not implemented by this change.
 
-## Download Bluey 0.5.1
+## Download Bluey 0.5.2
 
-Published preview: [v0.5.1-preview.1](https://github.com/jedijak14/Bluey/releases/tag/v0.5.1-preview.1).
+Published preview: [v0.5.2-preview.1](https://github.com/jedijak14/Bluey/releases/tag/v0.5.2-preview.1).
 
 | Platform              | Download                                                                                                                                           |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Android               | [Bluey-0.5.1-Android.apk](https://github.com/jedijak14/Bluey/releases/download/v0.5.1-preview.1/Bluey-0.5.1-Android.apk)                           |
-| Windows x64 installer | [Bluey-0.5.1-Windows-x64-Setup.exe](https://github.com/jedijak14/Bluey/releases/download/v0.5.1-preview.1/Bluey-0.5.1-Windows-x64-Setup.exe)       |
-| Windows x64 portable  | [Bluey-0.5.1-Windows-x64-Portable.exe](https://github.com/jedijak14/Bluey/releases/download/v0.5.1-preview.1/Bluey-0.5.1-Windows-x64-Portable.exe) |
+| Android               | [Bluey-0.5.2-Android.apk](https://github.com/jedijak14/Bluey/releases/download/v0.5.2-preview.1/Bluey-0.5.2-Android.apk)                           |
+| Windows x64 installer | [Bluey-0.5.2-Windows-x64-Setup.exe](https://github.com/jedijak14/Bluey/releases/download/v0.5.2-preview.1/Bluey-0.5.2-Windows-x64-Setup.exe)       |
+| Windows x64 portable  | [Bluey-0.5.2-Windows-x64-Portable.exe](https://github.com/jedijak14/Bluey/releases/download/v0.5.2-preview.1/Bluey-0.5.2-Windows-x64-Portable.exe) |
 
-Separate family downloads: [Kids Windows](https://github.com/jedijak14/Bluey/releases/download/v0.5.1-preview.1/Bluey-Kids-0.5.1-Windows-x64-Setup.exe) · [Home Windows](https://github.com/jedijak14/Bluey/releases/download/v0.5.1-preview.1/Bluey-Home-0.5.1-Windows-x64-Setup.exe) · [Kids Android](https://github.com/jedijak14/Bluey/releases/download/v0.5.1-preview.1/Bluey-Kids-0.5.1-Android.apk) · [Home Android](https://github.com/jedijak14/Bluey/releases/download/v0.5.1-preview.1/Bluey-Home-0.5.1-Android.apk).
+Separate family downloads: [Kids Windows](https://github.com/jedijak14/Bluey/releases/download/v0.5.2-preview.1/Bluey-Kids-0.5.2-Windows-x64-Setup.exe) · [Home Windows](https://github.com/jedijak14/Bluey/releases/download/v0.5.2-preview.1/Bluey-Home-0.5.2-Windows-x64-Setup.exe) · [Kids Android](https://github.com/jedijak14/Bluey/releases/download/v0.5.2-preview.1/Bluey-Kids-0.5.2-Android.apk) · [Home Android](https://github.com/jedijak14/Bluey/releases/download/v0.5.2-preview.1/Bluey-Home-0.5.2-Android.apk).
 
-**Family preview, not complete protection:** production family hosting remains unconfigured; Guardian needs separate administrator setup. Edge/Chrome URL policies and session disconnection do not provide all-browser filtering, Android enforcement or a non-bypassable login barrier. See [0.5.1 scope](docs/RELEASE_0.5.1.md) and the [download page](https://bluey-plum.vercel.app/downloads.html). Existing 0.4.0 releases are archived, not overwritten.
+**Family preview, not complete protection:** production family hosting remains unconfigured; Guardian needs separate administrator setup. Edge/Chrome URL policies and session disconnection do not provide all-browser filtering, Android enforcement or a non-bypassable login barrier. See [0.5.2 scope](docs/RELEASE_0.5.2.md) and the [download page](https://bluey-plum.vercel.app/downloads.html). Existing 0.4.0 releases are archived, not overwritten.
 
-[Checksums](https://github.com/jedijak14/Bluey/releases/download/v0.5.1-preview.1/SHA256SUMS.txt) · [Windows setup](docs/RELEASE_NOTES.md) · [Android setup](docs/ANDROID_RELEASE.md). Windows binaries are unsigned and still require the Python/model setup. Android is debug-signed; a different preview signing key can require uninstalling the previous APK (clears app data). **No spoken replies—text bubbles and a brief phone chirp. Update both apps and the Python engine.**
+[Checksums](https://github.com/jedijak14/Bluey/releases/download/v0.5.2-preview.1/SHA256SUMS.txt) · [Windows setup](docs/RELEASE_NOTES.md) · [Android setup](docs/ANDROID_RELEASE.md). Windows binaries are unsigned and still require the Python/model setup. Android is debug-signed; a different preview signing key can require uninstalling the previous APK (clears app data). **No spoken replies—text bubbles and a brief phone chirp. Update both apps and the Python engine.**
+
+Home Windows now includes **Install or recover Windows Guardian** on the child's test PC. A native confirmation and Windows UAC approval are required. Recovery can archive the previous installation safely so reinstall is not blocked by old folders. This is setup/recovery work, not full device protection; physical UAC/installer/reboot validation remains required. See [Guardian setup](guardian/README.md).
 
 ## 0.2.0 preview additions
 
