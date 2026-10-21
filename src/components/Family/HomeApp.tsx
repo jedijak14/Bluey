@@ -1,3 +1,6 @@
+import { AgentSummary, agentLabel } from "./AgentSummary";
+import { EnrollmentCode, type FamilyEnrollment } from "./EnrollmentCode";
+import { useFamilyPolling } from "../../lib/useFamilyPolling";
 import { HomeDeviceSetup } from "./HomeDeviceSetup";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -32,21 +35,23 @@ function ChildRules({
   disabled,
 }: {
   child: ChildProfile;
-  onSave: (policy: FamilyPolicy) => Promise<void>;
+  onSave: (policy: FamilyPolicy) => Promise<boolean>;
   onEnroll: () => void;
   onRemove: () => void;
   disabled: boolean;
 }) {
+  const [dirty, setDirty] = useState(false);
   const [allowed, setAllowed] = useState(
     (child.policy.allowed_domains || []).join("\n"),
   );
   const [policy, setPolicy] = useState(child.policy),
     [domains, setDomains] = useState(child.policy.blocked_domains.join("\n"));
   useEffect(() => {
+    if (dirty) return;
     setPolicy(child.policy);
     setAllowed((child.policy.allowed_domains || []).join("\n"));
     setDomains(child.policy.blocked_domains.join("\n"));
-  }, [child.id, child.policy.version]);
+  }, [child.id, child.policy.version, dirty]);
   return (
     <section className="home-rule-panel">
       <div className="home-section-title">
@@ -57,6 +62,7 @@ function ChildRules({
         <Shield size={25} />
       </div>
       <form
+        onChange={() => setDirty(true)}
         onSubmit={(e) => {
           e.preventDefault();
           void onSave({
@@ -69,6 +75,8 @@ function ChildRules({
               .split("\n")
               .map((s) => s.trim())
               .filter(Boolean),
+          }).then((saved) => {
+            if (saved) setDirty(false);
           });
         }}
       >
@@ -162,7 +170,25 @@ function ChildRules({
               "Connect to the updated family service to retrieve the effective blocklist."}
           </p>
         </details>
-        <button className="home-primary" disabled={disabled}>
+        {dirty && policy.version !== child.policy.version && (
+          <div role="alert" className="home-message">
+            Rules changed on another device. Your unsaved edits are kept here.
+            Load the saved rules before editing again.
+            <button
+              type="button"
+              className="home-text"
+              onClick={() => setDirty(false)}
+            >
+              Load saved rules
+            </button>
+          </div>
+        )}
+        <button
+          className="home-primary"
+          disabled={
+            disabled || (dirty && policy.version !== child.policy.version)
+          }
+        >
           Save rules <ArrowRight size={16} />
         </button>
       </form>
@@ -189,8 +215,7 @@ export function HomeApp() {
     [selected, setSelected] = useState(""),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
-    [code, setCode] = useState("");
-  const [codeScope, setCodeScope] = useState<"phone" | "windows">("phone");
+    [code, setCode] = useState<FamilyEnrollment | null>(null);
   const [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
     [invite, setInvite] = useState(""),
@@ -233,7 +258,7 @@ export function HomeApp() {
     }
   }
   async function refresh() {
-    if (!token) return;
+    if (!token) return false;
     const request = ++session.current.request;
     try {
       const r = await familyRequest<Dashboard>("dashboard", token);
@@ -243,52 +268,75 @@ export function HomeApp() {
       )
         return;
       setData(r);
+      setService("ready");
+      setUpdated(new Date().toLocaleTimeString());
       const inbox = await familyRequest<
         import("../../lib/family").SafetyAlert[]
       >("alerts", token);
       if (
-        session.current.token === token &&
-        request === session.current.request
+        session.current.token !== token ||
+        request !== session.current.request
       )
-        setAlerts(inbox);
-      setUpdated(new Date().toLocaleTimeString());
+        return false;
+      setAlerts(inbox);
+      return true;
     } catch (e) {
       if (
         session.current.token === token &&
         request === session.current.request
-      )
+      ) {
+        setService(
+          e instanceof FamilyError && e.status === 401
+            ? "ready"
+            : "unavailable",
+        );
         handle(e);
+      }
+      return false;
     }
   }
+
   function handle(e: unknown) {
     setMessage(e instanceof Error ? e.message : String(e));
     if (e instanceof FamilyError && e.status === 401) {
       session.current.token = "";
       setToken("");
       setData({ children: [], requests: [] });
-      setCode("");
+      setCode(null);
+      setAlerts([]);
+      setSelected("");
+      setUpdated("");
+      session.current.request++;
     }
   }
   useEffect(() => {
     void check();
   }, []);
-  useEffect(() => {
-    if (!token) return;
-    void refresh();
-    const timer = setInterval(() => {
-      if (!document.hidden) void refresh();
-    }, 10000);
-    return () => clearInterval(timer);
-  }, [token]);
+  useEffect(
+    () => () => {
+      session.current.token = "";
+      session.current.request++;
+    },
+    [],
+  );
+  useFamilyPolling(refresh, token);
   async function action(work: () => Promise<unknown>, success: string) {
     setBusy(true);
     setMessage("");
     try {
       await work();
-      await refresh();
-      setMessage(success);
+      const refreshed = await refresh();
+      if (session.current.token === token)
+        setMessage(
+          refreshed
+            ? success
+            : `${success} The dashboard could not refresh; displayed data may be out of date. Retry Refresh family.`,
+        );
+      return Boolean(refreshed);
     } catch (e) {
+      if (e instanceof FamilyError && e.status === 409) await refresh();
       handle(e);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -302,7 +350,9 @@ export function HomeApp() {
         "",
         { username, password, ...(register ? { invite } : {}) },
       );
+      session.current.token = r.token;
       setToken(r.token);
+      setService("ready");
       if (!import.meta.env.VITE_BLUEY_VARIANT) location.hash = "home";
       setPassword("");
       setInvite("");
@@ -321,7 +371,7 @@ export function HomeApp() {
     setData({ children: [], requests: [] });
     setAlerts([]);
     setDemo(false);
-    setCode("");
+    setCode(null);
     setSelected("");
     setMessage("");
     setUpdated("");
@@ -372,7 +422,7 @@ export function HomeApp() {
                   required
                   minLength={3}
                   maxLength={40}
-                  pattern="[a-zA-Z0-9_.-]+"
+                  pattern={"[a-zA-Z0-9_.\\-]+"}
                 />
               </label>
               <label>
@@ -602,21 +652,30 @@ export function HomeApp() {
                       <button
                         key={c.id}
                         className={`home-child ${child?.id === c.id ? "selected" : ""}`}
+                        disabled={busy}
                         onClick={() => {
                           setSelected(c.id);
-                          setCode("");
+                          setCode(null);
                         }}
                       >
                         <span className={`home-child-avatar color-${i % 3}`}>
                           {c.name.slice(0, 1).toUpperCase()}
                         </span>
                         <strong>{c.name}</strong>
-                        <span className="home-unprotected">Not protected</span>
+                        <span className="home-unprotected">
+                          {service === "ready"
+                            ? agentLabel(c)
+                            : "Offline · status unknown"}
+                        </span>
                         <div>
                           <Clock3 size={15} />
                           {c.policy.daily_minutes} min/day configured
                         </div>
-                        <small>No verified usage reports</small>
+                        <small>
+                          {service === "ready" && c.used_minutes != null
+                            ? `${c.used_minutes} min used today · agent reported`
+                            : "Usage unavailable, not zero"}
+                        </small>
                         <span className="home-child-link">
                           Manage rules <ArrowRight size={15} />
                         </span>
@@ -654,6 +713,9 @@ export function HomeApp() {
                     </button>
                   </form>
                   {child && (
+                    <AgentSummary child={child} online={service === "ready"} />
+                  )}
+                  {child && (
                     <ChildRules
                       key={child.id}
                       child={child}
@@ -672,19 +734,25 @@ export function HomeApp() {
                       }
                       onEnroll={() =>
                         void action(async () => {
-                          const r = await familyRequest<{ code: string }>(
-                            `children/${child.id}/enrollment`,
-                            token,
-                            {},
-                          );
-                          setCodeScope("phone");
-                          setCode(r.code);
+                          setCode(null);
+                          const r = await familyRequest<{
+                            code: string;
+                            expires_in: number;
+                          }>(`children/${child.id}/enrollment`, token, {});
+                          setCode({
+                            code: r.code,
+                            childId: child.id,
+                            childName: child.name,
+                            scope: "kids",
+                            expiresAt:
+                              Date.now() + (r.expires_in || 600) * 1000,
+                          });
                         }, "Code created. Share it only with the Kids app for this child.")
                       }
                       onRemove={() => {
                         if (
                           confirm(
-                            `Remove ${child.name}’s profile, tokens and requests?`,
+                            `Remove ${child.name}’s profile, tokens and requests? Recover/uninstall Guardian locally FIRST. Removing this profile does not remove Windows rules; a still-installed service will eventually block the child when its cached policy expires.`,
                           )
                         )
                           void action(
@@ -717,7 +785,8 @@ export function HomeApp() {
                               ? "Microsoft Edge"
                               : "Google Chrome"}
                             :{" "}
-                            {child.agent?.recent &&
+                            {service === "ready" &&
+                            child.agent?.recent &&
                             (child.agent.report?.browser_rules?.[browser] ??
                               (browser === "edge"
                                 ? child.agent.report?.edge_rules
@@ -735,28 +804,36 @@ export function HomeApp() {
                         disabled={busy || demo}
                         onClick={() =>
                           void action(async () => {
+                            setCode(null);
                             const result = await familyRequest<{
                               code: string;
+                              expires_in: number;
                             }>(
                               `children/${child.id}/agent-enrollment`,
                               token,
                               {},
                             );
-                            setCodeScope("windows");
-                            setCode(result.code);
+                            setCode({
+                              code: result.code,
+                              childId: child.id,
+                              childName: child.name,
+                              scope: "windows",
+                              expiresAt:
+                                Date.now() + (result.expires_in || 600) * 1000,
+                            });
                           }, "Windows-only enrollment code created. Install from the administrator account.")
                         }
                       >
                         Create Windows agent code
                       </button>
                       <p>
-                        {child.agent?.recent
+                        {service === "ready" && child.agent?.recent
                           ? `Agent reporting · policy version ${child.agent.report?.policy_version ?? "unknown"}. ${child.agent.report?.error || "Verify enforcement on the child PC."}`
                           : "No recent Windows agent report. Protection cannot be verified."}
                       </p>
                       <a
                         className="home-text"
-                        href="https://github.com/jedijak14/Bluey/blob/arena/8b36c0e7-bluey/guardian/README.md"
+                        href="https://github.com/jedijak14/Bluey/blob/arena/d8ea8f13-bluey/guardian/README.md"
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -764,24 +841,11 @@ export function HomeApp() {
                       </a>
                     </section>
                   )}
-                  {code && (
-                    <section className="home-enrollment">
-                      <h3>
-                        {codeScope === "windows"
-                          ? "Windows administrator enrollment"
-                          : "Bluey for Kids phone enrollment"}
-                      </h3>
-                      <p>
-                        Use this one-use code within 10 minutes.{" "}
-                        {codeScope === "windows"
-                          ? "Enter it only in the Windows administrator installer—not the phone app."
-                          : "Enter it in the separate Kids app—not the Windows installer."}
-                      </p>
-                      <code>{code}</code>
-                      <button className="home-text" onClick={() => setCode("")}>
-                        Hide code
-                      </button>
-                    </section>
+                  {code && code.childId === child?.id && (
+                    <EnrollmentCode
+                      enrollment={code}
+                      onHide={() => setCode(null)}
+                    />
                   )}
                 </>
               )}
@@ -875,31 +939,34 @@ export function HomeApp() {
                   <Home />
                   <h3>2. Enroll Kids</h3>
                   <p>
-                    Use the separate Kids APK and a one-use parent-generated
-                    code. Kids credentials cannot change rules or approve their
-                    own requests.
+                    Use the separate Windows Kids app and a one-use
+                    parent-generated Kids code. Existing Android installations
+                    use the same flow. Kids credentials cannot change rules or
+                    approve their own requests.
                   </p>
                 </article>
                 <article>
                   <Shield />
                   <h3>3. Manage Windows</h3>
                   <p>
-                    Not shipped by this preview: a signed
-                    administrator-installed service, offline policy enforcement,
-                    managed browser filtering, parent recovery and a standard
-                    child account. A fullscreen window alone is not protection.
+                    The experimental Guardian service needs separate
+                    administrator setup and its own Windows agent code. It
+                    supports cached session-time limits, Edge/Chrome policies
+                    and parent recovery. It is unsigned and is not an
+                    all-browser or Windows sign-in barrier.
                   </p>
                 </article>
               </div>
               <p>
-                Insights will show usage totals and blocked-site events once a
-                trusted agent exists. No browsing history, screenshots or
-                conversations are collected by this family service. It is not
-                yet a Microsoft Family Safety replacement.
+                Usage totals appear only with a recent same-day Windows agent
+                report. Automatic browser blocked-site reporting is not
+                implemented. No browsing history, screenshots or conversations
+                are collected by this family service. It is not yet a Microsoft
+                Family Safety replacement.
               </p>
               <a
                 className="home-text"
-                href="https://github.com/jedijak14/Bluey/blob/arena/a5c27d6b-bluey/docs/BLUEY_HOME.md"
+                href="https://github.com/jedijak14/Bluey/blob/arena/d8ea8f13-bluey/docs/BLUEY_HOME.md"
                 target="_blank"
                 rel="noreferrer"
               >

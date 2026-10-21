@@ -13,6 +13,7 @@ const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const { validateRequest, guardianStatus } = require("./family-bridge.cjs");
 const { setupInvocation } = require("./guardian-setup.cjs");
+const { createFamilyVault } = require("./family-vault.cjs");
 const variant = require("../package.json").blueyVariant;
 if (!["home", "kids"].includes(variant))
   throw Error("Build a separate family desktop package.");
@@ -60,7 +61,10 @@ const identity = async () => {
   cachedIdentity = JSON.parse(stdout);
   return cachedIdentity;
 };
-const stored = () => path.join(app.getPath("userData"), "kid-enrollment.bin");
+const vault = createFamilyVault(
+  path.join(app.getPath("userData"), "kid-enrollment.bin"),
+  safeStorage,
+);
 ipcMain.handle(
   "family-request",
   authorized(async (p, token, body, method) => {
@@ -161,32 +165,7 @@ ipcMain.handle(
   "kids-vault",
   authorized(async (operation, token) => {
     if (variant !== "kids") throw Error("Kids enrollment only.");
-    if (operation === "clear") {
-      await fs.rm(stored(), { force: true });
-      return {};
-    }
-    if (!safeStorage.isEncryptionAvailable())
-      throw Error("Windows encrypted storage is unavailable.");
-    if (operation === "read") {
-      try {
-        return {
-          token: safeStorage.decryptString(await fs.readFile(stored())),
-        };
-      } catch {
-        return { token: "" };
-      }
-    }
-    if (
-      operation !== "write" ||
-      typeof token !== "string" ||
-      !/^[-_A-Za-z0-9]{43}$/.test(token)
-    )
-      throw Error("Invalid enrollment.");
-    await fs.mkdir(app.getPath("userData"), { recursive: true });
-    await fs.writeFile(stored(), safeStorage.encryptString(token), {
-      mode: 0o600,
-    });
-    return {};
+    return vault(operation, token);
   }),
 );
 app.whenReady().then(() => {

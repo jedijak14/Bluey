@@ -21,6 +21,15 @@ export type ChildProfile = {
   alerts?: SafetyAlert[];
   agent?: {
     recent: boolean;
+    state?:
+      | "not_enrolled"
+      | "awaiting_report"
+      | "stale"
+      | "policy_pending"
+      | "attention"
+      | "reporting";
+    policy_current?: boolean;
+    credential_expires_at?: number | null;
     last_seen: number | null;
     report: {
       policy_version: number;
@@ -36,7 +45,7 @@ export type ChildProfile = {
   extra_minutes_today: number;
   used_minutes: number | null;
   protected: boolean;
-  last_seen: string | null;
+  last_seen: number | null;
   notice: string;
 };
 export type ExtraRequest = {
@@ -66,41 +75,67 @@ export async function familyRequest<T>(
   body?: unknown,
   method?: string,
 ): Promise<T> {
-  if (typeof window !== "undefined" && window.blueyFamily) {
-    const result = await window.blueyFamily.request(
-      path,
-      token,
-      body,
-      method || (body === undefined ? "GET" : "POST"),
-    );
-    if (result.status >= 400)
-      throw new FamilyError(
-        result.data?.error || "Family request failed.",
-        result.status,
+  const errorMessage = (data: any) =>
+    typeof data?.error === "string"
+      ? data.error
+      : typeof data?.detail === "string"
+        ? data.detail
+        : "The family request failed. Check the supplied fields and try again.";
+  try {
+    if (typeof window !== "undefined" && window.blueyFamily) {
+      const result = await window.blueyFamily.request(
+        path,
+        token,
+        body,
+        method || (body === undefined ? "GET" : "POST"),
       );
-    return result.data as T;
-  }
-  const response = await fetch(`${nativeBase}/api/family/${path}`, {
-    method: method || (body === undefined ? "GET" : "POST"),
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    cache: "no-store",
-    signal: AbortSignal.timeout(12000),
-    credentials: "omit",
-  });
-  const data = await response.json().catch(() => ({
-    error: "The family service returned an invalid response.",
-  }));
-  if (!response.ok)
+      if (result.status < 200 || result.status >= 300)
+        throw new FamilyError(errorMessage(result.data), result.status);
+      if (!result.data || typeof result.data !== "object")
+        throw new FamilyError(
+          "The family service returned an invalid response.",
+          502,
+        );
+      return result.data as T;
+    }
+    const response = await fetch(`${nativeBase}/api/family/${path}`, {
+      method: method || (body === undefined ? "GET" : "POST"),
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",
+      signal: AbortSignal.timeout(12000),
+      credentials: "omit",
+      redirect: "error",
+    });
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      throw new FamilyError(
+        "The family service returned an invalid response. Try again shortly.",
+        response.ok ? 502 : response.status,
+      );
+    }
+    if (!response.ok)
+      throw new FamilyError(errorMessage(data), response.status);
+    if (!data || typeof data !== "object")
+      throw new FamilyError(
+        "The family service returned an invalid response.",
+        502,
+      );
+    return data as T;
+  } catch (error) {
+    if (error instanceof FamilyError) throw error;
     throw new FamilyError(
-      data.error || data.detail || "The family request failed.",
-      response.status,
+      "The family service could not be reached. Check your connection and try again. Your saved rules have not been removed.",
+      503,
     );
-  return data;
+  }
 }
+
 const NativeFamilyVault = registerPlugin<{
   read(): Promise<{ token: string }>;
   write(options: { token: string }): Promise<void>;

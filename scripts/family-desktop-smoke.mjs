@@ -44,6 +44,41 @@ try {
       }),
     ).toBe(true);
 
+    // Exercise the packaged vault with real Electron/Windows encryption. Never
+    // overwrite enrollment on a developer's already-enrolled machine.
+    expect(await page.evaluate(() => window.blueyFamily.vaultRead())).toEqual({
+      token: "",
+    });
+    const fixtureToken = "A".repeat(43);
+    try {
+      await page.evaluate(
+        (token) => window.blueyFamily.vaultWrite({ token }),
+        fixtureToken,
+      );
+      expect(await page.evaluate(() => window.blueyFamily.vaultRead())).toEqual(
+        { token: fixtureToken },
+      );
+      expect(
+        await app.evaluate(async ({ app, safeStorage }, token) => {
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+          const ciphertext = await fs.readFile(
+            path.join(app.getPath("userData"), "kid-enrollment.bin"),
+          );
+          return (
+            safeStorage.isEncryptionAvailable() &&
+            !ciphertext.includes(Buffer.from(token)) &&
+            safeStorage.decryptString(ciphertext) === token
+          );
+        }, fixtureToken),
+      ).toBe(true);
+    } finally {
+      await page.evaluate(() => window.blueyFamily.vaultClear());
+    }
+    expect(await page.evaluate(() => window.blueyFamily.vaultRead())).toEqual({
+      token: "",
+    });
+
     await expect(page.locator(".kids-welcome .avatar")).toBeVisible();
   }
   if (variant === "home") {

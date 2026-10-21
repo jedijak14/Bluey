@@ -168,7 +168,7 @@ def create_app(path: str, gateway_token: str, invite: str, *, schema="bluey_fami
         if not row: raise HTTPException(404, 'Child profile not found.')
         return row
 
-    def day(policy): return datetime.now(ZoneInfo(policy['timezone'])).date().isoformat()
+    def day(policy): return datetime.fromtimestamp(time.time(), ZoneInfo(policy['timezone'])).date().isoformat()
 
     from .family_agents import install_routes
     install_routes(app, connect, parent, actor, gateway, limited, owned, issue)
@@ -176,17 +176,35 @@ def create_app(path: str, gateway_token: str, invite: str, *, schema="bluey_fami
     def snapshot(db, row):
         policy = Policy.model_validate_json(row['policy']).model_dump()
         extra = db.execute('SELECT COALESCE(SUM(minutes),0) FROM grants WHERE child=? AND day=?', (row['id'], day(policy))).fetchone()[0]
-        agent = db.execute('SELECT last_seen,report FROM agents WHERE child=?',(row['id'],)).fetchone()
-        reporting = bool(agent and agent['last_seen'] and time.time()-agent['last_seen']<90)
-        report = json.loads(agent['report']) if agent and agent['report'] else None
-        return {'website_rules': build_rules(policy), 'agent': {'recent': reporting, 'report': report, 'last_seen': agent['last_seen'] if agent else None}, 'id':row['id'], 'name':row['name'], 'policy':policy, 'extra_minutes_today':extra, 'used_minutes':None,
-                'protected':False, 'enforcement':'not_installed', 'last_seen':None,
-                'notice':'Rules are saved, not enforced. This preview does not install a managed Windows service or browser filter.'}
+        agent = db.execute('SELECT id,last_seen,report FROM agents WHERE child=?',(row['id'],)).fetchone()
+        from .family_health import agent_health
+        health, usage = agent_health(agent, policy, day(policy), time.time())
+        credential = db.execute("SELECT MAX(expires) FROM sessions WHERE role='agent' AND subject=?", (agent['id'],)).fetchone() if agent else None
+        # Expiration metadata is not a credential. Never expose the session hash.
+        health['credential_expires_at'] = credential[0] if credential else None
+        return {'website_rules': build_rules(policy), 'agent': health,
+                'id': row['id'], 'name': row['name'], 'policy': policy,
+                'extra_minutes_today': min(extra, 1440), 'used_minutes': usage,
+                'protected': False, 'enforcement': 'unverified',
+                'last_seen': health['last_seen'],
+                'notice': 'Agent reports are not independent proof of protection. Verify Windows session limits and browser policies on the child PC.'}
 
     def cleanup(db):
-        db.execute("UPDATE requests SET status='expired' WHERE status='pending' AND created < ?", (time.time()-3600,))
-        db.execute('DELETE FROM requests WHERE created < ?', (time.time()-30*86400,))
-        db.execute('DELETE FROM enrollments WHERE expires < ?', (time.time(),))
+        now = time.time()
+        db.execute("UPDATE requests SET status='expired' WHERE status='pending' AND created < ?", (now-3600,))
+        # Requests belong to a child's calendar day, not just a rolling hour.
+        # Otherwise a 23:59 request blocks a new request after midnight even
+        # though the parent can no longer approve the old request.
+        pending = db.execute("SELECT r.id,r.day,c.policy FROM requests r JOIN children c ON c.id=r.child WHERE r.status='pending'").fetchall()
+        days = {}
+        for row in pending:
+            zone = json.loads(row['policy'])['timezone']
+            if zone not in days:
+                days[zone] = datetime.fromtimestamp(now, ZoneInfo(zone)).date().isoformat()
+            if row['day'] != days[zone]:
+                db.execute("UPDATE requests SET status='expired' WHERE id=? AND status='pending'", (row['id'],))
+        db.execute('DELETE FROM requests WHERE created < ?', (now-30*86400,))
+        db.execute('DELETE FROM enrollments WHERE expires < ?', (now,))
 
     @app.get('/api/family/status', dependencies=[Depends(gateway)])
     def status():
@@ -250,6 +268,7 @@ def create_app(path: str, gateway_token: str, invite: str, *, schema="bluey_fami
     @app.delete('/api/family/children/{child}')
     def delete_child(child: str, owner=Depends(parent)):
         with connect() as db:
+            db.execute('BEGIN IMMEDIATE')
             owned(db,child,owner)
             db.execute("DELETE FROM sessions WHERE role='agent' AND subject IN (SELECT id FROM agents WHERE child=?)", (child,))
             db.execute("DELETE FROM sessions WHERE role='kid' AND subject=?", (child,))
@@ -259,6 +278,7 @@ def create_app(path: str, gateway_token: str, invite: str, *, schema="bluey_fami
     @app.post('/api/family/children/{child}/enrollment')
     def enrollment(child: str, owner=Depends(parent)):
         with connect() as db:
+            db.execute('BEGIN IMMEDIATE')
             owned(db,child,owner); cleanup(db)
             db.execute('DELETE FROM enrollments WHERE child=?', (child,))
             code=secrets.token_urlsafe(12)

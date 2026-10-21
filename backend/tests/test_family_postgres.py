@@ -121,3 +121,15 @@ def test_private_schema_and_rls_deny_supabase_client_roles(store):
         with psycopg.connect(URL, autocommit=True) as admin:
             admin.execute('DROP OWNED BY anon')
             admin.execute('DROP ROLE anon')
+
+
+@pytest.mark.parametrize('scenario', [
+    'test_midnight_request_expires_and_new_request_is_allowed',
+    'test_timezone_change_expires_pending_request',
+    'test_agent_usage_is_reported_not_verified_and_never_faked_as_zero',
+    'test_agent_credential_expiry_is_metadata_not_a_secret',
+])
+def test_reliability_contract_on_postgres(store, monkeypatch, scenario):
+    from backend.tests import test_family_reliability as reliability
+    _, worker, _ = store
+    getattr(reliability, scenario)((worker(), None), monkeypatch)

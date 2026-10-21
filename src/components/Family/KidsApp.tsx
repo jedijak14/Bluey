@@ -1,3 +1,5 @@
+import { AgentSummary } from "./AgentSummary";
+import { useFamilyPolling } from "../../lib/useFamilyPolling";
 import { useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { ArrowRight, Clock3, Heart, Shield } from "lucide-react";
@@ -23,6 +25,13 @@ export function KidsApp() {
     [minutes, setMinutes] = useState(15),
     [reason, setReason] = useState(""),
     [preview, setPreview] = useState(false);
+  const [online, setOnline] = useState(false);
+  const [connectionError, setConnectionError] = useState("");
+  const [vaultError, setVaultError] = useState("");
+  const [restoreError, setRestoreError] = useState("");
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
+  const [clearFailed, setClearFailed] = useState(false);
+  const requestId = useRef(0);
   const [safety, setSafety] = useState<SafetyAlert | null>(null);
   const [safetyPreview, setSafetyPreview] = useState(false);
   const seenAlerts = useRef(new Set<string>());
@@ -36,30 +45,51 @@ export function KidsApp() {
     if (native)
       void FamilyVault.read()
         .then((r) => {
-          if (alive && generation === session.current.generation)
+          if (alive && generation === session.current.generation) {
+            setRestoreError("");
             setToken(r.token);
+          }
         })
-        .catch(() => {});
+        .catch(() => {
+          if (alive && generation === session.current.generation)
+            setRestoreError(
+              "Saved enrollment could not be read. Retry after unlocking your device’s encrypted storage, or ask your parent for help. A storage error does not mean your enrollment was removed.",
+            );
+        });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [restoreAttempt]);
   async function forget() {
     session.current.generation++;
     session.current.token = "";
+    requestId.current++;
+    setOnline(false);
+    setVaultError("");
     setPreview(false);
     setSafety(null);
     seenAlerts.current.clear();
     setToken("");
     setProfile(null);
-    if (native) await FamilyVault.clear().catch(() => {});
+    if (native) {
+      try {
+        await FamilyVault.clear();
+        setClearFailed(false);
+        setRestoreError("");
+      } catch {
+        setClearFailed(true);
+      }
+    }
   }
   async function refresh() {
+    const request = ++requestId.current;
     try {
       const result = await familyRequest<
         ChildProfile & { requests: ExtraRequest[] }
       >("kid", token);
-      if (session.current.token === token) {
+      if (session.current.token === token && request === requestId.current) {
+        setOnline(true);
+        setConnectionError("");
         setProfile(result);
         const latest = result.alerts?.find(
           (a) => !seenAlerts.current.has(a.id),
@@ -71,19 +101,22 @@ export function KidsApp() {
         }
       }
     } catch (e) {
-      if (session.current.token !== token) return;
-      setMessage(String(e));
+      if (session.current.token !== token || request !== requestId.current)
+        return;
+      setOnline(false);
+      setConnectionError(e instanceof Error ? e.message : String(e));
       if (e instanceof FamilyError && e.status === 401) void forget();
     }
   }
-  useEffect(() => {
-    if (!token) return;
-    void refresh();
-    const timer = setInterval(() => {
-      if (!document.hidden) void refresh();
-    }, 10000);
-    return () => clearInterval(timer);
-  }, [token]);
+  useFamilyPolling(refresh, token);
+  useEffect(
+    () => () => {
+      session.current.token = "";
+      session.current.generation++;
+      requestId.current++;
+    },
+    [],
+  );
   useEffect(() => {
     if (preview) dialog.current?.showModal();
     else dialog.current?.close();
@@ -94,8 +127,21 @@ export function KidsApp() {
     setMessage("");
     try {
       const r = await familyRequest<{ token: string }>("enroll", "", { code });
-      if (native) await FamilyVault.write({ token: r.token });
+      if (native) {
+        try {
+          await FamilyVault.write({ token: r.token });
+          setVaultError("");
+        } catch {
+          setVaultError(
+            "Connected for this session only. Encrypted storage could not save enrollment. Retry saving before closing the app; the pairing code has already been used.",
+          );
+        }
+      }
+      session.current.token = r.token;
       setToken(r.token);
+      setClearFailed(false);
+      setRestoreError("");
+      setConnectionError("");
       setCode("");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
@@ -108,11 +154,15 @@ export function KidsApp() {
     setMessage("");
     try {
       await familyRequest("kid/requests", token, { minutes, reason });
+      if (session.current.token !== token) return;
       setReason("");
       setPreview(false);
       await refresh();
       setMessage("Request sent. Your parent can review it in Bluey Home.");
     } catch (e) {
+      if (session.current.token !== token) return;
+      if (e instanceof FamilyError && e.status === 401) void forget();
+      else if (e instanceof FamilyError && e.status === 409) await refresh();
       setMessage(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
@@ -149,8 +199,9 @@ export function KidsApp() {
         <p className="home-warning">
           <Shield size={20} />
           <span>
-            Not protected: this app does not enforce Windows limits, filter
-            websites, or lock your computer.
+            The Kids app alone does not enforce Windows limits or filter
+            websites. Windows Guardian must be installed separately by a parent;
+            its reports are not verified protection.
           </span>
         </p>
         {!token ? (
@@ -189,11 +240,11 @@ export function KidsApp() {
                 <span>Configured daily allowance</span>
                 <strong>{profile.policy.daily_minutes} minutes</strong>
                 <small>
-                  {profile.extra_minutes_today} extra minutes approved today ·
-                  no verified usage data
+                  {profile.extra_minutes_today} extra minutes approved today
                 </small>
               </div>
             </div>
+            <AgentSummary child={profile} online={online} compact />
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -226,7 +277,9 @@ export function KidsApp() {
               <button
                 className="home-primary"
                 disabled={
-                  busy || profile.requests.some((r) => r.status === "pending")
+                  busy ||
+                  !online ||
+                  profile.requests.some((r) => r.status === "pending")
                 }
               >
                 Ask my parent <Heart size={16} />
@@ -252,6 +305,75 @@ export function KidsApp() {
           </>
         ) : (
           <p>Opening your space…</p>
+        )}
+        {token && !online && (
+          <div role="status">
+            <p>
+              {profile
+                ? "Connection interrupted. Showing last received rules; your enrollment is still saved."
+                : "Waiting for the family service. You do not need a new code for a temporary outage."}
+            </p>
+            <button className="home-outline" onClick={() => void refresh()}>
+              Retry connection
+            </button>
+          </div>
+        )}
+        {restoreError && !token && (
+          <div role="alert">
+            <p>{restoreError}</p>
+            <button
+              className="home-outline"
+              disabled={busy}
+              onClick={() => setRestoreAttempt((n) => n + 1)}
+            >
+              Retry saved enrollment
+            </button>
+          </div>
+        )}
+        {clearFailed && (
+          <div role="alert">
+            <p>
+              The app disconnected, but encrypted enrollment could not be
+              removed from this device. Retry before closing the app.
+            </p>
+            <button
+              className="home-outline"
+              disabled={busy}
+              onClick={() => void forget()}
+            >
+              Retry removing enrollment
+            </button>
+          </div>
+        )}
+        {connectionError && (
+          <p className="home-message" role="status">
+            {connectionError}
+          </p>
+        )}
+        {vaultError && token && (
+          <div role="alert">
+            <p>{vaultError}</p>
+            <button
+              className="home-outline"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await FamilyVault.write({ token });
+                  setVaultError("");
+                  setMessage("Enrollment saved securely on this device.");
+                } catch {
+                  setVaultError(
+                    "Encrypted storage is still unavailable. Keep this app open and ask your parent for help.",
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Retry saving enrollment
+            </button>
+          </div>
         )}
         {message && (
           <p className="home-message" role="status">
@@ -304,6 +426,7 @@ export function KidsApp() {
           disabled={
             !profile ||
             busy ||
+            !online ||
             profile.requests.some((r) => r.status === "pending")
           }
           onClick={() => void request()}

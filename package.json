@@ -25,7 +25,8 @@
     "android:kids": "node scripts/build-family-android.mjs kids",
     "test:family": "node scripts/family-smoke.mjs",
     "package:win:kids": "node scripts/build-family-windows.mjs kids",
-    "package:win:home": "node scripts/build-family-windows.mjs home"
+    "package:win:home": "node scripts/build-family-windows.mjs home",
+    "test:family:integration": "node scripts/family-integration.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
