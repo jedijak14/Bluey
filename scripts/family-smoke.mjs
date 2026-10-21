@@ -208,8 +208,8 @@ try {
   for (const href of await downloads.evaluateAll((nodes) =>
     nodes.map((node) => node.href),
   )) {
-    expect(href).toContain(
-      "https://github.com/jedijak14/Bluey/releases/download/v0.5.3-preview.1/",
+    expect(href).toMatch(
+      /^https:\/\/github\.com\/jedijak14\/Bluey\/releases\/download\/v0\.5\.(3|5)-preview\.1\//,
     );
   }
   for (const width of [1440, 390]) {

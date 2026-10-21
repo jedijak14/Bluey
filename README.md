@@ -10,15 +10,17 @@ Open **Test AI** in the sidebar or `/#gemma`. The configured model is exactly `k
 
 Phones, iPads and tablets can explore a separate mobile information site. **Test AI** and direct AI links remain desktop/laptop-only. Desktop visitors get a skippable wink-and-logo intro; mobile visitors see a sad Bluey, a device illustration and a clear notice. Detection uses browser signals—not CPU/GPU identification or hardware authentication. The native Android paired companion remains separate. Automatic Wi-Fi PC discovery is not implemented by this change.
 
-## Download Bluey 0.5.3
+## Download Bluey
+
+**Windows companion 0.5.5:** [model picker and one-time setup](docs/RELEASE_0.5.5.md). Other platform/family downloads below remain at their listed releases.
 
 Published preview: [v0.5.3-preview.1](https://github.com/jedijak14/Bluey/releases/tag/v0.5.3-preview.1).
 
 | Platform              | Download                                                                                                                                           |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Android               | [Bluey-0.5.3-Android.apk](https://github.com/jedijak14/Bluey/releases/download/v0.5.3-preview.1/Bluey-0.5.3-Android.apk)                           |
-| Windows x64 installer | [Bluey-0.5.3-Windows-x64-Setup.exe](https://github.com/jedijak14/Bluey/releases/download/v0.5.3-preview.1/Bluey-0.5.3-Windows-x64-Setup.exe)       |
-| Windows x64 portable  | [Bluey-0.5.3-Windows-x64-Portable.exe](https://github.com/jedijak14/Bluey/releases/download/v0.5.3-preview.1/Bluey-0.5.3-Windows-x64-Portable.exe) |
+| Windows x64 installer | [Bluey-0.5.5-Windows-x64-Setup.exe](https://github.com/jedijak14/Bluey/releases/download/v0.5.5-preview.1/Bluey-0.5.5-Windows-x64-Setup.exe)       |
+| Windows x64 portable  | [Bluey-0.5.5-Windows-x64-Portable.exe](https://github.com/jedijak14/Bluey/releases/download/v0.5.5-preview.1/Bluey-0.5.5-Windows-x64-Portable.exe) |
 
 Separate family downloads: [Kids Windows](https://github.com/jedijak14/Bluey/releases/download/v0.5.3-preview.1/Bluey-Kids-0.5.3-Windows-x64-Setup.exe) · [Home Windows](https://github.com/jedijak14/Bluey/releases/download/v0.5.3-preview.1/Bluey-Home-0.5.3-Windows-x64-Setup.exe) · [Kids Android](https://github.com/jedijak14/Bluey/releases/download/v0.5.3-preview.1/Bluey-Kids-0.5.3-Android.apk) · [Home Android](https://github.com/jedijak14/Bluey/releases/download/v0.5.3-preview.1/Bluey-Home-0.5.3-Android.apk).
 
