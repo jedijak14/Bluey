@@ -135,6 +135,7 @@ test("strict network failure requires attention; sign-out is explicit", () => {
     edge_rules: true,
     applied_version: 1,
     network_state: "error",
+    proxy_settings: true,
     signout_at_cutoff: true,
   };
   const health = guardianStatus(row, "child", now);

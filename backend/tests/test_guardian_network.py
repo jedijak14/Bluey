@@ -165,3 +165,38 @@ def test_signout_warning_discloses_unsaved_work_loss(monkeypatch):
     send_warning(4,'time_limit',True)
     assert 'SIGN OUT' in calls[0][3] and 'Unsaved work may be lost' in calls[0][3]
     assert calls[0][-1] is False
+
+
+def test_missing_installed_network_journal_does_not_create_new_provider(tmp_path):
+    gate = NetworkGate(SID, tmp_path/'missing.json', engine=object())
+    with pytest.raises(FileNotFoundError): gate.apply(True)
+    assert not gate.journal.exists()
+
+
+def test_failed_enrollment_cleans_only_new_preparation_journals(tmp_path):
+    from backend.guardian_windows import enrollment_journals
+    config=tmp_path/'config.json'; proxy=tmp_path/'proxy.json'; network=tmp_path/'network.json'
+    with pytest.raises(OSError):
+        with enrollment_journals(config,['proxy.json','network.json']):
+            proxy.write_text('prepared');network.with_suffix('.new').write_text('partial')
+            raise OSError('API unavailable')
+    assert not proxy.exists() and not network.with_suffix('.new').exists()
+    assert not (tmp_path/'enrollment.lock').exists()
+    proxy.write_text('existing')
+    with pytest.raises(RuntimeError):
+        with enrollment_journals(config,['proxy.json']):pass
+    assert proxy.read_text() == 'existing'
+
+
+def test_committed_enrollment_and_concurrent_lock_are_preserved(tmp_path):
+    from backend.guardian_windows import enrollment_journals
+    config=tmp_path/'config.json'; journal=tmp_path/'signin.json'; marker=tmp_path/'enrollment.lock'
+    with pytest.raises(OSError):
+        with enrollment_journals(config,['signin.json']):
+            journal.write_text('owned');config.write_text('committed')
+            raise OSError('First policy unavailable; parent recovery still required')
+    assert journal.exists() and config.exists()
+    marker.touch()
+    with pytest.raises(FileExistsError):
+        with enrollment_journals(config,[]):pass
+    assert marker.exists()

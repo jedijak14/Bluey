@@ -72,6 +72,18 @@ try:
     fixture = root/'probe.py'; result = root/'result.json'
     fixture.write_text('''import json,socket,sys
 host,port,kind,out=sys.argv[1:]
+if kind=='delete':
+ import ctypes as c,uuid
+ dll=c.WinDLL('fwpuclnt'); handle=c.c_void_p()
+ dll.FwpmEngineOpen0.argtypes=[c.c_wchar_p,c.c_uint32,c.c_void_p,c.c_void_p,c.POINTER(c.c_void_p)]
+ dll.FwpmEngineOpen0.restype=c.c_uint32
+ dll.FwpmFilterDeleteByKey0.argtypes=[c.c_void_p,c.c_void_p];dll.FwpmFilterDeleteByKey0.restype=c.c_uint32
+ dll.FwpmEngineClose0.argtypes=[c.c_void_p];dll.FwpmEngineClose0.restype=c.c_uint32
+ code=dll.FwpmEngineOpen0(None,10,None,None,c.byref(handle))
+ if not code:
+  try:code=dll.FwpmFilterDeleteByKey0(handle,c.create_string_buffer(uuid.UUID(host).bytes_le))
+  finally:dll.FwpmEngineClose0(handle)
+ open(out,'w').write(json.dumps({'connected':code==0,'error':code}));sys.exit(0)
 if kind=='browser':
  import subprocess,pathlib
  profile=pathlib.Path(out).parent/('browser-'+pathlib.Path(host).stem)
@@ -84,18 +96,28 @@ s.settimeout(2)
 try:
  s.connect((host,int(port)))
  if kind=='udp': s.send(b'child-network-fixture')
+ if kind=='held':
+  import pathlib,time
+  s.sendall(b'before');assert s.recv(16)==b'before'
+  open(out,'w').write(json.dumps({'ready':True}))
+  marker=pathlib.Path(out).with_suffix('.go');deadline=time.monotonic()+20
+  while not marker.exists() and time.monotonic()<deadline:time.sleep(.05)
+  assert marker.exists();s.sendall(b'after');assert s.recv(16)==b'after'
  answer={'connected':True}
 except OSError as e: answer={'connected':False,'error':e.winerror}
 finally:s.close()
 open(out,'w').write(json.dumps(answer))
 ''')
-    def probe(host, port, kind='tcp'):
+    def probe(host, port, kind='tcp', asynchronous=False):
         result.unlink(missing_ok=True)
         startup=Startup(); startup.cb=C.sizeof(startup); startup.flags=1; startup.show=0
         process=Process()
         command=C.create_unicode_buffer(subprocess.list2cmdline([sys.executable,'-I',str(fixture),host,str(port),kind,str(result)]))
         if not create(name,'.',password,1,sys.executable,command,0x08000000,None,str(root),C.byref(startup),C.byref(process)):
             raise C.WinError(C.get_last_error())
+        if asynchronous:return process
+        return finish(process)
+    def finish(process):
         try:
             if kernel.WaitForSingleObject(process.process,45000) != 0:
                 kernel.TerminateProcess(process.process,1); raise TimeoutError('Child network probe timed out')
@@ -109,7 +131,33 @@ open(out,'w').write(json.dumps(answer))
     allowed=listen('127.0.0.1',PORT); other=listen('127.0.0.1'); ipv6=listen('::1'); udp=listen('127.0.0.1',udp=True)
     assert probe('127.0.0.1',other.getsockname()[1])['connected']
     assert probe('::1',ipv6.getsockname()[1])['connected']
-    gate=NetworkGate(sid,private/'network.json');gate.apply(False)
+    # Keep a real child TCP stream open across first filter installation.
+    import threading
+    held=listen('127.0.0.1'); observed=[]
+    def echo():
+        connection,_=held.accept();connection.settimeout(15)
+        with connection:
+            try:
+                while True:
+                    data=connection.recv(16)
+                    if not data:return
+                    observed.append(data);connection.sendall(data)
+            except OSError:pass
+    echo_thread=threading.Thread(target=echo,daemon=True);echo_thread.start()
+    process=probe('127.0.0.1',held.getsockname()[1],'held',asynchronous=True)
+    deadline=time.monotonic()+10
+    while time.monotonic()<deadline:
+        try:
+            if json.loads(result.read_text()).get('ready'):break
+        except (OSError,json.JSONDecodeError):pass
+        time.sleep(.05)
+    else:raise AssertionError('Preexisting child stream was not established')
+    gate=NetworkGate(sid,private/'network.json');state=gate.prepare();gate.apply(False)
+    result.with_suffix('.go').touch()
+    assert not finish(process)['connected'], 'Preexisting child TCP flow survived WFP installation'
+    assert observed==[b'before'], 'Data escaped on a preexisting child TCP flow'
+    tamper=probe(state['keys']['deny_v4'],0,'delete')
+    assert not tamper['connected'] and tamper['error'] in (5,0x80070005), tamper
     assert not probe('127.0.0.1',PORT)['connected']
     assert not probe('127.0.0.1',other.getsockname()[1])['connected']
     assert not probe('::1',ipv6.getsockname()[1])['connected']

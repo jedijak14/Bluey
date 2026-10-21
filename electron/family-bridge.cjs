@@ -80,7 +80,8 @@ function guardianStatus(record, currentSid, now = Date.now() / 1000) {
       : "idle",
     state:
       !["starting", "external_policy", "error"].includes(signInState) &&
-      !["starting", "error"].includes(networkState) &&
+      !["starting", "error", "blocked"].includes(networkState) &&
+      (networkState === "disabled" || record.proxy_settings === true) &&
       Object.keys(browserRules).length > 0 &&
       Object.values(browserRules).every(Boolean) &&
       Number.isInteger(record.applied_version)

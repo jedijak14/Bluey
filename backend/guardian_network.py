@@ -147,7 +147,10 @@ class NetworkGate:
         return read_journal(self.journal, self.sid)
 
     def apply(self, proxy_allowed):
-        state = self.prepare()
+        if type(proxy_allowed) is not bool: raise ValueError('Boolean proxy mode required')
+        # Enrollment creates the journal explicitly. Losing it must never create
+        # a second provider and strand the original persistent restrictions.
+        state = read_journal(self.journal, self.sid)
         if self.mode is proxy_allowed: return 'filtered' if proxy_allowed else 'blocked'
         keys = state['keys']
         metadata = json.dumps({'owner': 'BlueyGuardian', 'sid': self.sid, 'installation': keys['provider']}, sort_keys=True).encode()

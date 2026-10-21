@@ -52,6 +52,8 @@ if ($StrictNetwork) { $enrollArgs += '--strict-network' }
 if ($SignOutAtCutoff) { $enrollArgs += '--signout-at-cutoff' }
 & $runtime @enrollArgs
 if ($LASTEXITCODE) { throw 'Enrollment failed; service was not installed.' }
+$boundSid = (Get-Content -LiteralPath $config -Raw | ConvertFrom-Json).sid
+$startedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() / 1000.0
 & $runtime -I (Join-Path $root 'service_entry.py') install --config $config
 if ($LASTEXITCODE) { throw 'Service startup failed. Run Recover-Guardian.ps1 as the parent administrator.' }
 & sc.exe failure BlueyGuardian reset= 86400 actions= restart/5000/restart/15000/restart/30000 | Out-Null
@@ -62,7 +64,11 @@ if ($StrictNetwork) {
     Start-Sleep -Seconds 1
     try {
       $record = Get-Content (Join-Path $status 'status.json') -Raw | ConvertFrom-Json
-      if ($record.network_state -eq 'filtered') { $ready = $true; break }
+      $age = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() / 1000.0 - [double]$record.updated_at
+      if ($record.network_state -eq 'filtered' -and $record.proxy_settings -eq $true -and
+          $record.child_sid -eq $boundSid -and [double]$record.updated_at -ge $startedAt -and
+          $age -ge -5 -and $age -le 10 -and $null -ne $record.applied_version -and
+          (!$EnableSignInBlocking -or $record.signin_state -in @('allowed','blocked'))) { $ready = $true; break }
     } catch {}
   }
   if (!$ready) { throw 'Strict network startup was not confirmed. Use parent recovery; do not treat this PC as protected.' }

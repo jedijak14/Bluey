@@ -70,15 +70,21 @@ IP and translation refusal, proxy authentication, TLS SNI/fragment checks, bound
 requests, real denied-host events, live tunnel revocation and ownership validation.
 A new isolated Windows CI gate launches actual disposable standard-user processes
 to check IPv4/IPv6 TCP and UDP denial, the local-proxy exception, parent isolation,
-persistence after closing the WFP engine handle and offline recovery. Consult the
+persistence after closing the WFP engine handle and offline recovery. It also
+checks established TCP-flow reauthorization and a child attempt to delete a filter.
+Actual child Chrome/Edge processes navigate an approved local HTTPS fixture and
+a denied hostname through the real PID/SID-authenticated gateway using registry
+proxy/ECH policies (no browser proxy CLI override). The fixture-only certificate
+exception is confined to test browser commands; it is never shipped. Consult the
 actual run result; code or a heartbeat is not proof that this native gate passed.
 
 Still require interactive device validation: installed browser consumption of all
 proxy/ECH policies, Windows Hello/PIN, fast user switching, reboot/sleep/startup,
-full installer/UAC/recovery, service failure during active traffic, and delivery
+full installer/UAC/recovery, Firefox and portable-browser behavior, service failure during active traffic, and delivery
 from a real enrolled PC to its parent's inbox. This is not a boot-time filter or
 custom credential provider. There can be a startup window before BFE/service
-initialization, and previously permitted flows need native reauthorization tests.
+initialization. The native established-flow test covers TCP, not every possible
+Windows protocol or SYSTEM-brokered flow.
 
 A parent-approved HTTPS service can itself serve/proxy unwanted content. SNI checks
 do not inspect encrypted HTTP Host/HTTP2 authority or defeat every domain-fronting
