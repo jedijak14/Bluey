@@ -16,6 +16,7 @@ import { ListeningEdge } from "./ListeningEdge";
 import { QuietSessionPanel } from "./QuietSessionPanel";
 import { useQuietSession } from "../hooks/useQuietSession";
 import { ResponseCard, type CompanionResponse } from "./ResponseCard";
+import { EXPRESSION_PRESETS, liveExpression } from "../lib/expressions";
 import { Avatar, FaceScreen } from "./FloatingWidget/Avatar";
 import { bluetooth } from "../lib/bluetooth";
 import { useBluetoothDiscovery } from "../hooks/useBluetoothDiscovery";
@@ -107,6 +108,7 @@ export function Phone() {
         setFace((f) => ({
           ...f,
           mood: f.mood === "sleepy" ? "sleepy" : "listening",
+          expression: undefined,
         }));
         setCaption("");
       }
@@ -126,10 +128,14 @@ export function Phone() {
     if (now - lastTap.current < 320) {
       lastTap.current = 0;
       if (preview)
-        setFace((f) => ({
-          ...f,
-          mood: f.mood === "resting" ? "listening" : "resting",
-        }));
+        setFace((f) => {
+          const preset =
+            EXPRESSION_PRESETS[
+              (EXPRESSION_PRESETS.findIndex((p) => p.id === f.expression) + 1) %
+                EXPRESSION_PRESETS.length
+            ];
+          return { ...f, mood: preset.mood, expression: preset.id };
+        });
       else session.toggle();
     } else lastTap.current = now;
   }
@@ -374,7 +380,17 @@ export function Phone() {
                 {error}
               </p>
             )}
-            <button className="text-button" onClick={() => setPreview(true)}>
+            <button
+              className="text-button"
+              onClick={() => {
+                setFace((f) => ({
+                  ...f,
+                  mood: "listening",
+                  expression: "excited",
+                }));
+                setPreview(true);
+              }}
+            >
               Play without a PC <ArrowRight size={14} />
             </button>
             <div className="pairing-privacy">
@@ -419,7 +435,12 @@ export function Phone() {
       }}
     >
       <ListeningEdge active={session.listening} />
-      <FaceScreen {...face} />
+      <FaceScreen
+        {...face}
+        expression={
+          preview ? face.expression : liveExpression(face.mood, face.expression)
+        }
+      />
       {reportOpen && report && (
         <div className="phone-report">
           <ResponseCard
@@ -505,11 +526,25 @@ export function Phone() {
           {preview ? (
             <select
               aria-label="Expression"
-              value={face.mood}
-              onChange={(e) =>
-                setFace((f) => ({ ...f, mood: e.target.value as Mood }))
-              }
+              value={face.expression || face.mood}
+              onChange={(e) => {
+                const preset = EXPRESSION_PRESETS.find(
+                  (p) => p.id === e.target.value,
+                );
+                setFace((f) => ({
+                  ...f,
+                  mood: preset?.mood || (e.target.value as Mood),
+                  expression: preset?.id,
+                }));
+              }}
             >
+              <optgroup label="New expressions">
+                {EXPRESSION_PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </optgroup>
               {[
                 "listening",
                 "thinking",

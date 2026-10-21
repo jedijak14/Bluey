@@ -1,0 +1,349 @@
+.expression-features {
+  transform-origin: 170px 155px;
+}
+.emotion-mouth {
+  transform-origin: 170px 213px;
+}
+.emotion-excited .emotion-star {
+  animation: emotion-star-pop 1.7s ease-in-out infinite;
+}
+.emotion-excited .emotion-mouth {
+  animation: emotion-eager 1.7s ease-in-out infinite;
+}
+.emotion-proud {
+  animation: emotion-chin 3.6s ease-in-out infinite;
+}
+.emotion-skeptical .emotion-brow-0 {
+  animation: emotion-doubt 3.4s ease-in-out infinite;
+  transform-origin: 116px 67px;
+}
+.emotion-embarrassed .emotion-cheeks {
+  animation: emotion-blush 3.2s ease-in-out infinite;
+}
+.emotion-embarrassed .emotion-pupil {
+  animation: emotion-avert 3.2s ease-in-out infinite;
+}
+.emotion-worried .emotion-mouth {
+  animation: emotion-quiver 2.5s ease-in-out infinite;
+}
+.emotion-worried .emotion-brows {
+  animation: emotion-concern 2.5s ease-in-out infinite;
+}
+.emotion-relieved .emotion-sigh {
+  animation: emotion-exhale 4s ease-out infinite;
+}
+.emotion-relieved {
+  animation: emotion-release 4s ease-in-out infinite;
+}
+.emotion-mischievous .emotion-pupil {
+  animation: emotion-plot 3s ease-in-out infinite;
+}
+.emotion-mischievous .emotion-mouth {
+  animation: emotion-grin 3s ease-in-out infinite;
+}
+.emotion-amazed .emotion-glints {
+  animation: emotion-wonder 2.6s ease-in-out infinite;
+}
+.emotion-amazed .emotion-mouth {
+  animation: emotion-wow 2.6s ease-in-out infinite;
+}
+.emotion-confused .emotion-question {
+  animation: emotion-question 3.8s ease-in-out infinite;
+}
+.emotion-confused .emotion-brow-1 {
+  animation: emotion-puzzle 3.8s ease-in-out infinite;
+}
+.emotion-disappointed .emotion-tear {
+  animation: emotion-tear 4.6s ease-in infinite;
+}
+.emotion-laughing {
+  animation: emotion-giggle 1.6s ease-in-out infinite;
+}
+.emotion-laughing .emotion-mouth {
+  animation: emotion-laugh 1.6s ease-in-out infinite;
+}
+.emotion-zen .emotion-breath {
+  animation: emotion-breathe 5s ease-in-out infinite;
+  transform-origin: 170px 227px;
+}
+@keyframes emotion-star-pop {
+  0%,
+  100% {
+    transform: scale(0.92) rotate(-5deg);
+  }
+  45% {
+    transform: scale(1.09) rotate(5deg);
+  }
+}
+@keyframes emotion-eager {
+  0%,
+  100% {
+    transform: scaleY(0.9);
+  }
+  45% {
+    transform: scaleY(1.08);
+  }
+}
+@keyframes emotion-chin {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40%,
+  65% {
+    transform: translateY(-4px);
+  }
+}
+@keyframes emotion-doubt {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  35%,
+  65% {
+    transform: translateY(-6px) rotate(-8deg);
+  }
+}
+@keyframes emotion-blush {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+@keyframes emotion-avert {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  35%,
+  65% {
+    transform: translateX(-5px);
+  }
+}
+@keyframes emotion-quiver {
+  0%,
+  45%,
+  100% {
+    transform: translateX(0);
+  }
+  53%,
+  69% {
+    transform: translateX(-2px);
+  }
+  61%,
+  77% {
+    transform: translateX(2px);
+  }
+}
+@keyframes emotion-concern {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+@keyframes emotion-exhale {
+  0% {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  25% {
+    opacity: 0.8;
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}
+@keyframes emotion-release {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  60% {
+    transform: translateY(4px);
+  }
+}
+@keyframes emotion-plot {
+  0%,
+  100% {
+    transform: translateX(-3px);
+  }
+  45%,
+  65% {
+    transform: translateX(5px);
+  }
+}
+@keyframes emotion-grin {
+  0%,
+  100% {
+    transform: scaleX(0.95);
+  }
+  50% {
+    transform: scaleX(1.08);
+  }
+}
+@keyframes emotion-wonder {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(2px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+@keyframes emotion-wow {
+  0%,
+  100% {
+    transform: scale(0.92);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+@keyframes emotion-question {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  45% {
+    transform: translateY(-7px);
+  }
+}
+@keyframes emotion-puzzle {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  45%,
+  65% {
+    transform: translateY(4px);
+  }
+}
+@keyframes emotion-tear {
+  0%,
+  15% {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  25% {
+    opacity: 0.9;
+  }
+  65%,
+  100% {
+    opacity: 0;
+    transform: translateY(27px);
+  }
+}
+@keyframes emotion-giggle {
+  0%,
+  50%,
+  100% {
+    transform: translateY(0);
+  }
+  25%,
+  75% {
+    transform: translateY(-4px);
+  }
+}
+@keyframes emotion-laugh {
+  0%,
+  50%,
+  100% {
+    transform: scaleY(0.85);
+  }
+  25%,
+  75% {
+    transform: scaleY(1.06);
+  }
+}
+@keyframes emotion-breathe {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(0.75);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(1.25);
+  }
+}
+.expression-library {
+  margin: 18px 0;
+}
+.expression-library h3 {
+  font-size: 13px;
+  margin: 10px 0;
+}
+.expression-library .mood-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.expression-library button {
+  min-height: 44px;
+}
+.expression-view-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0;
+}
+.expression-view-grid figure {
+  margin: 0;
+  border: 1px solid #ffffff16;
+  border-radius: 12px;
+  padding: 12px;
+  min-width: 0;
+}
+.expression-view-grid svg {
+  width: 100%;
+  height: 100px;
+}
+.expression-view-grid figcaption {
+  font-size: 10px;
+  color: #9385a4;
+  text-align: center;
+}
+@media (max-width: 480px) {
+  .expression-library .mood-buttons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.classic-expressions {
+  margin-top: 18px;
+}
+.classic-expressions summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #a99ab8;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.classic-expressions summary::before {
+  content: "+ ";
+  margin-right: 8px;
+}
+.classic-expressions[open] summary::before {
+  content: "− ";
+}
+.app-super-preview {
+  background: #f2eff9;
+  color: #685579;
+  border-radius: 16px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+.app-super-preview > p {
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 14px;
+}

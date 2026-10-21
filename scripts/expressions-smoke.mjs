@@ -27,7 +27,9 @@ try {
   await page.getByRole("button", { name: "My companion", exact: true }).click();
   const face = page.locator(".face-preview > .avatar");
   await expect(face).toHaveClass(/mood-listening/);
-  await expect(face).toHaveClass(/mood-thinking/, { timeout: 6500 });
+  await expect(face).toHaveClass(/expression-excited/);
+  await expect(face).toHaveClass(/expression-proud/, { timeout: 6500 });
+  await page.locator(".classic-expressions summary").click();
   const moods = [
     ["All ears", "listening", ".berry-body"],
     ["Thinking", "thinking", ".thinking-dots circle"],

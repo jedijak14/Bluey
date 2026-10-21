@@ -52,7 +52,7 @@ try {
   const selector = page.getByRole("combobox", {
     name: "Choose a Bluey expression",
   });
-  await expect(selector.locator("option")).toHaveCount(17);
+  await expect(selector.locator("option")).toHaveCount(29);
   await expect(lab.locator("button[aria-pressed=true]")).toHaveCount(1); // selected preset only; no motion settings
   await expect(stage).not.toHaveClass(/lab-paused/);
   await expect(stage).toHaveAttribute("data-preset", "computer");
@@ -281,7 +281,7 @@ try {
   expect(forbidden).toEqual([]);
   await context.close();
   console.log(
-    "Mobile Expression Lab passed: 17 animated presets, pause/replay/tour, automatic mobile motion, unchanged saved desktop preference, power-driven typing, Super Bluey paid-plan preview, three new facial expressions, no account link, visibility gates, touch/keyboard controls, 320–1024px layouts, silent/no device access, AI restriction.",
+    "Mobile Expression Lab passed: 29 presets, pause/replay/tour, automatic mobile motion, unchanged saved desktop preference, power-driven typing, Super Bluey paid-plan preview, three new facial expressions, no account link, visibility gates, touch/keyboard controls, 320–1024px layouts, silent/no device access, AI restriction.",
   );
 } finally {
   await browser.close();

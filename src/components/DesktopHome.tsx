@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import { liveExpression } from "../lib/expressions";
 import { Avatar } from "./FloatingWidget/Avatar";
 import type { FaceState } from "../lib/types";
 
@@ -48,7 +49,10 @@ export function DesktopHome({
       <div className="desktop-stage">
         <div className="desktop-companion-scene">
           <div className="desktop-orbit" />
-          <Avatar mood={face.mood} />
+          <Avatar
+            mood={face.mood}
+            expression={liveExpression(face.mood, face.expression)}
+          />
           <span>YOUR DESKTOP SIDEKICK</span>
         </div>
         <div className="desktop-companion-controls">

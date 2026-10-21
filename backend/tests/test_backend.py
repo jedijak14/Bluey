@@ -341,3 +341,39 @@ def test_malformed_first_frame_is_closed(api):
         ws.send_json(["not", "an", "object"])
         with pytest.raises(WebSocketDisconnect):
             ws.receive_json()
+
+
+@pytest.mark.parametrize("expression", [
+    "excited", "proud", "skeptical", "embarrassed", "worried", "relieved",
+    "mischievous", "amazed", "confused", "disappointed", "laughing", "zen",
+])
+def test_expression_reaches_paired_phone(api, expression):
+    code = server.pairing.create()
+    token, _ = server.pairing.redeem(code, "Android", "ip")
+    with api.websocket_connect("/api/ws") as desktop, api.websocket_connect("/api/ws") as phone:
+        assert authenticate(desktop)["type"] == "ready"
+        assert authenticate(phone, token)["type"] == "ready"
+        desktop.send_json({"type": "mood", "mood": "listening", "expression": expression})
+        assert receive_type(phone, "face")["face"]["expression"] == expression
+        desktop_face = receive_type(desktop, "face")["face"]
+        assert desktop_face["expression"] == expression
+        assert desktop_face["mood"] == "listening"
+        desktop.send_json({"type": "mood", "mood": "thinking"})
+        assert "expression" not in receive_type(phone, "face")["face"]
+
+
+@pytest.mark.parametrize("value", ["made-up", "super", [], {"id": "excited"}, 42])
+def test_invalid_expression_is_rejected(api, value):
+    with api.websocket_connect("/api/ws") as ws:
+        authenticate(ws)
+        ws.send_json({"type": "mood", "mood": "listening", "expression": value})
+        assert receive_type(ws, "error")["type"] == "error"
+
+
+def test_phone_cannot_override_desktop_expression(api):
+    code = server.pairing.create()
+    token, _ = server.pairing.redeem(code, "Android", "ip")
+    with api.websocket_connect("/api/ws") as phone:
+        authenticate(phone, token)
+        phone.send_json({"type": "mood", "mood": "listening", "expression": "excited"})
+        assert receive_type(phone, "error")["type"] == "error"

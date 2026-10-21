@@ -43,6 +43,7 @@ try {
   await desktop
     .getByRole("button", { name: "My companion", exact: true })
     .click();
+  await desktop.locator(".classic-expressions summary").click();
   await desktop.getByRole("button", { name: "On it", exact: false }).click();
   await expect(
     desktop.locator(".avatar.mood-pointing .confident-smile").first(),

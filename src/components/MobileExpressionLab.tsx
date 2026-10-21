@@ -8,6 +8,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Avatar, type AvatarExpression } from "./FloatingWidget/Avatar";
+import { EXPRESSION_PRESETS } from "../lib/expressions";
 import type { Mood } from "../lib/types";
 import "./MobileExpressionLab.css";
 
@@ -57,6 +58,7 @@ export const LAB_PRESETS: readonly Preset[] = [
     description:
       "A little blueberry. A super-sized spark. Watch Bluey power up, reveal his cape, and take flight.",
   },
+  ...EXPRESSION_PRESETS.map((item) => ({ ...item, expression: item.id })),
   {
     id: "curious",
     label: "Curious",
@@ -640,7 +642,7 @@ export function MobileExpressionLab({ active = true }: { active?: boolean }) {
               </button>
             ))}
           </div>
-          <h3 className="lab-moods-title">Everyday Bluey</h3>
+          <h3 className="lab-moods-title">The new expression collection</h3>
           <div
             className="lab-mood-grid"
             role="group"

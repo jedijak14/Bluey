@@ -3,8 +3,8 @@ import { expect, it } from "vitest";
 import { ExpressionScene, LAB_PRESETS } from "./MobileExpressionLab";
 
 it("offers unique presets covering all existing moods and four animated scenes", () => {
-  expect(LAB_PRESETS).toHaveLength(17);
-  expect(new Set(LAB_PRESETS.map((p) => p.id)).size).toBe(17);
+  expect(LAB_PRESETS).toHaveLength(29);
+  expect(new Set(LAB_PRESETS.map((p) => p.id)).size).toBe(29);
   expect(new Set(LAB_PRESETS.map((p) => p.mood))).toEqual(
     new Set([
       "listening",

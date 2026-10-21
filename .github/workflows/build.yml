@@ -118,6 +118,7 @@ jobs:
             npm run test:mobile-site
             node scripts/expressions-smoke.mjs
             node scripts/mobile-expression-lab-smoke.mjs
+            node scripts/expression-overhaul-smoke.mjs
             npm run test:family
           } 2>&1 | tee artifacts/browser-regressions.log
       - name: Expose bounded browser failures
@@ -142,6 +143,7 @@ jobs:
           BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:mobile-site
           BLUEY_PREVIEW_URL=http://127.0.0.1:5174 node scripts/expressions-smoke.mjs
           BLUEY_PREVIEW_URL=http://127.0.0.1:5174 node scripts/mobile-expression-lab-smoke.mjs
+          BLUEY_PREVIEW_URL=http://127.0.0.1:5174 node scripts/expression-overhaul-smoke.mjs
           BLUEY_PREVIEW_URL=http://127.0.0.1:5174 node scripts/companion-launcher-smoke.mjs
           BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:family
           BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:device-speech

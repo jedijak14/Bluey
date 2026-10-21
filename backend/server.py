@@ -25,6 +25,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
+from .expressions import validate_expression
 from .privacy import PrivacyState, PrivacySettings
 from .audio_pipeline import AudioPipeline
 from .automation import Automation, DesktopAction
@@ -106,12 +107,14 @@ async def broadcast(packet, desktop_only=False):
     )
 
 
-async def face(mood):
+async def face(mood, expression=None):
+    expression = validate_expression(expression)
     await broadcast(
         {
             "type": "face",
             "face": {
                 "mood": mood,
+                **({"expression": expression} if expression else {}),
                 "gazeX": 0,
                 "gazeY": -0.7 if mood == "thinking" else 0,
                 "talk": 0.5 if mood == "talking" else 0,
@@ -834,9 +837,10 @@ async def websocket(ws: WebSocket):
                         "sleepy",
                     }:
                         raise ValueError("Unknown expression.")
+                    expression = validate_expression(packet.get("expression"))
                     if mood == "sleepy":
                         await broadcast({"type": "companion_sleep"})
-                    await face(mood)
+                    await face(mood, expression)
                 elif kind == "ping":
                     await send(ws, {"type": "pong"})
                 else:
