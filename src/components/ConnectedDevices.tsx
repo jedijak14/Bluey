@@ -6,6 +6,7 @@ import {
   Wifi,
 } from "lucide-react";
 import { Avatar, CursorAvatar } from "./FloatingWidget/Avatar";
+import { BluetoothSetup } from "./BluetoothSetup";
 import { usePairing } from "../lib/usePairing";
 
 export function openPairing() {
@@ -155,6 +156,7 @@ export function ConnectedDevices({
           </p>
         </section>
       </div>
+      <BluetoothSetup connected={connected} />
       <section className="connected-list" aria-label="Paired devices">
         <h3>
           Paired devices <span>{devices.length}</span>

@@ -39,6 +39,7 @@ export interface Settings {
 }
 export type Packet = { type: string; [key: string]: unknown };
 export interface Bridge {
+  startOllama?: () => Promise<{ message: string }>;
   connection: () => Promise<{ endpoint: string; token: string }>;
   window: (
     action:

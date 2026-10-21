@@ -177,7 +177,7 @@ class Model:
         config = self.candidate(config)
         headers = {"Authorization": f"Bearer {config.api_key}"} if config.api_key else {}
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(90, connect=10), trust_env=False) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(300, connect=10), trust_env=False) as client:
                 response = await client.get(self.base(config) + "/models", headers=headers)
                 if response.status_code >= 400:
                     raise RuntimeError(await self.endpoint_error(response))
@@ -189,11 +189,15 @@ class Model:
                     raise RuntimeError("The server is reachable, but the selected model is not listed. Use an exact available model name; local models must be installed and cloud models must be available to your account.")
                 # Model listings can be public. Check authenticated inference too, without user data or tools.
                 response = await client.post(self.base(config) + "/chat/completions", headers=headers,
-                    json={"model": config.model, "messages": [{"role": "user", "content": "Reply OK."}], "max_tokens": 1, "stream": False})
+                    json={"model": config.model, "messages": [{"role": "user", "content": "Reply OK."}], "max_tokens": 32, "stream": False})
                 if response.status_code >= 400:
                     raise RuntimeError(await self.endpoint_error(response))
-                if not isinstance(response.json().get("choices"), list) or not response.json()["choices"]:
+                choices = response.json().get("choices")
+                if not isinstance(choices, list) or not choices:
                     raise ValueError()
+                content = choices[0].get("message", {}).get("content")
+                if not isinstance(content, str) or not content.strip():
+                    raise RuntimeError("The model accepted the request but returned no text. Choose a chat model or check its reasoning/token settings; no credentials were changed.")
             return {"reachable": True, "model_available": True, "inference_checked": True, "models": models[:200]}
         except httpx.RequestError:
             raise RuntimeError("Cannot reach the model server, or model loading timed out. For local Ollama, start Ollama on the Windows PC. For cloud models, check the HTTPS URL and network connection; no extra engine API key is needed.") from None
@@ -216,7 +220,7 @@ class Model:
         use_tools = allow_tools and self.tools_supported is not False
         for attempt in range(2):
             try:
-                async with httpx.AsyncClient(timeout=httpx.Timeout(120, connect=10), trust_env=False) as client:
+                async with httpx.AsyncClient(timeout=httpx.Timeout(300, connect=10), trust_env=False) as client:
                     async with client.stream("POST", base + "/chat/completions", headers=headers, json={
                         "model": config.model,
                         "messages": [{"role": "system", "content": SYSTEM}, *messages],

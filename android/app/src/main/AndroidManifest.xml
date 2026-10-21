@@ -42,6 +42,10 @@
         </provider>
     </application>
 
+    <!-- Bluetooth is requested only when the companion user chooses it. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />

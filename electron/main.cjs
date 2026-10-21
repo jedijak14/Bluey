@@ -17,6 +17,15 @@ const crypto = require("node:crypto");
 
 app.setAppUserModelId("app.bluey.companion");
 const dev = process.env.BLUEY_DEV === "1";
+const ownsInstance = app.requestSingleInstanceLock();
+if (!ownsInstance) app.quit();
+app.on("second-instance", () => {
+  if (main && !main.isDestroyed()) {
+    if (main.isMinimized()) main.restore();
+    main.show();
+    main.focus();
+  }
+});
 const token = process.env.BLUEY_TOKEN || crypto.randomBytes(32).toString("hex");
 const endpoint = "http://127.0.0.1:8765";
 let main,
@@ -158,17 +167,23 @@ function startBackend() {
       : process.platform === "win32"
         ? "python"
         : "python3");
-  backend = spawn(python, ["-m", "backend.server"], {
-    cwd: root,
-    windowsHide: true,
-    env: {
-      ...process.env,
-      BLUEY_TOKEN: token,
-      ANONYMIZED_TELEMETRY: "false",
-      PYTHONUNBUFFERED: "1",
+  const bundled = path.join(root, "engine", "BlueyEngine.exe");
+  const useBundled = app.isPackaged && process.platform === "win32";
+  backend = spawn(
+    useBundled ? bundled : python,
+    useBundled ? [] : ["-m", "backend.server"],
+    {
+      cwd: root,
+      windowsHide: true,
+      env: {
+        ...process.env,
+        BLUEY_TOKEN: token,
+        ANONYMIZED_TELEMETRY: "false",
+        PYTHONUNBUFFERED: "1",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
     },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  );
   backend.stdout.on("data", (data) =>
     console.log(String(data).replaceAll(token, "[redacted]")),
   );
@@ -178,7 +193,7 @@ function startBackend() {
   backend.on("error", () =>
     dialog.showErrorBox(
       "Local engine could not start",
-      "Install Python 3.10+ and backend dependencies, or set BLUEY_PYTHON to your virtual environment’s Python executable. See README.md.",
+      "The bundled engine could not start. Check Windows Security quarantine and reinstall Bluey from its official release. Development builds need Python dependencies.",
     ),
   );
   backend.on("exit", (code) => {
@@ -189,6 +204,59 @@ function startBackend() {
       );
   });
 }
+ipcMain.handle("start-ollama", async (event) => {
+  if (
+    !ours(event) ||
+    event.sender !== main.webContents ||
+    process.platform !== "win32"
+  )
+    throw new Error("Only the Windows workspace can start Ollama.");
+  try {
+    const response = await fetch("http://127.0.0.1:11434/api/tags", {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (response.ok)
+      return { message: "Ollama is already running. Click Find models." };
+  } catch {}
+  const candidates = [
+    path.join(
+      app.getPath("home"),
+      "AppData",
+      "Local",
+      "Programs",
+      "Ollama",
+      "ollama app.exe",
+    ),
+    path.join(
+      process.env.ProgramFiles || "C:\\Program Files",
+      "Ollama",
+      "ollama app.exe",
+    ),
+  ];
+  const executable = candidates.find((file) => fs.existsSync(file));
+  if (!executable)
+    throw new Error(
+      "Ollama was not found in its standard install locations. Install or start Ollama, then click Find models. Bluey includes its engine, not model weights.",
+    );
+  // Fixed executable only; the renderer cannot pass a command, path or arguments.
+  await new Promise((resolve, reject) => {
+    const child = spawn(executable, [], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    child.once("error", () =>
+      reject(new Error("Windows could not start Ollama.")),
+    );
+    child.once("spawn", () => {
+      child.unref();
+      resolve();
+    });
+  });
+  return {
+    message: "Ollama launched. Give it a moment, then click Find models.",
+  };
+});
 ipcMain.handle("connection", (event) => {
   if (!ours(event)) throw new Error("Untrusted renderer");
   return { endpoint, token };
@@ -246,6 +314,7 @@ ipcMain.on("overlay-interactive", (event, value) => {
     overlay.setIgnoreMouseEvents(yieldingOverlay || !value, { forward: true });
 });
 app.whenReady().then(() => {
+  if (!ownsInstance) return;
   session.defaultSession.setDisplayMediaRequestHandler(
     async (request, callback) => {
       if (!main || request.frame !== main.webContents.mainFrame) {

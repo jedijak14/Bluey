@@ -41,6 +41,7 @@ import { Avatar } from "./components/FloatingWidget/Avatar";
 import { Playground } from "./components/Playground";
 import { CodeWorkspace } from "./components/AppWindow/CodeWorkspace";
 import { GemmaPreview } from "./components/GemmaPreview";
+import { DesktopHome } from "./components/DesktopHome";
 import { DesktopTools } from "./components/DesktopTools";
 import {
   ResponseCard,
@@ -729,66 +730,88 @@ export default function App() {
   const chat = (
     <div className={`chat-content ${conversation ? "has-conversation" : ""}`}>
       {!conversation ? (
-        <>
-          <div className="welcome">
-            <div className="hello-badge">
-              <span />A little company. A lot of possibility.
-            </div>
-            <div className="hero-character">
-              <div className="hero-halo" />
-              <span className="little-star star-one">✦</span>
-              <span className="little-star star-two">✧</span>
-              <Avatar
-                mood={face.mood}
-                onClick={() => {
-                  setFace({ ...initialFace, mood: "happy" });
-                  setTimeout(() => setFace(initialFace), 2200);
-                }}
-              />
-              <div className="hello-bubble">
-                hey, you <span>✦</span>
+        window.bluey ? (
+          <DesktopHome
+            face={face}
+            connected={status === "connected"}
+            model={settings.model}
+            onSettings={() => setSettingsOpen(true)}
+            onDevices={() => setPage("devices")}
+            onTools={() => setPage("tools")}
+            onListen={() => quiet.toggle()}
+            onSleep={() =>
+              client.send({
+                type: "mood",
+                mood: face.mood === "sleepy" ? "listening" : "sleepy",
+              })
+            }
+            onPrompt={(text) => {
+              setDraft(text);
+              textarea.current?.focus();
+            }}
+          />
+        ) : (
+          <>
+            <div className="welcome">
+              <div className="hello-badge">
+                <span />A little company. A lot of possibility.
               </div>
-              <div className="character-shadow" />
+              <div className="hero-character">
+                <div className="hero-halo" />
+                <span className="little-star star-one">✦</span>
+                <span className="little-star star-two">✧</span>
+                <Avatar
+                  mood={face.mood}
+                  onClick={() => {
+                    setFace({ ...initialFace, mood: "happy" });
+                    setTimeout(() => setFace(initialFace), 2200);
+                  }}
+                />
+                <div className="hello-bubble">
+                  hey, you <span>✦</span>
+                </div>
+                <div className="character-shadow" />
+              </div>
+              <h1>
+                Big ideas. <span>Little companion.</span>
+              </h1>
+              <p>
+                I’m Bluey. Here to think with you, build with you,
+                <br className="desktop-break" /> and make your desktop feel a
+                little more human.
+              </p>
             </div>
-            <h1>
-              Big ideas. <span>Little companion.</span>
-            </h1>
-            <p>
-              I’m Bluey. Here to think with you, build with you,
-              <br className="desktop-break" /> and make your desktop feel a
-              little more human.
-            </p>
-          </div>
-          <div className="suggestions">
-            {quickActions.map((q) => (
+            <div className="suggestions">
+              {quickActions.map((q) => (
+                <button
+                  className="suggestion"
+                  key={q.title}
+                  onClick={() => {
+                    setDraft(q.prompt);
+                    textarea.current?.focus();
+                  }}
+                >
+                  <span className={`suggestion-icon ${q.color}`}>
+                    <q.icon size={19} />
+                  </span>
+                  <strong>{q.title}</strong>
+                  <span>{q.description}</span>
+                  <ArrowRight className="suggestion-arrow" size={15} />
+                </button>
+              ))}
+            </div>
+            <div className="try-label">
+              <span>Or try</span>
               <button
-                className="suggestion"
-                key={q.title}
                 onClick={() => {
-                  setDraft(q.prompt);
-                  textarea.current?.focus();
+                  setPage("companion");
                 }}
               >
-                <span className={`suggestion-icon ${q.color}`}>
-                  <q.icon size={19} />
-                </span>
-                <strong>{q.title}</strong>
-                <span>{q.description}</span>
-                <ArrowRight className="suggestion-arrow" size={15} />
+                meeting your companion <ArrowRight size={12} />
               </button>
-            ))}
-          </div>
-          <div className="try-label">
-            <span>Or try</span>
-            <button
-              onClick={() => {
-                setPage("companion");
-              }}
-            >
-              meeting your companion <ArrowRight size={12} />
-            </button>
-          </div>
-        </>
+            </div>
+          </>
+        )
       ) : (
         <div className="messages">
           {conversation.messages.map((m) => (
@@ -857,7 +880,9 @@ export default function App() {
     </div>
   );
   return (
-    <div className={`app-shell ${!sidebar ? "sidebar-hidden" : ""}`}>
+    <div
+      className={`app-shell ${window.bluey ? "desktop-app" : ""} ${!sidebar ? "sidebar-hidden" : ""}`}
+    >
       <ListeningEdge active={recording || quiet.listening} level={level} />
       {screenContext.sharing && (
         <div className="screen-sharing-banner" role="status">
@@ -900,7 +925,8 @@ export default function App() {
           </span>
         </button>
         <div className="workspace-label">
-          YOUR LITTLE SIDEKICK <span>✦</span>
+          {window.bluey ? "WINDOWS COMPANION" : "YOUR LITTLE SIDEKICK"}{" "}
+          <span>✦</span>
         </div>
         <button className="new-chat" onClick={newChat}>
           <Plus size={17} />
@@ -936,15 +962,17 @@ export default function App() {
             <Zap size={17} />
             Desktop tools
           </button>
-          <button
-            className={page === "gemma" ? "selected" : ""}
-            onClick={() => {
-              location.hash = "gemma";
-            }}
-          >
-            <FlaskConical size={17} />
-            Test AI
-          </button>
+          {!window.bluey && (
+            <button
+              className={page === "gemma" ? "selected" : ""}
+              onClick={() => {
+                location.hash = "gemma";
+              }}
+            >
+              <FlaskConical size={17} />
+              Test AI
+            </button>
+          )}
           <button
             onClick={() => {
               location.hash = "account";
@@ -1089,7 +1117,9 @@ export default function App() {
               <PanelLeftClose size={18} />
             </button>
             <span className="breadcrumb-divider" />
-            <span>Personal workspace</span>
+            <span>
+              {window.bluey ? "Bluey · Windows" : "Personal workspace"}
+            </span>
             <ChevronRight size={13} />
             <strong>
               {page === "chat"
@@ -1458,6 +1488,7 @@ function SettingsDialog({
   const [models, setModels] = useState<string[] | null>(null);
   const [finding, setFinding] = useState(false);
   const [modelError, setModelError] = useState("");
+  const [modelNotice, setModelNotice] = useState("");
   const discovery = useRef<AbortController | null>(null);
   async function discover() {
     discovery.current?.abort();
@@ -1667,6 +1698,69 @@ function SettingsDialog({
             >
               {finding ? "Finding models…" : "Find models"}
             </button>
+            {window.bluey?.startOllama && s.provider === "ollama" && (
+              <button
+                type="button"
+                className="outline-button"
+                disabled={busy || finding}
+                onClick={async () => {
+                  try {
+                    setModelNotice(
+                      (await window.bluey!.startOllama!()).message,
+                    );
+                  } catch (error) {
+                    setModelError(
+                      error instanceof Error ? error.message : String(error),
+                    );
+                  }
+                }}
+              >
+                Start local Ollama
+              </button>
+            )}
+            <button
+              type="button"
+              className="outline-button"
+              disabled={busy || finding || !s.model}
+              onClick={async () => {
+                setBusy(true);
+                setModelError("");
+                setModelNotice(
+                  "Checking a real model reply. A cold model can take several minutes…",
+                );
+                try {
+                  const native = await window.bluey?.connection();
+                  await client.request(
+                    "/api/config/test",
+                    {
+                      provider: s.provider,
+                      model: s.model,
+                      base_url: s.modelUrl,
+                      api_key: key || undefined,
+                    },
+                    "POST",
+                    undefined,
+                    {
+                      endpoint: native?.endpoint ?? s.endpoint,
+                      token: native?.token ?? s.token,
+                    },
+                  );
+                  setModelNotice(
+                    "Model replied successfully. This verifies chat, not desktop-tool support.",
+                  );
+                } catch (error) {
+                  setModelNotice("");
+                  setModelError(
+                    error instanceof Error ? error.message : String(error),
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Verify model reply
+            </button>
+            {modelNotice && <p role="status">{modelNotice}</p>}
             {modelError && <p role="alert">{modelError}</p>}
             {models !== null && (
               <p role="status">

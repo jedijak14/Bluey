@@ -1,3 +1,4 @@
+import { bluetooth } from "./bluetooth";
 import type { Packet } from "./types";
 export class BlueyClient {
   socket?: WebSocket;
@@ -19,6 +20,25 @@ export class BlueyClient {
   }
   onPacket: (p: Packet) => void = () => {};
   onStatus: (s: "connected" | "connecting" | "offline") => void = () => {};
+  connectBluetooth(token: string) {
+    this.disconnect();
+    this.endpoint = "bluetooth:";
+    this.token = token;
+    this.stopped = false;
+    this.onStatus("connecting");
+    bluetooth.onPacket = (p) => {
+      if (p.type === "ready") this.onStatus("connected");
+      this.dispatch(p);
+    };
+    bluetooth.onClose = () => {
+      this.onStatus("offline");
+      this.dispatch({ type: "unpaired" });
+    };
+    void bluetooth.request({ kind: "open", token }).catch((error) => {
+      this.onStatus("offline");
+      this.dispatch({ type: "error", text: String(error) });
+    });
+  }
   connect(endpoint: string, token: string) {
     this.disconnect();
     this.endpoint = endpoint.replace(/\/$/, "");
@@ -63,6 +83,13 @@ export class BlueyClient {
     }
   }
   send(packet: Packet) {
+    if (this.endpoint === "bluetooth:" && !this.stopped) {
+      void bluetooth.send(packet).catch((error) => {
+        this.onStatus("offline");
+        this.dispatch({ type: "error", text: String(error) });
+      });
+      return;
+    }
     if (this.socket?.readyState !== WebSocket.OPEN)
       throw new Error("Connect to your Windows backend first.");
     this.socket.send(JSON.stringify(packet));
@@ -74,7 +101,18 @@ export class BlueyClient {
     signal?: AbortSignal,
     connection?: { endpoint: string; token: string },
   ): Promise<T> {
-    const timeout = path === "/api/config/test" ? 120000 : 30000;
+    if (this.endpoint === "bluetooth:" && !connection)
+      return bluetooth.request<T>(
+        {
+          kind: "request",
+          token: this.token,
+          path,
+          body,
+          method: method ?? (body === undefined ? "GET" : "POST"),
+        },
+        signal,
+      );
+    const timeout = path === "/api/config/test" ? 360000 : 30000;
     const response = await fetch(
       `${connection?.endpoint ?? this.endpoint}${path}`,
       {
@@ -109,6 +147,12 @@ export class BlueyClient {
     }
   }
   disconnect() {
+    if (this.endpoint === "bluetooth:") {
+      bluetooth.onClose = () => {};
+      bluetooth.onPacket = () => {};
+      void bluetooth.disconnect();
+      this.endpoint = "";
+    }
     this.stopped = true;
     clearTimeout(this.retry);
     if (this.socket) {

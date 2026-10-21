@@ -62,7 +62,9 @@ engine_lock = asyncio.Lock()
 @asynccontextmanager
 async def lifespan(_app):
     logger.warning("Bluey backend ready. Desktop token: %s", TOKEN)
+    await bluetooth.restore()
     yield
+    await bluetooth.stop()
     for task in list(tasks.values()):
         task.cancel()
     automation.stopped.set()
@@ -241,6 +243,23 @@ def health():
         "voice": audio.capabilities(),
     }
 
+
+from .bluetooth_transport import BluetoothRelay
+bluetooth = BluetoothRelay(pairing, app)
+
+class BluetoothConfig(BaseModel):
+    port: str = Field(default="", max_length=20)
+
+@app.get("/api/bluetooth", dependencies=[Depends(desktop)])
+def bluetooth_status():
+    return bluetooth.status()
+
+@app.post("/api/bluetooth", dependencies=[Depends(desktop)])
+async def bluetooth_config(config: BluetoothConfig):
+    try:
+        return await bluetooth.configure(config.port)
+    except (OSError, ValueError) as error:
+        raise HTTPException(400, "Could not open the selected incoming Bluetooth port. Check Windows Bluetooth settings.") from error
 
 @app.get("/api/config", dependencies=[Depends(desktop)])
 def model_status():
@@ -817,6 +836,7 @@ def main():
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     LAN = LAN or args.lan
+    bluetooth.port = args.port
     import uvicorn
 
     uvicorn.run(

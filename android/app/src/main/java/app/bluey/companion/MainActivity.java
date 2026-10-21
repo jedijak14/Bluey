@@ -8,7 +8,7 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        if (getPackageName().equals("app.bluey.companion")) registerPlugin(DeviceSpeechPlugin.class);
+        if (getPackageName().equals("app.bluey.companion")) {registerPlugin(DeviceSpeechPlugin.class);registerPlugin(BlueyBluetoothPlugin.class);}
         if (getPackageName().equals("app.bluey.kids")) registerPlugin(FamilyVaultPlugin.class);
         super.onCreate(savedInstanceState);
         if (getPackageName().equals("app.bluey.companion")) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);

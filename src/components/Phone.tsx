@@ -17,6 +17,7 @@ import { QuietSessionPanel } from "./QuietSessionPanel";
 import { useQuietSession } from "../hooks/useQuietSession";
 import { ResponseCard, type CompanionResponse } from "./ResponseCard";
 import { Avatar, FaceScreen } from "./FloatingWidget/Avatar";
+import { Bluetooth, bluetooth } from "../lib/bluetooth";
 import { BlueyClient } from "../lib/client";
 import { DeviceSpeech } from "../lib/deviceSpeech";
 import {
@@ -29,6 +30,11 @@ import type { FaceState, Mood } from "../lib/types";
 const phone = new BlueyClient();
 const nativeSpeech = Capacitor.getPlatform() === "android";
 export function Phone() {
+  const [transport, setTransport] = useState<"wifi" | "bluetooth">("wifi");
+  const [bluetoothDevices, setBluetoothDevices] = useState<
+    { name: string; address: string }[]
+  >([]);
+  const [bluetoothAddress, setBluetoothAddress] = useState("");
   const [paired, setPaired] = useState(false),
     [preview, setPreview] = useState(false),
     [connected, setConnected] = useState(false);
@@ -121,8 +127,30 @@ export function Phone() {
     setPairing(true);
     setError("");
     const controller = new AbortController(),
-      timer = setTimeout(() => controller.abort(), 12000);
+      timer = setTimeout(
+        () => controller.abort(),
+        transport === "bluetooth" ? 40000 : 12000,
+      );
     try {
+      if (transport === "bluetooth") {
+        if (!/^\d{6}$/.test(code))
+          throw new Error("Enter the six-digit code from Windows.");
+        await bluetooth.connect(bluetoothAddress);
+        const data = await bluetooth.request<{ token: string }>(
+          { kind: "pair", code, name: "Android Bluetooth" },
+          controller.signal,
+        );
+        if (!alive.current) {
+          await bluetooth.disconnect();
+          return;
+        }
+        if (!data.token) throw new Error("Invalid Bluetooth pairing response.");
+        phone.connectBluetooth(data.token);
+        setPaired(true);
+        setCode("");
+        setFace((f) => ({ ...f, mood: "listening" }));
+        return;
+      }
       const endpoint = pairingEndpoint(address);
       assertPairingTransport(
         endpoint,
@@ -162,6 +190,7 @@ export function Phone() {
       setCode("");
       setFace((f) => ({ ...f, mood: "listening" }));
     } catch (e) {
+      if (transport === "bluetooth") await bluetooth.disconnect();
       setError(
         e instanceof TypeError || controller.signal.aborted
           ? pairingNetworkError(location.protocol, Capacitor.isNativePlatform())
@@ -215,29 +244,90 @@ export function Phone() {
                   </a>
                 </p>
               )}
+            {nativeSpeech && (
+              <div className="bluetooth-choice">
+                <label>
+                  Connection
+                  <select
+                    aria-label="Connection transport"
+                    value={transport}
+                    onChange={(e) =>
+                      setTransport(e.target.value as "wifi" | "bluetooth")
+                    }
+                  >
+                    <option value="wifi">Wi-Fi</option>
+                    <option value="bluetooth">
+                      Bluetooth · paired Windows PC
+                    </option>
+                  </select>
+                </label>
+                {transport === "bluetooth" && (
+                  <>
+                    <p>
+                      Pair your PC in Android Settings first. In Bluey on
+                      Windows, enable its incoming Bluetooth COM port under
+                      Connected devices. Keep both apps open.
+                    </p>
+                    <button
+                      type="button"
+                      className="outline-button"
+                      onClick={async () => {
+                        try {
+                          setBluetoothDevices(
+                            (await Bluetooth.devices()).devices,
+                          );
+                          setError("");
+                        } catch (e) {
+                          setError(String(e));
+                        }
+                      }}
+                    >
+                      List paired PCs
+                    </button>
+                    <label>
+                      Paired device
+                      <select
+                        aria-label="Bluetooth PC"
+                        value={bluetoothAddress}
+                        onChange={(e) => setBluetoothAddress(e.target.value)}
+                      >
+                        <option value="">Choose your Windows PC</option>
+                        {bluetoothDevices.map((d) => (
+                          <option key={d.address} value={d.address}>
+                            {d.name || d.address}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                )}
+              </div>
+            )}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 void pair();
               }}
             >
-              <label>
-                PC address
-                <input
-                  placeholder={
-                    location.protocol === "https:" &&
-                    !Capacitor.isNativePlatform()
-                      ? "https://your-pc.private-network"
-                      : "192.168.1.10:8765"
-                  }
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  required
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                />
-              </label>
+              {transport === "wifi" && (
+                <label>
+                  PC address
+                  <input
+                    placeholder={
+                      location.protocol === "https:" &&
+                      !Capacitor.isNativePlatform()
+                        ? "https://your-pc.private-network"
+                        : "192.168.1.10:8765"
+                    }
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    required
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                </label>
+              )}
               <label>
                 Pairing code
                 <input
@@ -272,7 +362,7 @@ export function Phone() {
             </button>
             <div className="pairing-privacy">
               <ShieldCheck size={14} />
-              Trusted private Wi-Fi only. No cloud pairing.
+              Private Wi-Fi or OS-paired Bluetooth. No cloud pairing.
             </div>
           </div>
         </div>

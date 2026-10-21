@@ -87,6 +87,7 @@ jobs:
           npm run test:features
           node scripts/cursor-smoke.mjs
           node scripts/model-connection-smoke.mjs
+          node scripts/desktop-ui-smoke.mjs
           npm run test:gemma
           npm run test:mobile-site
           npm run test:family
@@ -177,10 +178,10 @@ jobs:
       - name: Verify signed APK and create download files
         run: |
           mkdir -p release/android
-          cp android/app/build/outputs/apk/debug/app-debug.apk release/android/Bluey-0.5.4-Android.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs release/android/Bluey-0.5.4-Android.apk | tee release/android/APK-verification.txt
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging release/android/Bluey-0.5.4-Android.apk > release/android/APK-manifest.txt
-          (cd release/android && sha256sum Bluey-0.5.4-Android.apk > SHA256SUMS.txt)
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/android/Bluey-0.5.6-Android.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs release/android/Bluey-0.5.6-Android.apk | tee release/android/APK-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging release/android/Bluey-0.5.6-Android.apk > release/android/APK-manifest.txt
+          (cd release/android && sha256sum Bluey-0.5.6-Android.apk > SHA256SUMS.txt)
           cp docs/ANDROID_RELEASE.md release/android/Android-Setup-Instructions.md
       - uses: actions/upload-artifact@v4
         with:
@@ -259,7 +260,7 @@ jobs:
           mkdir -p release/family
           label=Home
           if [ "$BLUEY_VARIANT" = kids ]; then label=Kids; fi
-          apk="release/family/Bluey-$label-0.5.4-Android.apk"
+          apk="release/family/Bluey-$label-0.5.6-Android.apk"
           cp android/app/build/outputs/apk/debug/app-debug.apk "$apk"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | grep "package: name='app.bluey.$BLUEY_VARIANT'"
@@ -298,7 +299,7 @@ jobs:
           python scripts/guardian-setup-check.py
   windows-installer:
     if: "github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[release-android]')"
-    timeout-minutes: 25
+    timeout-minutes: 45
     runs-on: windows-latest
     needs: [test, postgres]
     steps:
@@ -315,6 +316,11 @@ jobs:
           python -m pip install -r backend/requirements-dev.txt
           python -m pytest backend/tests/test_model_connection.py -q
       - run: npm ci
+      - name: Bundle Python engine, desktop tools and local speech runtime
+        run: |
+          python -m pip install -r backend/requirements-native.txt pyinstaller pyserial
+          python scripts/package-engine.py
+          python scripts/engine-bundle-check.py
       - run: npm run package:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -447,4 +453,42 @@ jobs:
             gh release upload "$tag" release/windows/* --clobber
           else
             gh release create "$tag" release/windows/* --target "$GITHUB_SHA" --title "Bluey 0.5.5 — Pick a model, set up once" --prerelease --notes-file docs/RELEASE_0.5.5.md
+          fi
+
+  publish-latest:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/1cef984e-bluey' && contains(github.event.head_commit.message, '[release-latest]')
+    needs: [android-apk, family-apks, windows-installer, family-windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bluey-Windows-executables
+          path: release/latest
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bluey-Android-APK
+          path: release/latest
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Bluey-family-*
+          path: release/latest
+          merge-multiple: true
+      - name: Publish all seven tested Windows and Android downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$(find release/latest -maxdepth 1 -name '*.exe' | wc -l)" -eq 4
+          test "$(find release/latest -maxdepth 1 -name '*.apk' | wc -l)" -eq 3
+          cp docs/RELEASE_LATEST.md release/latest/Setup-Instructions.md
+          (cd release/latest && sha256sum *.exe *.apk > SHA256SUMS.txt)
+          if gh release view Bluey-Latest >/dev/null 2>&1; then
+            test "$(gh release view Bluey-Latest --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA"
+            gh release upload Bluey-Latest release/latest/* --clobber
+          else
+            gh release create Bluey-Latest release/latest/* --target "$GITHUB_SHA" --title "Bluey-Latest" --latest --notes-file docs/RELEASE_LATEST.md
           fi
