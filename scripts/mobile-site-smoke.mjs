@@ -129,7 +129,7 @@ try {
         { exact: true },
       ),
     ).toBeVisible();
-    await page.getByRole("link", { name: "Explore Bluey" }).click();
+    await page.getByRole("link", { name: "Try the Expression Lab" }).click();
     await expect(
       page.getByRole("heading", {
         name: "More personality. Less getting in your way.",
