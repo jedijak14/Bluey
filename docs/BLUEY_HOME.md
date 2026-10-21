@@ -54,8 +54,8 @@ Java 21 + Android SDK 35:
 
 ```sh
 npm ci
-npm run android:home  # release/family/Bluey-Home-0.5.2-Android.apk
-npm run android:kids  # release/family/Bluey-Kids-0.5.2-Android.apk
+npm run android:home  # release/family/Bluey-Home-0.5.3-Android.apk
+npm run android:kids  # release/family/Bluey-Kids-0.5.3-Android.apk
 npm run android:apk   # original companion, separate app ID
 ```
 
