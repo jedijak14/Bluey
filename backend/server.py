@@ -385,6 +385,7 @@ async def approved_action(action: DesktopAction):
     identifier = str(uuid.uuid4())
     future = asyncio.get_running_loop().create_future()
     approvals[identifier] = future
+    cursor_moved = False
     detail = action.model_dump(exclude_defaults=True)
     if action.action in {"read_screen", "screenshot"}:
         detail["privacy"] = (
@@ -409,6 +410,7 @@ async def approved_action(action: DesktopAction):
             0.5
         )  # Let the Windows approval window minimize before UIA reads/clicks.
         if action.x is not None and action.y is not None:
+            cursor_moved = True
             await broadcast({"type": "pointer", "x": action.x, "y": action.y})
             await face("pointing")
             await asyncio.sleep(0.8)
@@ -426,6 +428,8 @@ async def approved_action(action: DesktopAction):
         return result
     finally:
         approvals.pop(identifier, None)
+        if cursor_moved:
+            await broadcast({"type": "home"}, desktop_only=True)
         await broadcast({"type": "approval_resolved", "id": identifier}, desktop_only=True)
 
 
