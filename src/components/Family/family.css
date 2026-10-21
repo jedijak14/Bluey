@@ -69,6 +69,7 @@
 .home-brand img {
   width: 48px;
   height: 48px;
+  flex-shrink: 0;
   border-radius: 12px;
   object-fit: cover;
 }
@@ -999,4 +1000,39 @@
 }
 .bluey-kids .home-brand img {
   border-radius: 9px;
+}
+
+.home-agent-summary {
+  margin: 20px 0;
+  padding: 20px 24px;
+  border: 1px solid #cbdce6;
+  border-radius: 20px;
+  background: #f3f8fb;
+  overflow-wrap: anywhere;
+}
+.home-agent-summary h3 {
+  margin: 0 0 10px;
+  font-size: 17px;
+}
+.home-agent-summary p {
+  line-height: 1.6;
+}
+.home-enrollment code {
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.home-agent-summary summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+@media (max-width: 480px) {
+  .bluey-kids > header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .bluey-kids .home-brand {
+    font-size: 23px;
+  }
 }

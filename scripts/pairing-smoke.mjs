@@ -50,10 +50,10 @@ async function connect(page) {
     .getByRole("button", { name: "Settings & preferences", exact: true })
     .click();
   await page.getByLabel("Backend token").fill("pairing-browser-smoke");
-  await page.getByRole("button", { name: "Save & connect" }).click();
+  await page.getByRole("button", { name: "Save model" }).click();
   await expect(
-    page.getByRole("button", { name: "Engine online" }),
-  ).toBeVisible();
+    page.getByRole("dialog", { name: "Settings and preferences" }),
+  ).toHaveCount(0);
   await page
     .getByRole("button", { name: "Connected devices", exact: true })
     .click();
@@ -245,9 +245,7 @@ try {
   await hosted
     .getByLabel("Backend token", { exact: true })
     .fill("not-sent-anywhere");
-  await hosted
-    .getByRole("button", { name: "Save & connect", exact: true })
-    .click();
+  await hosted.getByRole("button", { name: "Save model", exact: true }).click();
   await expect(
     hosted.getByText("Enter your Windows backend address.", { exact: false }),
   ).toBeVisible();

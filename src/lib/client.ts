@@ -72,20 +72,24 @@ export class BlueyClient {
     body?: unknown,
     method?: string,
     signal?: AbortSignal,
+    connection?: { endpoint: string; token: string },
   ): Promise<T> {
     const timeout = path === "/api/config/test" ? 120000 : 30000;
-    const response = await fetch(`${this.endpoint}${path}`, {
-      method: method ?? (body === undefined ? "GET" : "POST"),
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        "Content-Type": "application/json",
+    const response = await fetch(
+      `${connection?.endpoint ?? this.endpoint}${path}`,
+      {
+        method: method ?? (body === undefined ? "GET" : "POST"),
+        headers: {
+          Authorization: `Bearer ${connection?.token ?? this.token}`,
+          "Content-Type": "application/json",
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(timeout)])
+          : AbortSignal.timeout(timeout),
+        cache: "no-store",
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(timeout)])
-        : AbortSignal.timeout(timeout),
-      cache: "no-store",
-    });
+    );
     if (!response.ok) {
       const error = await response
         .json()

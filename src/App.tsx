@@ -69,6 +69,7 @@ type ModelInfo = {
   provider: Settings["provider"];
   model: string;
   base_url: string;
+  setup_complete?: boolean;
   key_configured: boolean;
   key_storage: string;
   warning?: string;
@@ -116,6 +117,13 @@ export default function App() {
   const modelSyncEpoch = useRef(0);
   const configuring = useRef(false);
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
+  const [setupComplete, setSetupComplete] = useState(() =>
+    load("bluey.setup-complete.v1", false),
+  );
+  const rememberSetup = () => {
+    save("bluey.setup-complete.v1", true);
+    setSetupComplete(true);
+  };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [researchMode, setResearchMode] = useState(false);
   const [report, setReport] = useState<CompanionResponse | null>(null);
@@ -224,6 +232,7 @@ export default function App() {
             if (info.provider !== "ollama" && info.provider !== "openai")
               return;
             setModelInfo(info);
+            if (info.setup_complete) rememberSetup();
             setSettings((s) => ({
               ...s,
               provider: info.provider,
@@ -418,9 +427,11 @@ export default function App() {
     if (!text.trim() || busy) return;
     if (status !== "connected") {
       notify(
-        "Connect your local engine in Settings to start chatting. Nothing has been sent.",
+        setupComplete
+          ? "Bluey is reconnecting automatically. Your draft is kept; try again when the engine is ready."
+          : "Connect your local engine in Settings to start chatting. Nothing has been sent.",
       );
-      setSettingsOpen(true);
+      if (!setupComplete) setSettingsOpen(true);
       return;
     }
     const id = active ?? uid(),
@@ -535,21 +546,32 @@ export default function App() {
         import.meta.env.DEV,
       );
       const token = native?.token ?? s.token;
-      client.connect(endpoint, token);
       const config = {
         provider: s.provider,
         model: s.model,
         base_url: s.modelUrl,
         api_key: key === "" ? undefined : key,
       };
-      await client.request("/api/config/test", config);
-      const info = await client.request<ModelInfo>("/api/config", config);
+      const info = await client.request<ModelInfo>(
+        "/api/config",
+        config,
+        "POST",
+        undefined,
+        { endpoint, token },
+      );
+      if (
+        status !== "connected" ||
+        endpoint !== settings.endpoint ||
+        token !== settings.token
+      )
+        client.connect(endpoint, token);
       setModelInfo(info);
+      rememberSetup();
       setSettings({ ...s, endpoint, token });
       notify(
         info.key_configured && info.key_storage !== "windows_encrypted"
-          ? "Model found and settings saved. This engine keeps keys in memory or environment only; they are not written to disk."
-          : "Model connection tested successfully and settings saved.",
+          ? "Settings saved. This engine keeps keys in memory or environment only; they are not written to disk."
+          : "Setup complete. Bluey will reconnect automatically.",
       );
       setSettingsOpen(false);
     } catch (e) {
@@ -559,6 +581,26 @@ export default function App() {
       configuring.current = false;
       modelSyncEpoch.current++;
     }
+  }
+  async function findModels(s: Settings, key: string, signal: AbortSignal) {
+    const native = await window.bluey?.connection();
+    const endpoint = connectionEndpoint(
+      native?.endpoint ?? s.endpoint,
+      location,
+      Boolean(window.bluey),
+      import.meta.env.DEV,
+    );
+    return client.request<{ models: string[] }>(
+      "/api/models",
+      {
+        provider: s.provider,
+        base_url: s.modelUrl,
+        api_key: key || undefined,
+      },
+      "POST",
+      signal,
+      { endpoint, token: native?.token ?? s.token },
+    );
   }
   function stop() {
     const f = flight.current;
@@ -980,24 +1022,26 @@ export default function App() {
           )}
         </div>
         <div className="sidebar-bottom">
-          <div className="local-card">
-            <span className="local-icon">
-              <ShieldCheck size={18} />
-            </span>
-            <div>
-              <strong>A home for your thoughts</strong>
-              <span>Local-first. Private by design.</span>
+          {!setupComplete && (
+            <div className="local-card">
+              <span className="local-icon">
+                <ShieldCheck size={18} />
+              </span>
+              <div>
+                <strong>A home for your thoughts</strong>
+                <span>Local-first. Private by design.</span>
+              </div>
+              <div className="local-card-detail">
+                <span
+                  className={`status-dot ${status === "connected" ? "green" : ""}`}
+                />
+                {status === "connected"
+                  ? "Local engine connected"
+                  : "Your data stays with you"}
+                <ArrowRight size={12} />
+              </div>
             </div>
-            <div className="local-card-detail">
-              <span
-                className={`status-dot ${status === "connected" ? "green" : ""}`}
-              />
-              {status === "connected"
-                ? "Local engine connected"
-                : "Your data stays with you"}
-              <ArrowRight size={12} />
-            </div>
-          </div>
+          )}
           <button
             className="sidebar-settings"
             onClick={() => setSettingsOpen(true)}
@@ -1062,21 +1106,23 @@ export default function App() {
             </strong>
           </div>
           <div className="top-actions">
-            <button
-              title="Connection settings"
-              className="engine-status"
-              onClick={() => setSettingsOpen(true)}
-            >
-              <span
-                className={`status-dot ${status === "connected" ? "green" : ""}`}
-              />
-              {status === "connected"
-                ? "Engine online"
-                : status === "connecting"
-                  ? "Connecting"
-                  : "Local-first"}
-              <ShieldCheck size={13} />
-            </button>
+            {!setupComplete && (
+              <button
+                title="Connection settings"
+                className="engine-status"
+                onClick={() => setSettingsOpen(true)}
+              >
+                <span
+                  className={`status-dot ${status === "connected" ? "green" : ""}`}
+                />
+                {status === "connected"
+                  ? "Engine online"
+                  : status === "connecting"
+                    ? "Connecting"
+                    : "Local-first"}
+                <ShieldCheck size={13} />
+              </button>
+            )}
             <button
               className="icon-button"
               title="Help & shortcuts"
@@ -1209,9 +1255,11 @@ export default function App() {
             <span
               className={`status-dot ${status === "connected" ? "green" : ""}`}
             />
-            {status === "connected"
-              ? "Connected to your engine"
-              : "Ready when you are"}
+            {setupComplete
+              ? settings.model
+              : status === "connected"
+                ? "Connected to your engine"
+                : "Ready when you are"}
           </span>
           <span>
             <Keyboard size={12} />
@@ -1253,6 +1301,7 @@ export default function App() {
           status={status}
           onClose={() => setSettingsOpen(false)}
           onConnect={connect}
+          onFindModels={findModels}
           onClear={() => {
             setConversations([]);
             setActive(null);
@@ -1368,6 +1417,7 @@ function SettingsDialog({
   status,
   onClose,
   onConnect,
+  onFindModels,
   onClear,
 }: {
   privacy: ScreenContext;
@@ -1377,6 +1427,11 @@ function SettingsDialog({
   status: string;
   onClose: () => void;
   onConnect: (s: Settings, key: string) => Promise<void>;
+  onFindModels: (
+    s: Settings,
+    key: string,
+    signal: AbortSignal,
+  ) => Promise<{ models: string[] }>;
   onClear: () => void;
 }) {
   const [s, updateS] = useState(settings);
@@ -1400,6 +1455,35 @@ function SettingsDialog({
 
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState("engine");
+  const [models, setModels] = useState<string[] | null>(null);
+  const [finding, setFinding] = useState(false);
+  const [modelError, setModelError] = useState("");
+  const discovery = useRef<AbortController | null>(null);
+  async function discover() {
+    discovery.current?.abort();
+    const controller = new AbortController();
+    discovery.current = controller;
+    setFinding(true);
+    setModelError("");
+    try {
+      const result = await onFindModels(s, key, controller.signal);
+      if (controller.signal.aborted) return;
+      setModels(result.models);
+      if (!result.models.includes(s.model)) setS({ ...s, model: "" });
+    } catch (error) {
+      if (!controller.signal.aborted)
+        setModelError(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (!controller.signal.aborted) setFinding(false);
+    }
+  }
+  useEffect(() => {
+    discovery.current?.abort();
+    setModels(null);
+    setFinding(false);
+    setModelError("");
+    return () => discovery.current?.abort();
+  }, [s.provider, s.modelUrl, s.endpoint, s.token, key]);
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <section
@@ -1425,7 +1509,7 @@ function SettingsDialog({
             onClick={() => setTab("engine")}
           >
             <Zap size={15} />
-            Connection & model
+            Model settings
           </button>
           <button
             className={tab === "privacy" ? "active" : ""}
@@ -1521,11 +1605,27 @@ function SettingsDialog({
             <div className="field-row">
               <label>
                 Model
-                <input
+                <select
+                  aria-label="Model"
                   value={s.model}
                   onChange={(e) => setS({ ...s, model: e.target.value })}
                   required
-                />
+                  disabled={finding}
+                >
+                  <option value="">
+                    {finding ? "Finding models…" : "Choose a model"}
+                  </option>
+                  {s.model && !models?.includes(s.model) && (
+                    <option value={s.model}>
+                      {s.model} (current selection)
+                    </option>
+                  )}
+                  {models?.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
                 Model base URL
@@ -1559,12 +1659,27 @@ function SettingsDialog({
                 }
               />
             </label>
+            <button
+              type="button"
+              className="outline-button"
+              disabled={finding || busy}
+              onClick={() => void discover()}
+            >
+              {finding ? "Finding models…" : "Find models"}
+            </button>
+            {modelError && <p role="alert">{modelError}</p>}
+            {models !== null && (
+              <p role="status">
+                {models.length
+                  ? `${models.length} models found. Choose one from the Model dropdown.`
+                  : "No models found on this server. For local Ollama, install a model in Ollama, then click Find models again."}
+              </p>
+            )}
             <p className="tiny muted">
-              Connecting sends a one-token test prompt to your selected model
-              (provider usage may apply). Windows saves provider keys encrypted
-              for your Windows account. Other engine hosts keep keys in memory
-              or server environment only. Keys are never saved in browser
-              storage.
+              Finding models only reads the server's catalog. It does not
+              generate a test prompt or download a model. A public catalog does
+              not verify cloud inference access. Windows saves keys encrypted;
+              keys are never stored in the browser.
             </p>
             {(hasSavedKey || modelInfo?.warning) && (
               <button
@@ -1662,8 +1777,11 @@ function SettingsDialog({
             </div>
             <div className="modal-buttons">
               <span className="tiny muted">Engine: {status}</span>
-              <button className="primary-button" disabled={busy}>
-                {busy ? "Checking model…" : "Save & connect"}
+              <button
+                className="primary-button"
+                disabled={busy || finding || !s.model}
+              >
+                {busy ? "Saving…" : "Save model"}
                 <ArrowRight size={16} />
               </button>
             </div>

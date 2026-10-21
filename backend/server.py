@@ -255,6 +255,15 @@ def forget_model_key():
         raise HTTPException(503, "Could not remove the saved credential. Check file permissions.") from None
 
 
+@app.post("/api/models", dependencies=[Depends(desktop)])
+async def available_models(config: ModelConfig):
+    # model is optional in this request and is not used for discovery.
+    try:
+        return await model.list_models(config)
+    except RuntimeError as error:
+        raise HTTPException(424, str(error)) from None
+
+
 @app.post("/api/config/test", dependencies=[Depends(desktop)])
 async def test_model(config: ModelConfig):
     try:

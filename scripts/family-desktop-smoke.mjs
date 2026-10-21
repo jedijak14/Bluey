@@ -15,6 +15,7 @@ await fs.access(
   ),
 );
 const app = await _electron.launch({ executablePath, timeout: 30000 });
+let stage = "startup";
 try {
   const page = await app.firstWindow();
   await expect(
@@ -44,6 +45,42 @@ try {
       }),
     ).toBe(true);
 
+    // Exercise the packaged vault with real Electron/Windows encryption. Never
+    // overwrite enrollment on a developer's already-enrolled machine.
+    stage = "read empty encrypted vault";
+    expect(await page.evaluate(() => window.blueyFamily.vaultRead())).toEqual({
+      token: "",
+    });
+    const fixtureToken = "A".repeat(43);
+    try {
+      stage = "write encrypted fixture";
+      await page.evaluate(
+        (token) => window.blueyFamily.vaultWrite({ token }),
+        fixtureToken,
+      );
+      expect(await page.evaluate(() => window.blueyFamily.vaultRead())).toEqual(
+        { token: fixtureToken },
+      );
+      stage = "verify encrypted file";
+      // Read the test file from Node, not a dynamic import in Electron's
+      // evaluation VM (which has no dynamic-import callback).
+      const userData = await app.evaluate(({ app }) => app.getPath("userData"));
+      const ciphertext = await fs.readFile(
+        path.join(userData, "kid-enrollment.bin"),
+      );
+      expect(ciphertext.includes(Buffer.from(fixtureToken))).toBe(false);
+      expect(
+        await app.evaluate(({ safeStorage }) =>
+          safeStorage.isEncryptionAvailable(),
+        ),
+      ).toBe(true);
+    } finally {
+      await page.evaluate(() => window.blueyFamily.vaultClear());
+    }
+    expect(await page.evaluate(() => window.blueyFamily.vaultRead())).toEqual({
+      token: "",
+    });
+
     await expect(page.locator(".kids-welcome .avatar")).toBeVisible();
   }
   if (variant === "home") {
@@ -64,6 +101,18 @@ try {
   console.log(
     `${name}: packaged UI, isolated bridge and startup gate passed. No OS enforcement is claimed by this smoke test.`,
   );
+} catch (error) {
+  const message = `Packaged ${variant} smoke failed at ${stage}: ${error instanceof Error ? error.message : String(error)}`;
+  // Action annotations remain readable when runner log storage is unavailable.
+  console.log(
+    "::error::" +
+      message
+        .slice(0, 5000)
+        .replaceAll("%", "%25")
+        .replaceAll("\r", "%0D")
+        .replaceAll("\n", "%0A"),
+  );
+  throw error;
 } finally {
   await app.close();
 }
