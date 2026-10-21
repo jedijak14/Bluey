@@ -403,3 +403,29 @@ jobs:
               --target "$GITHUB_SHA" --title "Bluey 0.5.4 — Reliable Ollama connection preview" \
               --prerelease --notes-file docs/RELEASE_0.5.4.md
           fi
+
+  publish-windows-models:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/d8ea8f13-bluey' && contains(github.event.head_commit.message, '[release-windows]')
+    needs: [windows-installer]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bluey-Windows-executables
+          path: release/windows
+      - name: Publish tested Windows model-picker update independently of Android
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="v0.5.5-preview.1"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA"
+            gh release upload "$tag" release/windows/* --clobber
+          else
+            gh release create "$tag" release/windows/* --target "$GITHUB_SHA" --title "Bluey 0.5.5 — Pick a model, set up once" --prerelease --notes-file docs/RELEASE_0.5.5.md
+          fi

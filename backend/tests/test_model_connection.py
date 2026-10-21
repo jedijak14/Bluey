@@ -144,3 +144,69 @@ def test_forget_key_requires_auth_and_clears_without_inference():
     assert api.delete('/api/config/key').status_code == 401
     assert api.delete('/api/config/key', headers=headers()).json()['key_configured'] is False
     assert server.model.config.api_key == ''
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('url,path', [('http://localhost:11434','/api/tags'),('https://ollama.com','/api/tags'),('https://ollama.com/v1/','/api/tags'),('https://example.com/proxy/api/chat','/proxy/api/tags')])
+async def test_discovery_uses_ollama_catalog_without_model_or_generation(monkeypatch, tmp_path, url, path):
+    requests=[]
+    def handler(request):
+        requests.append(request)
+        assert request.method=='GET' and request.url.path==path
+        return httpx.Response(200,json={'models':[{'name':'gemma3:1b'},{'name':'other:cloud'},{'name':'gemma3:1b'}]})
+    client_with(monkeypatch,handler)
+    model=Model(ModelStore(tmp_path/'config'))
+    before=model.config.model_dump()
+    result=await model.list_models(ModelConfig(base_url=url))
+    assert result['models']==['gemma3:1b','other:cloud']
+    assert result['inference_checked'] is False
+    assert len(requests)==1 and model.config.model_dump()==before
+    assert not model.store.path.exists()
+
+
+@pytest.mark.asyncio
+async def test_discovery_reuses_only_same_endpoint_key(monkeypatch,tmp_path):
+    seen=[]
+    def handler(request):
+        seen.append(request.headers.get('authorization'))
+        return httpx.Response(200,json={'models':[]})
+    client_with(monkeypatch,handler)
+    model=Model(ModelStore(tmp_path/'config',cipher=fake_cipher))
+    model.configure(ModelConfig(base_url='https://ollama.com',api_key='fixture'))
+    assert (await model.list_models(ModelConfig(base_url='https://ollama.com')))['models']==[]
+    await model.list_models(ModelConfig(base_url='https://other.example'))
+    assert seen==['Bearer fixture',None]
+    assert model.config.api_key=='fixture'
+
+
+@pytest.mark.asyncio
+async def test_discovery_openai_and_errors_preserve_config(monkeypatch,tmp_path):
+    code=200
+    def handler(request):
+        assert request.url.path=='/v1/models'
+        return httpx.Response(code,json={'data':[{'id':'custom-model'}]})
+    client_with(monkeypatch,handler)
+    model=Model(ModelStore(tmp_path/'config'))
+    config=ModelConfig(provider='openai',base_url='https://example.com/v1')
+    assert (await model.list_models(config))['models']==['custom-model']
+    code=401
+    with pytest.raises(RuntimeError,match='authentication'): await model.list_models(config)
+    assert not model.setup_complete
+
+
+def test_discovery_route_requires_desktop_but_not_model_name(monkeypatch):
+    async def catalog(config): return {'models':['actual-model'], 'inference_checked':False}
+    monkeypatch.setattr(server.model,'list_models',catalog)
+    api=TestClient(server.app)
+    assert api.post('/api/models',json={}).status_code==401
+    assert api.post('/api/models',headers=headers(),json={'provider':'ollama','base_url':'https://ollama.com'}).json()['models']==['actual-model']
+
+
+def test_setup_completion_survives_restart_without_secret(tmp_path):
+    store=ModelStore(tmp_path/'config',cipher=fake_cipher)
+    assert not Model(store).status()['setup_complete']
+    model=Model(store)
+    model.configure(ModelConfig(model='picked-model'))
+    restored=Model(store)
+    assert restored.status()['setup_complete']
+    assert restored.config.model=='picked-model'

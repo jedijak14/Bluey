@@ -68,8 +68,11 @@ await page.routeWebSocket("**/api/ws", (ws) =>
   }),
 );
 await page.getByLabel("Backend token").fill("test-session-only");
-await page.getByRole("button", { name: "Save & connect" }).click();
-await expect(page.getByRole("button", { name: "Engine online" })).toBeVisible();
+await page.getByRole("button", { name: "Save model" }).click();
+await expect(
+  page.getByRole("dialog", { name: "Settings and preferences" }),
+).toHaveCount(0);
+await expect(page.locator(".engine-status")).toHaveCount(0);
 await page
   .getByRole("textbox", { name: "Message Bluey" })
   .fill("Test the stream");

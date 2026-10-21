@@ -85,6 +85,7 @@ class Model:
         if self.scope(original) != self.scope(candidate) and "api_key" not in env:
             candidate.api_key = None
         self.config = candidate
+        self.setup_complete = bool(saved or env) and not bool(self.startup_warning)
         self.tools_supported = None
 
     @staticmethod
@@ -116,13 +117,14 @@ class Model:
         candidate = self.candidate(config)
         self.store.save(candidate)  # Atomic: a failed write leaves the active config intact.
         self.config = candidate
+        self.setup_complete = True
         self.startup_warning = ""
         self.tools_supported = None
         return self.status()
 
     def status(self):
         return {**self.config.model_dump(exclude={"api_key"}),
-                "key_configured": bool(self.config.api_key),
+                "key_configured": bool(self.config.api_key), "setup_complete": self.setup_complete,
                 "key_storage": "windows_encrypted" if self.store.cipher else "session_or_environment",
                 "warning": self.startup_warning, "tools_supported": self.tools_supported}
 
@@ -138,6 +140,38 @@ class Model:
         if code >= 500:
             return "The model provider is temporarily unavailable. Try again later; your saved key has not been cleared."
         return f"The model provider rejected the request (HTTP {code}). Check model compatibility and the API URL. Your saved key has not been cleared."
+
+    async def list_models(self, config):
+        """Read a catalog only. Never load/download a model or generate a test prompt."""
+        config = self.candidate(config)
+        base = self.base(config)
+        native = config.provider == "ollama"
+        url = base[:-3] + "/api/tags" if native else base + "/models"
+        headers = {"Authorization": f"Bearer {config.api_key}"} if config.api_key else {}
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(15, connect=5), trust_env=False) as client:
+                async with client.stream("GET", url, headers=headers) as response:
+                    if response.status_code >= 300:
+                        raise RuntimeError(await self.endpoint_error(response))
+                    raw = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        raw.extend(chunk)
+                        if len(raw) > 2_000_000:
+                            raise RuntimeError("The model catalog is too large to display.")
+            data = json.loads(raw)
+            items = data.get("models" if native else "data")
+            if not isinstance(items, list): raise ValueError()
+            names = []
+            for item in items:
+                if not isinstance(item, dict): continue
+                name = (item.get("name") or item.get("model")) if native else item.get("id")
+                if isinstance(name, str) and name.strip() and len(name) <= 120 and name not in names:
+                    names.append(name)
+            return {"models": names, "source": "ollama" if native else "openai", "inference_checked": False}
+        except httpx.RequestError:
+            raise RuntimeError("Cannot fetch the model list. Start Ollama on this PC or check the selected server URL and network. Your saved key has not been changed.") from None
+        except (ValueError, TypeError, AttributeError):
+            raise RuntimeError("The selected server did not return a valid model list. Check the provider and base URL.") from None
 
     async def test(self, config):
         config = self.candidate(config)
