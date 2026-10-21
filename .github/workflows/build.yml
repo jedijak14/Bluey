@@ -342,6 +342,14 @@ jobs:
           python scripts/engine-entry.py --self-check 2>&1 | tee -a engine-bundle.log
           python scripts/package-engine.py 2>&1 | tee -a engine-bundle.log
           python scripts/engine-bundle-check.py 2>&1 | tee -a engine-bundle.log
+      - name: Real Ollama inference through the frozen Windows engine
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ollama
+          curl --fail --location --retry 3 https://github.com/ollama/ollama/releases/download/v0.40.7/ollama-windows-amd64.zip -o artifacts/ollama.zip
+          echo "e6527768c53e85ec4596495fb0f035ef07f437b4b591ebc3581684699a4668f4  artifacts/ollama.zip" | sha256sum --check
+          python -m zipfile -e artifacts/ollama.zip artifacts/ollama
+          python scripts/ollama-integration.py "$PWD/artifacts/ollama/ollama.exe" "$PWD/artifacts/engine/BlueyEngine/BlueyEngine.exe"
       - run: npm run package:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -400,7 +408,7 @@ jobs:
           if-no-files-found: error
   publish-preview:
     if: github.event_name == 'push' && github.ref == 'refs/heads/arena/153d286f-bluey' && contains(github.event.head_commit.message, '[release-preview]')
-    needs: [android-apk, family-apks, windows-installer, family-windows, ollama-check]
+    needs: [android-apk, family-apks, windows-installer, family-windows, ollama-check, guardian-check]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -478,7 +486,7 @@ jobs:
 
   publish-latest:
     if: github.event_name == 'push' && github.ref == 'refs/heads/arena/1cef984e-bluey' && contains(github.event.head_commit.message, '[release-latest]')
-    needs: [android-apk, family-apks, windows-installer, family-windows, ollama-check]
+    needs: [android-apk, family-apks, windows-installer, family-windows, ollama-check, guardian-check]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

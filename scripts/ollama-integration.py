@@ -1,4 +1,5 @@
 """Real CPU Ollama + real Bluey HTTP/WS (no fixtures, no desktop actions).
+Optional second argument runs a frozen Bluey engine instead of system Python.
 The small CI-only model is NOT a replacement for the separate Gemma preview.
 """
 import asyncio
@@ -50,7 +51,8 @@ with tempfile.TemporaryDirectory() as folder:
             provider=subprocess.Popen([sys.argv[1],'serve'],env=env,stdout=provider_log,stderr=provider_log);processes.append(provider)
             ready('http://127.0.0.1:11435/api/tags',provider)
             subprocess.run([sys.argv[1],'pull','smollm2:135m'],env=env,check=True,timeout=480)
-            engine=subprocess.Popen([sys.executable,'-m','backend.server','--port','18771'],env=env,stdout=engine_log,stderr=engine_log);processes.append(engine)
+            engine_command = [sys.argv[2]] if len(sys.argv) > 2 else [sys.executable, '-m', 'backend.server']
+            engine=subprocess.Popen([*engine_command,'--port','18771'],env=env,stdout=engine_log,stderr=engine_log);processes.append(engine)
             ready('http://127.0.0.1:18771/api/health',engine)
             with httpx.Client(base_url='http://127.0.0.1:18771',headers={'Authorization':'Bearer '+token},timeout=360,trust_env=False) as api:
                 config={'provider':'ollama','base_url':'http://127.0.0.1:11435','model':'smollm2:135m'}
