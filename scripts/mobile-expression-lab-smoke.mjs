@@ -13,6 +13,27 @@ const browser = await chromium.launch({
   ),
   headless: true,
 });
+// CSS pauses have a pending compositor task. Await its completion before taking
+// the baseline, then assert both frozen timeline time and subpixel-stable output.
+const settlePause = (stage) =>
+  stage.evaluate(async (el) => {
+    await Promise.all(
+      el.getAnimations({ subtree: true }).map((animation) => animation.ready),
+    );
+    return el.getAnimations({ subtree: true }).map((animation) => ({
+      time: animation.currentTime,
+      state: animation.playState,
+      pending: animation.pending,
+    }));
+  });
+function expectSameFrame(actual, expected) {
+  const numbers = (value) =>
+    (value.match(/[-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?/gi) || []).map(Number);
+  const a = numbers(actual),
+    b = numbers(expected);
+  expect(a.length).toBe(b.length);
+  a.forEach((value, index) => expect(value).toBeCloseTo(b[index], 3));
+}
 const userAgent =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Version/17.4 Mobile/15E148 Safari/604.1";
 try {
@@ -102,9 +123,15 @@ try {
     ),
   ).toBe(true);
   const poweredKey = stage.locator(".lab-powered-key").first();
+  const frozenClock = await settlePause(stage);
+  expect(frozenClock.length).toBeGreaterThan(0);
+  expect(frozenClock.every((a) => a.state === "paused" && !a.pending)).toBe(
+    true,
+  );
   const frozen = await sample(poweredKey);
   await page.waitForTimeout(350);
-  expect(await sample(poweredKey)).toBe(frozen);
+  expectSameFrame(await sample(poweredKey), frozen);
+  expect(await settlePause(stage)).toEqual(frozenClock);
   await page.getByRole("button", { name: "Resume scene" }).click();
   await expect.poll(() => sample(poweredKey)).not.toBe(frozen);
   const previousScene = await stage.locator(".lab-scene").elementHandle();
@@ -142,9 +169,11 @@ try {
     "PAID PLAN PREVIEW · COMING SOON",
   );
   await page.getByRole("button", { name: "Pause scene", exact: true }).click();
+  const superClock = await settlePause(stage);
   const superFrame = await sample(cape);
   await page.waitForTimeout(250);
-  expect(await sample(cape)).toBe(superFrame);
+  expectSameFrame(await sample(cape), superFrame);
+  expect(await settlePause(stage)).toEqual(superClock);
   expect(
     await stage.evaluate((el) =>
       el
