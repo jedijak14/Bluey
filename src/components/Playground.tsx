@@ -1,5 +1,12 @@
-import { useState } from "react";
-import { Check, MousePointer2, RotateCcw, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Check,
+  MousePointer2,
+  RotateCcw,
+  Sparkles,
+  Play,
+  Pause,
+} from "lucide-react";
 import { Avatar, CursorAvatar } from "./FloatingWidget/Avatar";
 import type { Mood, Settings } from "../lib/types";
 const moods: { id: Mood; label: string; description: string }[] = [
@@ -49,6 +56,38 @@ export function Playground({
   onMood: (m: Mood) => void;
 }) {
   const [mood, setMood] = useState<Mood>("listening");
+  const [reducedMotion, setReducedMotion] = useState(
+    () =>
+      typeof matchMedia !== "undefined" &&
+      matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+  const [playing, setPlaying] = useState(true);
+  const [replay, setReplay] = useState(0);
+  const cursorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const media = matchMedia("(prefers-reduced-motion: reduce)");
+    const changed = () => setReducedMotion(media.matches);
+    media.addEventListener("change", changed);
+    return () => media.removeEventListener("change", changed);
+  }, []);
+  useEffect(() => {
+    if (!playing || reducedMotion) return;
+    const timer = setInterval(() => {
+      if (!document.hidden)
+        setMood(
+          (current) =>
+            moods[(moods.findIndex((m) => m.id === current) + 1) % moods.length]
+              .id,
+        );
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [playing, reducedMotion]);
+  useEffect(
+    () => () => {
+      if (cursorTimer.current) clearTimeout(cursorTimer.current);
+    },
+    [],
+  );
   const [point, setPoint] = useState<{ x: number; y: number } | null>(null);
   const [cursorMood, setCursorMood] = useState<Mood>("listening");
   return (
@@ -67,7 +106,38 @@ export function Playground({
             <span className="status-dot green" />
             Meet Bluey<span>LIVE PREVIEW</span>
           </div>
-          <Avatar mood={mood} />
+          <Avatar key={`${mood}-${replay}`} mood={mood} />
+          <div className="expression-controls">
+            <button
+              onClick={() => setPlaying(!playing)}
+              disabled={reducedMotion}
+              aria-label={
+                playing && !reducedMotion
+                  ? "Pause expressions"
+                  : "Play expressions"
+              }
+            >
+              {playing && !reducedMotion ? (
+                <Pause size={14} />
+              ) : (
+                <Play size={14} />
+              )}
+              {playing && !reducedMotion ? "Pause tour" : "Play tour"}
+            </button>
+            <button
+              disabled={reducedMotion}
+              onClick={() => setReplay((value) => value + 1)}
+            >
+              <RotateCcw size={14} /> Replay expression
+            </button>
+          </div>
+          <p className="expression-status">
+            {reducedMotion
+              ? "Reduced motion is on. Choose an expression below."
+              : playing
+                ? "A silent tour of all seven expressions"
+                : "Tour paused · the selected expression stays animated"}
+          </p>
           <div className="face-caption">
             <h2>{moods.find((m) => m.id === mood)?.label}</h2>
             <p>{moods.find((m) => m.id === mood)?.description}</p>
@@ -77,7 +147,10 @@ export function Playground({
               <button
                 key={m.id}
                 className={mood === m.id ? "active" : ""}
+                aria-pressed={mood === m.id}
                 onClick={() => {
+                  setPlaying(false);
+                  setReplay((value) => value + 1);
                   setMood(m.id);
                   onMood(m.id);
                 }}
@@ -106,7 +179,11 @@ export function Playground({
                 y: ((e.clientY - r.y) / r.height) * 100,
               });
               setCursorMood("pointing");
-              setTimeout(() => setCursorMood("listening"), 1200);
+              if (cursorTimer.current) clearTimeout(cursorTimer.current);
+              cursorTimer.current = setTimeout(
+                () => setCursorMood("listening"),
+                1200,
+              );
             }}
           >
             {settings.trail === "string" && point && (
@@ -198,6 +275,9 @@ export function Playground({
         </span>
         <button
           onClick={() => {
+            setPlaying(true);
+            setReplay((value) => value + 1);
+            if (cursorTimer.current) clearTimeout(cursorTimer.current);
             setMood("listening");
             onMood("listening");
             setPoint(null);

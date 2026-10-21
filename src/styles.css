@@ -3747,8 +3747,7 @@ label > input::placeholder {
     transform: none;
   }
 }
-.expression-wink .eye,
-.expression-sad .eye {
+.expression-wink .eye {
   animation: none;
 }
 .mobile-site {
@@ -4709,4 +4708,145 @@ label > input::placeholder {
 }
 .overlay-caption {
   overflow: visible;
+}
+
+/* Expression showcase: deliberate, visible gestures rather than seven near-static poses.
+   Keep thinking upright, the pointer parked, and reduced-motion preferences intact. */
+.expression-controls {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 0;
+}
+.expression-controls button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 13px;
+  border: 1px solid #a99bc543;
+  border-radius: 20px;
+  background: #a99bc514;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.expression-controls button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.expression-controls button:focus-visible {
+  outline: 2px solid #a4b4ff;
+  outline-offset: 3px;
+}
+.expression-status {
+  color: #aaa2b8;
+  font-size: 11px;
+  text-align: center;
+  margin: 10px 12px 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .face-preview .mood-listening .berry-body {
+    animation: attentive-breathe 3.2s ease-in-out infinite;
+  }
+  .face-preview .mood-happy .berry-body {
+    animation: happy-hop 1.8s ease-in-out infinite;
+  }
+  .face-preview .mood-pointing .berry-body {
+    animation: confident-nod 2.4s ease-in-out infinite;
+  }
+  .face-preview .mood-sleepy .berry-body {
+    animation: sleepy-settle 4s ease-in-out infinite;
+  }
+  .face-preview .mood-sleepy .eye {
+    animation: drowsy-blink 4s ease-in-out infinite;
+  }
+  .face-preview .mood-thinking .eyebrow {
+    animation: curious-brow 2.4s ease-in-out infinite;
+  }
+  .face-preview .mood-resting .berry-body {
+    animation: attentive-breathe 5s ease-in-out infinite;
+  }
+  .cursor-stage .pointer-body {
+    transform-box: view-box;
+    transform-origin: 50px 95px;
+  }
+  .cursor-stage .mood-pointing .pointer-body {
+    animation: pointer-nod 0.65s ease-in-out 2;
+  }
+}
+@keyframes attentive-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-6px) scale(1.015, 1.025);
+  }
+}
+@keyframes happy-hop {
+  0%,
+  65%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  15% {
+    transform: translateY(2px) scale(1.035, 0.96);
+  }
+  35% {
+    transform: translateY(-14px) scale(0.98, 1.035);
+  }
+  50% {
+    transform: translateY(0) scale(1.025, 0.98);
+  }
+}
+@keyframes confident-nod {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  20% {
+    transform: translateY(5px) scale(1.02, 0.97);
+  }
+  40% {
+    transform: translateY(-4px) scale(0.99, 1.02);
+  }
+}
+@keyframes sleepy-settle {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  55% {
+    transform: translateY(6px) scale(1.025, 0.97);
+  }
+}
+@keyframes drowsy-blink {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  45%,
+  60% {
+    transform: scaleY(0.15);
+  }
+}
+@keyframes curious-brow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  45% {
+    transform: translateY(-5px);
+  }
+}
+@keyframes pointer-nod {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.08, 0.92);
+  }
 }

@@ -282,7 +282,7 @@ export function CursorAvatar({
   return (
     <svg
       viewBox="-20 -20 140 140"
-      className={`cursor-avatar ${className}`}
+      className={`cursor-avatar mood-${mood} ${className}`}
       aria-label={`Bluey's pointer is ${mood}`}
       role="img"
     >
@@ -294,56 +294,58 @@ export function CursorAvatar({
           <stop offset="1" stopColor="#2b2f8f" />
         </linearGradient>
       </defs>
-      <g transform="rotate(17 48 48)">
-        <path
-          d="M7 2H48A46 46 0 1 1 2 48V7Q2 2 7 2Z"
-          fill={`url(#${id})`}
-          stroke="white"
-          strokeWidth="3.5"
-        />
-        {[42, 66].map((cx) => (
-          <g
-            className="eye"
-            key={cx}
-            style={{ transformOrigin: `${cx}px 52px` }}
-          >
-            {mood === "resting" || mood === "happy" ? (
-              <path
-                d={`M${cx - 7} 53q7 ${mood === "happy" ? -9 : 6} 14 0`}
-                fill="none"
-                stroke="#17151f"
-                strokeWidth="4"
-                strokeLinecap="round"
-              />
-            ) : (
-              <>
-                <ellipse
-                  cx={cx}
-                  cy="52"
-                  rx="9"
-                  ry={mood === "sleepy" ? 5 : 10}
-                  fill="white"
-                />
-                <circle
-                  cx={cx + (mood === "pointing" ? 3 : -2)}
-                  cy={mood === "thinking" ? 48 : 50}
-                  r="4.8"
-                  fill="#17151f"
-                />
-              </>
-            )}
-          </g>
-        ))}
-        {mood === "pointing" && (
+      <g className="pointer-body">
+        <g transform="rotate(17 48 48)">
           <path
-            className="confident-smile"
-            d="M47 72q8 9 16 0"
-            fill="none"
-            stroke="#17151f"
-            strokeWidth="3"
-            strokeLinecap="round"
+            d="M7 2H48A46 46 0 1 1 2 48V7Q2 2 7 2Z"
+            fill={`url(#${id})`}
+            stroke="white"
+            strokeWidth="3.5"
           />
-        )}
+          {[42, 66].map((cx) => (
+            <g
+              className="eye"
+              key={cx}
+              style={{ transformOrigin: `${cx}px 52px` }}
+            >
+              {mood === "resting" || mood === "happy" ? (
+                <path
+                  d={`M${cx - 7} 53q7 ${mood === "happy" ? -9 : 6} 14 0`}
+                  fill="none"
+                  stroke="#17151f"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                />
+              ) : (
+                <>
+                  <ellipse
+                    cx={cx}
+                    cy="52"
+                    rx="9"
+                    ry={mood === "sleepy" ? 5 : 10}
+                    fill="white"
+                  />
+                  <circle
+                    cx={cx + (mood === "pointing" ? 3 : -2)}
+                    cy={mood === "thinking" ? 48 : 50}
+                    r="4.8"
+                    fill="#17151f"
+                  />
+                </>
+              )}
+            </g>
+          ))}
+          {mood === "pointing" && (
+            <path
+              className="confident-smile"
+              d="M47 72q8 9 16 0"
+              fill="none"
+              stroke="#17151f"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+          )}
+        </g>
       </g>
     </svg>
   );
