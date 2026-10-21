@@ -100,15 +100,27 @@ jobs:
           vite_pid=$!
           trap 'kill "$vite_pid" || true' EXIT
           npx wait-on --timeout 30000 http://127.0.0.1:5173
-          npm run test:ui
-          npm run test:device-speech
-          npm run test:features
-          node scripts/cursor-smoke.mjs
-          node scripts/model-connection-smoke.mjs
-          node scripts/desktop-ui-smoke.mjs
-          npm run test:gemma
-          npm run test:mobile-site
-          npm run test:family
+          {
+            npm run test:ui
+            npm run test:device-speech
+            npm run test:features
+            node scripts/cursor-smoke.mjs
+            node scripts/model-connection-smoke.mjs
+            node scripts/desktop-ui-smoke.mjs
+            npm run test:gemma
+            npm run test:mobile-site
+            npm run test:family
+          } 2>&1 | tee artifacts/browser-regressions.log
+      - name: Expose bounded browser failures
+        if: failure()
+        run: |
+          python - <<'PYCODE'
+          from pathlib import Path
+          path = Path('artifacts/browser-regressions.log')
+          if path.exists():
+              text = path.read_text(errors='replace')[-6000:]
+              print('::error::'+text.replace('%','%25').replace('\r','%0D').replace('\n','%0A'))
+          PYCODE
       - name: Gemma UI and device gate in production build
         run: |
           set -euo pipefail

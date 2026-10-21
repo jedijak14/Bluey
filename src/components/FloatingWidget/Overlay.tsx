@@ -242,11 +242,12 @@ export function Overlay() {
       );
       lastTime = time;
       const oldX = p.x;
+      // Do not calculate an artificial end timestamp for reduced motion:
+      // floating-point rounding can leave sampleFlight just short of done forever.
       const sample = flight
-        ? sampleFlight(
-            flight,
-            reduced.matches ? flight.start + flight.duration : time,
-          )
+        ? reduced.matches
+          ? { ...flight.to, done: true }
+          : sampleFlight(flight, time)
         : { ...p, done: true };
       const bounded = clampCursor(
         sample,

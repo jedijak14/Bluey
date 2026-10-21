@@ -174,6 +174,27 @@ try {
     "data-state",
     "docked",
   );
+  // Exercise several fractional flight lengths under reduced motion. A computed
+  // end timestamp used to round just short of completion and leave the body out.
+  for (const [x, y] of [
+    [201, 101],
+    [489, 211],
+    [806, 417],
+    [121, 730],
+  ]) {
+    socket.send(JSON.stringify({ type: "pointer", x, y }));
+    await expect(page.locator(".overlay-cursor")).toHaveAttribute(
+      "data-state",
+      "pointing",
+    );
+    await expect.poll(position).not.toEqual({ x: 390, y: 532 });
+    await page.getByTitle("Return cursor home").click({ force: true });
+    await expect(page.locator(".overlay-cursor")).toHaveAttribute(
+      "data-state",
+      "docked",
+    );
+    await expect.poll(position).toEqual({ x: 390, y: 532 });
+  }
   const emit = (packet) => socket.send(JSON.stringify(packet));
   emit({ type: "research_state", request: "report-1", state: "waiting" });
   await expect(
@@ -258,7 +279,7 @@ try {
   await page.getByTitle("Close research").click();
   expect(errors).toEqual([]);
   console.log(
-    "Docked idle, ignored mouse motion, smooth explicit flight, upright captions, sticky Home, work area, resize, size and reduced-motion checks passed.",
+    "Docked idle, ignored mouse motion, smooth explicit flight, upright captions, sticky Home, work area, resize, size, reduced-motion return and persistent research card checks passed.",
   );
 } finally {
   await browser.close();
