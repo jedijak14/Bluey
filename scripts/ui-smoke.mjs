@@ -37,6 +37,9 @@ await expect(
 ).toBeVisible();
 // A deterministic transport fixture tests actual UI streaming and persistence,
 // not a fake runtime model bundled into the application.
+await page.route("**/api/config/test", (route) =>
+  route.fulfill({ json: { inference_checked: true } }),
+);
 await page.route("**/api/config", (route) =>
   route.fulfill({ json: { saved: true } }),
 );

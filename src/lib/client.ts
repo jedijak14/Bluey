@@ -73,6 +73,7 @@ export class BlueyClient {
     method?: string,
     signal?: AbortSignal,
   ): Promise<T> {
+    const timeout = path === "/api/config/test" ? 120000 : 30000;
     const response = await fetch(`${this.endpoint}${path}`, {
       method: method ?? (body === undefined ? "GET" : "POST"),
       headers: {
@@ -81,8 +82,8 @@ export class BlueyClient {
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(30000)])
-        : AbortSignal.timeout(30000),
+        ? AbortSignal.any([signal, AbortSignal.timeout(timeout)])
+        : AbortSignal.timeout(timeout),
       cache: "no-store",
     });
     if (!response.ok) {

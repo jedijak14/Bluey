@@ -36,6 +36,10 @@ const makePage = async (options = {}) => {
       console.log(id, message.type(), message.text()),
     );
   }
+  // Model inference is separately tested; pairing must not require an installed model.
+  await page.route("**/api/config/test", (route) =>
+    route.fulfill({ json: { inference_checked: true } }),
+  );
   page.on("pageerror", (e) => errors.push(e.message));
   return page;
 };

@@ -242,12 +242,33 @@ def health():
     }
 
 
+@app.get("/api/config", dependencies=[Depends(desktop)])
+def model_status():
+    return model.status()
+
+
+@app.delete("/api/config/key", dependencies=[Depends(desktop)])
+def forget_model_key():
+    try:
+        return model.configure(model.config.model_copy(update={"api_key": ""}))
+    except OSError:
+        raise HTTPException(503, "Could not remove the saved credential. Check file permissions.") from None
+
+
+@app.post("/api/config/test", dependencies=[Depends(desktop)])
+async def test_model(config: ModelConfig):
+    try:
+        return await model.test(config)
+    except RuntimeError as error:
+        raise HTTPException(424, str(error)) from None
+
+
 @app.post("/api/config", dependencies=[Depends(desktop)])
 def configure(config: ModelConfig):
-    if config.api_key is None:
-        config.api_key = model.config.api_key
-    model.config = config
-    return {"saved": True, "provider": config.provider, "model": config.model}
+    try:
+        return {"saved": True, **model.configure(config)}
+    except OSError:
+        raise HTTPException(503, "Could not securely save model settings. The previous configuration is unchanged. Check file permissions and Windows credential access.") from None
 
 
 @app.post("/api/pair/create", dependencies=[Depends(desktop)])

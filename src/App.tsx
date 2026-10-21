@@ -65,6 +65,14 @@ const defaults: Settings = {
   cursorSize: 72,
   glow: true,
 };
+type ModelInfo = {
+  provider: Settings["provider"];
+  model: string;
+  base_url: string;
+  key_configured: boolean;
+  key_storage: string;
+  warning?: string;
+};
 const initialFace: FaceState = {
   mood: "listening",
   gazeX: 0,
@@ -105,6 +113,9 @@ export default function App() {
     ...load("bluey.settings", {}),
     token: "",
   }));
+  const modelSyncEpoch = useRef(0);
+  const configuring = useRef(false);
+  const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [researchMode, setResearchMode] = useState(false);
   const [report, setReport] = useState<CompanionResponse | null>(null);
@@ -204,6 +215,24 @@ export default function App() {
       });
     };
     client.onStatus = (state) => {
+      if (state === "connected" && !configuring.current) {
+        const epoch = modelSyncEpoch.current;
+        void client
+          .request<ModelInfo>("/api/config")
+          .then((info) => {
+            if (epoch !== modelSyncEpoch.current) return;
+            if (info.provider !== "ollama" && info.provider !== "openai")
+              return;
+            setModelInfo(info);
+            setSettings((s) => ({
+              ...s,
+              provider: info.provider,
+              model: info.model,
+              modelUrl: info.base_url,
+            }));
+          })
+          .catch(() => {});
+      }
       setStatus(state);
       if (state === "offline") window.bluey?.window("resume-overlay");
     };
@@ -494,27 +523,41 @@ export default function App() {
   }, [quiet.active]);
   micAction.current = () => void toggleMic();
   async function connect(s: Settings, key: string) {
+    configuring.current = true;
+    modelSyncEpoch.current++;
     try {
+      // Native engine credentials are supplied by Electron, never typed by the user.
+      const native = await window.bluey?.connection();
       const endpoint = connectionEndpoint(
-        s.endpoint,
+        native?.endpoint ?? s.endpoint,
         location,
         Boolean(window.bluey),
         import.meta.env.DEV,
       );
-      client.connect(endpoint, s.token);
-      await client.request("/api/config", {
+      const token = native?.token ?? s.token;
+      client.connect(endpoint, token);
+      const config = {
         provider: s.provider,
         model: s.model,
         base_url: s.modelUrl,
-        api_key: key || undefined,
-      });
-      setSettings({ ...s, endpoint });
-      notify("Model configuration saved for this backend session.");
+        api_key: key === "" ? undefined : key,
+      };
+      await client.request("/api/config/test", config);
+      const info = await client.request<ModelInfo>("/api/config", config);
+      setModelInfo(info);
+      setSettings({ ...s, endpoint, token });
+      notify(
+        info.key_configured && info.key_storage !== "windows_encrypted"
+          ? "Model found and settings saved. This engine keeps keys in memory or environment only; they are not written to disk."
+          : "Model connection tested successfully and settings saved.",
+      );
       setSettingsOpen(false);
     } catch (e) {
-      client.disconnect();
-      setStatus("offline");
-      notify(String(e));
+      // Model failures must not disconnect a healthy engine or erase a working key.
+      throw new Error(e instanceof Error ? e.message : String(e));
+    } finally {
+      configuring.current = false;
+      modelSyncEpoch.current++;
     }
   }
   function stop() {
@@ -1195,6 +1238,18 @@ export default function App() {
         <SettingsDialog
           privacy={screenContext}
           settings={settings}
+          modelInfo={modelInfo}
+          onForgetKey={async () => {
+            const info = await client.request<ModelInfo>(
+              "/api/config/key",
+              undefined,
+              "DELETE",
+            );
+            setModelInfo(info);
+            notify(
+              "Saved key removed. If you set BLUEY_API_KEY in the host environment, remove it there too to prevent it returning after restart.",
+            );
+          }}
           status={status}
           onClose={() => setSettingsOpen(false)}
           onConnect={connect}
@@ -1308,6 +1363,8 @@ export default function App() {
 function SettingsDialog({
   privacy,
   settings,
+  modelInfo,
+  onForgetKey,
   status,
   onClose,
   onConnect,
@@ -1315,15 +1372,32 @@ function SettingsDialog({
 }: {
   privacy: ScreenContext;
   settings: Settings;
+  modelInfo: ModelInfo | null;
+  onForgetKey: () => Promise<void>;
   status: string;
   onClose: () => void;
   onConnect: (s: Settings, key: string) => Promise<void>;
   onClear: () => void;
 }) {
-  const [s, setS] = useState(settings);
+  const [s, updateS] = useState(settings);
+  const edited = useRef(false);
+  const setS = (next: Settings) => {
+    edited.current = true;
+    updateS(next);
+  };
+  useEffect(() => {
+    if (!edited.current) updateS(settings);
+  }, [settings]);
   const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
   const [micNotice, setMicNotice] = useState("");
   const [key, setKey] = useState("");
+  const [connectError, setConnectError] = useState("");
+  const sameCredential =
+    modelInfo?.provider === s.provider &&
+    modelInfo?.base_url.replace(/\/$/, "") ===
+      s.modelUrl.trim().replace(/\/$/, "");
+  const hasSavedKey = sameCredential && modelInfo?.key_configured;
+
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState("engine");
   return (
@@ -1366,56 +1440,81 @@ function SettingsDialog({
             onSubmit={async (e) => {
               e.preventDefault();
               setBusy(true);
-              await onConnect(s, key);
-              setBusy(false);
+              setConnectError("");
+              try {
+                await onConnect(s, key);
+              } catch (error) {
+                setConnectError(
+                  error instanceof Error ? error.message : String(error),
+                );
+              } finally {
+                setBusy(false);
+              }
             }}
           >
             <p className="connection-guidance">
-              Hosted browser: use a trusted HTTPS/WSS endpoint to your Windows
-              PC, with this site’s origin explicitly allowed by the engine. A
-              blank address is only for the local development proxy.{" "}
+              {window.bluey
+                ? "Your Windows engine address and token are supplied automatically. Local Ollama needs no API key. Ollama Cloud uses its own provider key. "
+                : "This web workspace needs a trusted HTTPS connection to your Windows engine for desktop actions. The engine token is not an Ollama API key. "}
               <a href="/pairing-guide.html" target="_blank" rel="noreferrer">
                 Connection guide
               </a>
             </p>
-            <div className="field-row">
-              <label>
-                Backend address
-                <input
-                  value={s.endpoint}
-                  onChange={(e) => setS({ ...s, endpoint: e.target.value })}
-                  placeholder="https://your-pc.private-network"
-                />
-              </label>
-              <label>
-                Backend token
-                <input
-                  type="password"
-                  value={s.token}
-                  onChange={(e) => setS({ ...s, token: e.target.value })}
-                  placeholder="From the backend startup log"
-                  required
-                />
-              </label>
-            </div>
+            {!window.bluey && (
+              <div className="field-row">
+                <label>
+                  Backend address
+                  <input
+                    value={s.endpoint}
+                    onChange={(e) => setS({ ...s, endpoint: e.target.value })}
+                    placeholder="https://your-pc.private-network"
+                  />
+                </label>
+                <label>
+                  Backend token
+                  <input
+                    type="password"
+                    value={s.token}
+                    onChange={(e) => setS({ ...s, token: e.target.value })}
+                    placeholder="From the backend startup log"
+                    required
+                  />
+                </label>
+              </div>
+            )}
             <label>
               Model provider
               <select
-                value={s.provider}
-                onChange={(e) =>
+                value={
+                  s.provider === "ollama" &&
+                  /^https:\/\/ollama\.com(?:\/|$)/i.test(s.modelUrl)
+                    ? "ollama-cloud"
+                    : s.provider
+                }
+                onChange={(e) => {
+                  const cloud = e.target.value === "ollama-cloud";
+                  setKey("");
+                  setConnectError("");
                   setS({
                     ...s,
-                    provider: e.target.value as Settings["provider"],
-                    modelUrl:
-                      e.target.value === "ollama"
+                    provider: cloud
+                      ? "ollama"
+                      : (e.target.value as Settings["provider"]),
+                    modelUrl: cloud
+                      ? "https://ollama.com"
+                      : e.target.value === "ollama"
                         ? "http://127.0.0.1:11434"
                         : "https://api.openai.com/v1",
-                    model:
-                      e.target.value === "ollama" ? "llama3.2" : "gpt-4o-mini",
-                  })
-                }
+                    model: cloud
+                      ? ""
+                      : e.target.value === "ollama"
+                        ? "llama3.2"
+                        : "gpt-4o-mini",
+                  });
+                }}
               >
                 <option value="ollama">Ollama · on your machine</option>
+                <option value="ollama-cloud">Ollama Cloud · your key</option>
                 <option value="openai">OpenAI-compatible API · your key</option>
               </select>
             </label>
@@ -1433,23 +1532,68 @@ function SettingsDialog({
                 <input
                   type="url"
                   value={s.modelUrl}
-                  onChange={(e) => setS({ ...s, modelUrl: e.target.value })}
+                  onChange={(e) => {
+                    setKey("");
+                    setS({ ...s, modelUrl: e.target.value });
+                  }}
                   required
                 />
               </label>
             </div>
-            {s.provider === "openai" && (
-              <label>
-                API key{" "}
-                <span className="muted">(kept only in backend memory)</span>
-                <input
-                  type="password"
-                  autoComplete="off"
-                  value={key}
-                  onChange={(e) => setKey(e.target.value)}
-                  placeholder="Leave blank to retain the existing key"
-                />
-              </label>
+            <label>
+              Provider API key{" "}
+              <span className="muted">
+                {hasSavedKey
+                  ? "(already configured — leave blank to keep it)"
+                  : "(optional for local Ollama; required for Ollama Cloud)"}
+              </span>
+              <input
+                type="password"
+                autoComplete="off"
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                placeholder={
+                  hasSavedKey
+                    ? "Saved key retained — no need to enter it again"
+                    : "Provider key, not the Bluey engine token"
+                }
+              />
+            </label>
+            <p className="tiny muted">
+              Connecting sends a one-token test prompt to your selected model
+              (provider usage may apply). Windows saves provider keys encrypted
+              for your Windows account. Other engine hosts keep keys in memory
+              or server environment only. Keys are never saved in browser
+              storage.
+            </p>
+            {(hasSavedKey || modelInfo?.warning) && (
+              <button
+                type="button"
+                className="outline-button"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setConnectError("");
+                  try {
+                    await onForgetKey();
+                    setKey("");
+                  } catch (error) {
+                    setConnectError(
+                      error instanceof Error ? error.message : String(error),
+                    );
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Forget saved provider key
+              </button>
+            )}
+            {modelInfo?.warning && <p role="status">{modelInfo.warning}</p>}
+            {connectError && (
+              <p role="alert" className="connection-guidance">
+                {connectError}
+              </p>
             )}
             <div className="microphone-settings">
               <label>
@@ -1507,16 +1651,19 @@ function SettingsDialog({
             <div className="settings-note">
               <ShieldCheck size={17} />
               <span>
-                {s.provider === "ollama"
-                  ? "With Ollama, prompts and audio stay on your local network."
-                  : "Cloud models receive the messages you send. Voice transcription remains local."}{" "}
+                {s.provider === "ollama" &&
+                /^http:\/\/(?:localhost|127\.0\.0\.1)(?::|\/|$)/i.test(
+                  s.modelUrl,
+                )
+                  ? "Local models run on your PC. Cloud-tagged models served through local Ollama still send prompts to Ollama Cloud."
+                  : "Remote/cloud models receive the messages you send. Voice transcription remains local."}{" "}
                 Voice models must be installed separately.
               </span>
             </div>
             <div className="modal-buttons">
               <span className="tiny muted">Engine: {status}</span>
               <button className="primary-button" disabled={busy}>
-                {busy ? "Connecting…" : "Save & connect"}
+                {busy ? "Checking model…" : "Save & connect"}
                 <ArrowRight size={16} />
               </button>
             </div>

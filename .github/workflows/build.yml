@@ -86,6 +86,7 @@ jobs:
           npm run test:device-speech
           npm run test:features
           node scripts/cursor-smoke.mjs
+          node scripts/model-connection-smoke.mjs
           npm run test:gemma
           npm run test:mobile-site
           npm run test:family
@@ -165,10 +166,10 @@ jobs:
       - name: Verify signed APK and create download files
         run: |
           mkdir -p release/android
-          cp android/app/build/outputs/apk/debug/app-debug.apk release/android/Bluey-0.5.3-Android.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs release/android/Bluey-0.5.3-Android.apk | tee release/android/APK-verification.txt
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging release/android/Bluey-0.5.3-Android.apk > release/android/APK-manifest.txt
-          (cd release/android && sha256sum Bluey-0.5.3-Android.apk > SHA256SUMS.txt)
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/android/Bluey-0.5.4-Android.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs release/android/Bluey-0.5.4-Android.apk | tee release/android/APK-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging release/android/Bluey-0.5.4-Android.apk > release/android/APK-manifest.txt
+          (cd release/android && sha256sum Bluey-0.5.4-Android.apk > SHA256SUMS.txt)
           cp docs/ANDROID_RELEASE.md release/android/Android-Setup-Instructions.md
       - uses: actions/upload-artifact@v4
         with:
@@ -247,7 +248,7 @@ jobs:
           mkdir -p release/family
           label=Home
           if [ "$BLUEY_VARIANT" = kids ]; then label=Kids; fi
-          apk="release/family/Bluey-$label-0.5.3-Android.apk"
+          apk="release/family/Bluey-$label-0.5.4-Android.apk"
           cp android/app/build/outputs/apk/debug/app-debug.apk "$apk"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | grep "package: name='app.bluey.$BLUEY_VARIANT'"
@@ -279,6 +280,8 @@ jobs:
       - name: Real Windows Guardian service and permission checks
         run: |
           python -m pip install -r guardian/requirements.txt playwright==1.64.0
+          python -m pip install -r backend/requirements-dev.txt
+          python -m pytest backend/tests/test_model_connection.py -q
           python scripts/guardian-windows-check.py
           python scripts/guardian-browser-check.py
           python scripts/guardian-setup-check.py
@@ -350,7 +353,7 @@ jobs:
           path: release/${{ matrix.variant }}/*.exe
           if-no-files-found: error
   publish-preview:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/6d8152fa-bluey' && contains(github.event.head_commit.message, '[release-preview]')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/153d286f-bluey' && contains(github.event.head_commit.message, '[release-preview]')
     needs: [android-apk, family-apks, windows-installer, family-windows]
     runs-on: ubuntu-24.04
     permissions:
@@ -391,12 +394,12 @@ jobs:
           cp release/family/*.apk release/family/*.exe release/combined/
           cp docs/BLUEY_HOME.md release/combined/Family-Setup-Instructions.md
           (cd release/combined && sha256sum *.exe *.apk > SHA256SUMS.txt)
-          tag="v0.5.3-preview.1"
+          tag="v0.5.4-preview.1"
           if gh release view "$tag" >/dev/null 2>&1; then
             test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA"
             gh release upload "$tag" release/combined/* --clobber
           else
             gh release create "$tag" release/combined/* \
-              --target "$GITHUB_SHA" --title "Bluey 0.5.3 — Quiet bottom-center cursor preview" \
-              --prerelease --notes-file docs/RELEASE_0.5.3.md
+              --target "$GITHUB_SHA" --title "Bluey 0.5.4 — Reliable Ollama connection preview" \
+              --prerelease --notes-file docs/RELEASE_0.5.4.md
           fi
