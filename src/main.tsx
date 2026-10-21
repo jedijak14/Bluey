@@ -29,41 +29,51 @@ function Root() {
     document.documentElement.classList.toggle("overlay-document", overlay);
   }, [overlay]);
   const variant = import.meta.env.VITE_BLUEY_VARIANT;
-  if (variant === "home") return <HomeApp />;
-  if (variant === "kids") return <KidsApp />;
-  if (hash === "#home" || hash === "#account") return <HomeApp />;
-  if (hash === "#kids") return <KidsApp />;
-  const content = ["#gemma", "#starter"].includes(hash) ? (
-    <GemmaPreview standalone />
-  ) : hash === "#phone" ? (
-    <Phone />
-  ) : (
-    <App />
-  );
-  return native ? (
-    <Phone />
-  ) : overlay ? (
-    <Overlay />
-  ) : device !== "desktop" && !window.bluey ? (
-    <MobileWebsite
-      device={device}
-      requestedAI={["#gemma", "#starter"].includes(hash)}
-      onDesktop={() => {
-        setDevice(currentDevice());
-        location.hash = "gemma";
-      }}
-    />
-  ) : window.bluey ? (
-    content
-  ) : (
-    <DesktopWelcome>{content}</DesktopWelcome>
+  const mobileWebsite =
+    !native &&
+    !window.bluey &&
+    device !== "desktop" &&
+    variant !== "home" &&
+    variant !== "kids" &&
+    !["#home", "#account", "#kids"].includes(hash);
+  const renderPage = () => {
+    if (variant === "home") return <HomeApp />;
+    if (variant === "kids") return <KidsApp />;
+    if (hash === "#home" || hash === "#account") return <HomeApp />;
+    if (hash === "#kids") return <KidsApp />;
+    const content = ["#gemma", "#starter"].includes(hash) ? (
+      <GemmaPreview standalone />
+    ) : hash === "#phone" ? (
+      <Phone />
+    ) : (
+      <App />
+    );
+    return native ? (
+      <Phone />
+    ) : overlay ? (
+      <Overlay />
+    ) : device !== "desktop" && !window.bluey ? (
+      <MobileWebsite
+        device={device}
+        requestedAI={["#gemma", "#starter"].includes(hash)}
+        onDesktop={() => {
+          setDevice(currentDevice());
+          location.hash = "gemma";
+        }}
+      />
+    ) : window.bluey ? (
+      content
+    ) : (
+      <DesktopWelcome>{content}</DesktopWelcome>
+    );
+  };
+  return (
+    <MotionProvider forceOn={mobileWebsite}>{renderPage()}</MotionProvider>
   );
 }
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <MotionProvider>
-      <Root />
-    </MotionProvider>
+    <Root />
   </React.StrictMode>,
 );
 

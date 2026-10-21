@@ -117,6 +117,8 @@ jobs:
             npm run test:gemma
             npm run test:mobile-site
             node scripts/expressions-smoke.mjs
+            node scripts/mobile-expression-lab-smoke.mjs
+            node scripts/expression-overhaul-smoke.mjs
             npm run test:family
           } 2>&1 | tee artifacts/browser-regressions.log
       - name: Expose bounded browser failures
@@ -137,12 +139,26 @@ jobs:
           preview_pid=$!
           trap 'kill "$preview_pid" || true' EXIT
           npx wait-on --timeout 30000 http://127.0.0.1:5174
-          BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:gemma
-          BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:mobile-site
-          BLUEY_PREVIEW_URL=http://127.0.0.1:5174 node scripts/expressions-smoke.mjs
-          BLUEY_PREVIEW_URL=http://127.0.0.1:5174 node scripts/companion-launcher-smoke.mjs
-          BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:family
-          BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:device-speech
+          {
+            BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:gemma
+            BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:mobile-site
+            BLUEY_PREVIEW_URL=http://127.0.0.1:5174 node scripts/expressions-smoke.mjs
+            BLUEY_PREVIEW_URL=http://127.0.0.1:5174 node scripts/mobile-expression-lab-smoke.mjs
+            BLUEY_PREVIEW_URL=http://127.0.0.1:5174 node scripts/expression-overhaul-smoke.mjs
+            BLUEY_PREVIEW_URL=http://127.0.0.1:5174 node scripts/companion-launcher-smoke.mjs
+            BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:family
+            BLUEY_PREVIEW_URL=http://127.0.0.1:5174 npm run test:device-speech
+          } 2>&1 | tee artifacts/production-browser-regressions.log
+      - name: Expose production browser failures
+        if: failure()
+        run: |
+          python - <<'PYCODE'
+          from pathlib import Path
+          path = Path('artifacts/production-browser-regressions.log')
+          if path.exists():
+              text = path.read_text(errors='replace')[-8000:]
+              print('::error::'+text.replace('%','%25').replace('\r','%0D').replace('\n','%0A'))
+          PYCODE
       - name: Home and Kids through real local family API
         run: |
           set -euo pipefail

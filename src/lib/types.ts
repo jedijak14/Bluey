@@ -1,3 +1,4 @@
+import type { Expression } from "./expressions";
 export type Mood =
   | "listening"
   | "resting"
@@ -9,6 +10,7 @@ export type Mood =
 export type Trail = "comet" | "string" | "none";
 export interface FaceState {
   mood: Mood;
+  expression?: Expression;
   gazeX: number;
   gazeY: number;
   talk: number;

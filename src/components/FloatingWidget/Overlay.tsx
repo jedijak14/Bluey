@@ -8,6 +8,7 @@ import {
   LoaderCircle,
   Minus,
 } from "lucide-react";
+import { liveExpression } from "../../lib/expressions";
 import { CursorAvatar } from "./Avatar";
 import { ResponseCard, type CompanionResponse } from "../ResponseCard";
 import { client } from "../../lib/client";
@@ -449,7 +450,10 @@ export function Overlay() {
         }}
       >
         <div ref={body} className="overlay-cursor-body" aria-hidden={docked}>
-          <CursorAvatar mood={face.mood} />
+          <CursorAvatar
+            mood={face.mood}
+            expression={liveExpression(face.mood, face.expression)}
+          />
         </div>
         <svg
           className="overlay-dock-tip"

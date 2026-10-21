@@ -1,0 +1,656 @@
+.mobile-expression-lab {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 48px max(20px, 5vw) 64px;
+  scroll-margin-top: 20px;
+  color: #302d47;
+}
+.lab-heading {
+  max-width: 580px;
+  margin-bottom: 28px;
+}
+.lab-heading h2 {
+  font-family: Fredoka, sans-serif;
+  font-size: clamp(30px, 5vw, 46px);
+  line-height: 1.12;
+  font-weight: 450;
+  letter-spacing: -0.035em;
+  margin: 14px 0;
+}
+.lab-heading h2 > span {
+  color: #8877b9;
+}
+.lab-heading > p {
+  color: #746a81;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.lab-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 26px;
+  align-items: start;
+}
+.lab-preview {
+  min-width: 0;
+  border: 1px solid #dcd5ea;
+  border-radius: 24px;
+  background: #fffdfd;
+  overflow: hidden;
+  box-shadow: 0 12px 35px #59457c0a;
+}
+.lab-preview-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 20px 20px 0;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  color: #78698f;
+}
+.lab-preview-top > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.lab-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #8a79b8;
+}
+.lab-stage {
+  margin: 12px 12px 0;
+  border-radius: 17px;
+  background: #f2eff9;
+  overflow: hidden;
+}
+.lab-scene {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+.lab-scene-art {
+  position: absolute;
+  inset: 0;
+}
+.lab-actor {
+  position: absolute;
+  left: 21%;
+  top: 23%;
+  width: 58%;
+}
+.lab-actor > .avatar {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.scene-computer .lab-actor {
+  width: 51%;
+  left: 2%;
+  top: 25%;
+}
+.lab-floor {
+  position: absolute;
+  width: 62%;
+  height: 5%;
+  background: #ded7ee;
+  border-radius: 50%;
+  bottom: 10%;
+  left: 19%;
+}
+.scene-computer .lab-floor {
+  width: 90%;
+  left: 5%;
+  bottom: 2%;
+  height: 4%;
+  opacity: 0.6;
+}
+.lab-props {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.lab-caption {
+  text-align: center;
+  padding: 20px 20px 6px;
+  min-height: 115px;
+}
+.lab-caption h3 {
+  font-family: Fredoka, sans-serif;
+  font-size: 25px;
+  font-weight: 450;
+  margin: 0 0 8px;
+}
+.lab-caption p {
+  font-size: 12px;
+  color: #746a81;
+  line-height: 1.7;
+  max-width: 320px;
+  margin: auto;
+}
+.lab-playback {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 12px 12px 20px;
+}
+.lab-playback button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #e5dff0;
+  border-radius: 12px;
+  color: #5d4c7d;
+  font-size: 11px;
+  background: #faf8fd;
+}
+.lab-picker {
+  padding: 8px 0;
+  min-width: 0;
+}
+.lab-picker-heading {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 14px;
+  color: #6d578f;
+}
+.lab-picker-heading h3 {
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1;
+}
+.lab-picker-heading > span {
+  background: #e9e2f4;
+  padding: 4px 6px;
+  font-size: 8px;
+  border-radius: 5px;
+  letter-spacing: 0.1em;
+}
+.lab-new-scenes {
+  display: grid;
+  gap: 8px;
+}
+.lab-new-scenes > button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 14px;
+  text-align: left;
+  background: #fffdfc;
+  border: 1px solid #e1daed;
+  border-radius: 14px;
+}
+.lab-scene-number {
+  font-family: PlexMono, monospace;
+  font-size: 11px;
+  color: #8972aa;
+  background: #f1ecf8;
+  border-radius: 9px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.lab-new-scenes > button > span:nth-child(2) {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+}
+.lab-new-scenes small {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  color: #7c708b;
+  font-weight: 400;
+}
+.lab-new-scenes > button > svg {
+  color: #9a87b3;
+  flex-shrink: 0;
+}
+.lab-moods-title {
+  margin: 24px 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.lab-mood-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.lab-mood-grid > button {
+  min-height: 44px;
+  padding: 10px 8px;
+  border: 1px solid #ded6eb;
+  border-radius: 10px;
+  background: #f9f7fc;
+  color: #6c5d80;
+  font-size: 12px;
+}
+.lab-new-scenes > button[aria-pressed="true"],
+.lab-mood-grid > button[aria-pressed="true"] {
+  border-color: #9180bb;
+  background: #e9e2f5;
+  color: #46365e;
+  box-shadow: inset 0 0 0 1px #9180bb;
+}
+.mobile-expression-lab button:focus-visible {
+  outline: 2px solid #68508e;
+  outline-offset: 3px;
+}
+.lab-footnote {
+  margin-top: 20px;
+  color: #81738f;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.mobile-lab-link {
+  margin-top: 12px;
+}
+
+/* Purely decorative loops. Mobile scenes animate automatically; Pause, off-screen stages and hidden tabs
+   freeze the scene locally. Desktop motion preferences are kept separately. */
+.lab-paused *,
+.lab-paused *::before,
+.lab-paused *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+}
+.mobile-expression-lab .mood-happy .berry-body {
+  animation: happy-hop 1.8s ease-in-out infinite;
+}
+.mobile-expression-lab .mood-pointing .berry-body {
+  animation: confident-nod 2.4s ease-in-out infinite;
+}
+.mobile-expression-lab .mood-sleepy .berry-body {
+  animation: sleepy-settle 4s ease-in-out infinite;
+}
+.mobile-expression-lab .mood-sleepy .eye {
+  animation: drowsy-blink 4s ease-in-out infinite;
+}
+.mobile-expression-lab .expression-sad .berry-body {
+  animation: sleepy-settle 4s ease-in-out infinite;
+}
+.mobile-expression-lab .expression-alarmed .berry-body {
+  animation: lab-surprise 2.8s ease-in-out infinite;
+}
+.mobile-expression-lab .expression-wink .berry-body {
+  animation: confident-nod 2.8s ease-in-out infinite;
+}
+/* A small, quiet stream of power from Bluey's crown to the keys. */
+.lab-power-source {
+  transform-origin: 132px 122px;
+  animation: lab-power-pulse 2.4s ease-in-out infinite;
+}
+.lab-power-flow {
+  animation: lab-power-flow 2.4s linear infinite;
+}
+.lab-power-spark {
+  transform-origin: 214px 218px;
+  animation: lab-power-pulse 2.4s ease-in-out -0.8s infinite;
+}
+.lab-powered-key {
+  animation: lab-powered-key 1.8s ease-in-out infinite;
+}
+@keyframes lab-power-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.1);
+  }
+}
+@keyframes lab-power-flow {
+  to {
+    stroke-dashoffset: -80;
+  }
+}
+@keyframes lab-powered-key {
+  0%,
+  70%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+.lab-code-line {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: lab-code 3.2s ease-in-out infinite;
+}
+.code-two {
+  animation-delay: -0.6s;
+}
+.code-three {
+  animation-delay: -1.2s;
+}
+.code-four {
+  animation-delay: -1.8s;
+}
+.lab-screen-caret {
+  animation: lab-caret 0.9s steps(2, jump-none) infinite;
+}
+.lab-bulb {
+  animation: lab-idea 3.2s ease-in-out infinite;
+}
+.lab-idea-rays {
+  animation: lab-rays 3.2s ease-in-out infinite;
+  transform-origin: 365px 85px;
+}
+.lab-confetti {
+  transform-box: view-box;
+  animation: lab-confetti 3.2s ease-out infinite;
+}
+@keyframes lab-code {
+  0%,
+  100% {
+    transform: scaleX(0.45);
+    opacity: 0.5;
+  }
+  55%,
+  80% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+@keyframes lab-caret {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes lab-idea {
+  0%,
+  100% {
+    transform: translateY(3px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+@keyframes lab-rays {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+@keyframes lab-confetti {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(100px);
+  }
+}
+@keyframes lab-surprise {
+  0%,
+  75%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  25%,
+  45% {
+    transform: translateY(-5px) scale(1.025, 1.04);
+  }
+}
+@media (max-width: 700px) {
+  .lab-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+  .mobile-expression-lab {
+    padding: 36px 20px 44px;
+  }
+  .lab-heading {
+    margin-bottom: 22px;
+  }
+  .lab-picker {
+    padding: 0;
+  }
+}
+
+.lab-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 16px 20px 0;
+  font-size: 11px;
+  color: #746a81;
+}
+.lab-select select {
+  min-height: 44px;
+  min-width: 0;
+  max-width: 75%;
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #ded6eb;
+  border-radius: 10px;
+  color: #49385f;
+  background: #faf8fd;
+  font-size: 12px;
+}
+.lab-select select:focus-visible {
+  outline: 2px solid #68508e;
+  outline-offset: 3px;
+}
+
+/* Super Bluey is a free animation preview, not a purchasable subscription. */
+.lab-super-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px;
+  margin-bottom: 26px;
+  border: 1px solid #ddd0a8;
+  border-radius: 20px;
+  background: #fffbef;
+}
+.lab-coming-soon {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: #81622e;
+  line-height: 1.6;
+}
+.lab-super-preview h3 {
+  font-family: Fredoka, sans-serif;
+  font-size: 25px;
+  font-weight: 450;
+  margin: 7px 0;
+}
+.lab-super-preview p {
+  max-width: 460px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: #77694e;
+}
+.lab-super-preview button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  flex-shrink: 0;
+  border: 1px solid #d9c38f;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f4e8c9;
+  color: #604b26;
+  font-size: 12px;
+}
+.lab-caption .lab-coming-soon {
+  margin-bottom: 8px;
+}
+.lab-super-costume {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  animation: lab-super-reveal 8s ease-in-out infinite;
+}
+.lab-super-cape {
+  z-index: 0;
+}
+.scene-super .lab-actor > .avatar {
+  position: relative;
+  z-index: 1;
+}
+.lab-super-badge {
+  z-index: 2;
+}
+.scene-super .lab-actor {
+  animation: lab-super-lift 8s ease-in-out infinite;
+}
+.mobile-expression-lab .scene-super .berry-body {
+  animation: none;
+}
+.lab-super-aura {
+  animation: lab-super-reveal 8s ease-in-out infinite;
+}
+.lab-super-ring {
+  transform-origin: 240px 196px;
+  animation: lab-super-orbit 16s linear infinite;
+}
+.lab-super-cape-wave {
+  transform-origin: 170px 144px;
+  animation: lab-super-wave 2s ease-in-out infinite;
+}
+.lab-super-sparks {
+  animation: lab-super-sparkle 2.4s ease-in-out infinite;
+}
+.mobile-expression-lab .expression-curious .brow-1 {
+  transform-origin: 225px 65px;
+  animation: lab-curious-brow 3.6s ease-in-out infinite;
+}
+.mobile-expression-lab .expression-determined .berry-body {
+  animation: confident-nod 3s ease-in-out infinite;
+}
+.mobile-expression-lab .expression-determined .eyebrow {
+  transform-origin: 170px 85px;
+  animation: lab-determined-brow 3s ease-in-out infinite;
+}
+.mobile-expression-lab .heart-eye {
+  animation: lab-heart-eyes 2.8s ease-in-out infinite;
+}
+@keyframes lab-super-reveal {
+  0%,
+  14%,
+  100% {
+    opacity: 0;
+  }
+  36%,
+  82% {
+    opacity: 1;
+  }
+}
+@keyframes lab-super-lift {
+  0%,
+  14%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  25% {
+    transform: translateY(3px) scale(0.98, 1.02);
+  }
+  43%,
+  70% {
+    transform: translateY(-17px) scale(1.04);
+  }
+  57%,
+  82% {
+    transform: translateY(-22px) scale(1.04);
+  }
+}
+@keyframes lab-super-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes lab-super-wave {
+  0%,
+  100% {
+    transform: skewX(-3deg) scaleY(0.97);
+  }
+  50% {
+    transform: skewX(3deg) scaleY(1.03);
+  }
+}
+@keyframes lab-super-sparkle {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes lab-curious-brow {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  40%,
+  65% {
+    transform: translateY(-5px) rotate(-5deg);
+  }
+}
+@keyframes lab-determined-brow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  35%,
+  60% {
+    transform: translateY(3px);
+  }
+}
+@keyframes lab-heart-eyes {
+  0%,
+  100% {
+    transform: scale(0.94);
+  }
+  40%,
+  60% {
+    transform: scale(1.07);
+  }
+}
+@media (max-width: 700px) {
+  .lab-super-preview {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 18px;
+  }
+}

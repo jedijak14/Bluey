@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Avatar } from "./FloatingWidget/Avatar";
 import { currentDevice, type DeviceKind } from "../lib/deviceSupport";
-import { MotionControl } from "./MotionPreferences";
+import { MobileExpressionLab } from "./MobileExpressionLab";
 const RESTRICTION =
   "iPads, Phones, and other tablets are not supported. You are now viewing the mobile version of the website.";
 export function MobileWebsite({
@@ -85,12 +85,10 @@ export function MobileWebsite({
             <img src="./favicon.svg" alt="" />
             bluey<span>.</span>
           </a>
-          <a href="#account">Bluey Account · Home</a>
-          <a href="#about-bluey">
-            Meet Bluey <ArrowDown size={14} />
+          <a href="#expression-lab">
+            Expression Lab <ArrowDown size={14} />
           </a>
         </header>
-        <MotionControl />
         <section className="mobile-intro">
           <span className="mobile-eyebrow">
             A LITTLE COMPANION. A DIFFERENT VIEW.
@@ -129,10 +127,11 @@ export function MobileWebsite({
             <Monitor size={19} />
             <p>{RESTRICTION}</p>
           </div>
-          <a className="mobile-explore" href="#about-bluey">
-            Explore Bluey <ArrowDown size={16} />
+          <a className="mobile-explore mobile-lab-link" href="#expression-lab">
+            Try the Expression Lab <ArrowDown size={16} />
           </a>
         </section>
+        <MobileExpressionLab active={!blocked} />
         <section id="about-bluey" className="mobile-story">
           <span className="mobile-eyebrow">MEET YOUR LITTLE SIDEKICK</span>
           <h2>
@@ -142,8 +141,9 @@ export function MobileWebsite({
           </h2>
           <p>
             Bluey is a Windows desktop companion with its own expressive pointer
-            and an optional paired Android face. This mobile site is a guide—not
-            a remote desktop or a running AI model.
+            and an optional paired Android face. This mobile site has an
+            interactive expression lab and setup guides—not a remote desktop or
+            a running AI model.
           </p>
           <div className="mobile-feature-grid">
             <article>
@@ -187,7 +187,8 @@ export function MobileWebsite({
           </button>
           <small>
             We check compatibility when you press Test AI. Phones and tablets
-            can browse this guide, but cannot enter the AI preview.
+            can play in the Expression Lab and browse the guide, but cannot
+            enter the AI preview.
           </small>
         </section>
         <section className="mobile-how">

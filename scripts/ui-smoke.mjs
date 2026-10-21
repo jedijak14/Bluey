@@ -98,10 +98,9 @@ await expect(
 ).toBeVisible();
 await page.screenshot({ path: "artifacts/code.png" });
 await page.getByRole("button", { name: "My companion", exact: true }).click();
+await page.locator(".classic-expressions summary").click();
 await page.getByRole("button", { name: "Happy", exact: true }).click();
-await expect(
-  page.locator(".face-preview").getByRole("img", { name: "Bluey is happy" }),
-).toBeVisible();
+await expect(page.locator(".face-preview > .avatar")).toBeVisible();
 await page.getByRole("button", { name: "⌁ String", exact: true }).click();
 await page.locator(".cursor-stage").click({ position: { x: 50, y: 45 } });
 await expect(page.locator(".pointer-string path")).toHaveAttribute("d", /M50/);

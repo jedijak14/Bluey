@@ -7,8 +7,10 @@ import {
   Play,
   Pause,
 } from "lucide-react";
-import { Avatar, CursorAvatar } from "./FloatingWidget/Avatar";
+import { Avatar, CursorAvatar, FaceScreen } from "./FloatingWidget/Avatar";
+import { ExpressionScene, LAB_PRESETS } from "./MobileExpressionLab";
 import { MotionControl, useMotionPreference } from "./MotionPreferences";
+import { EXPRESSION_PRESETS, type Expression } from "../lib/expressions";
 import type { Mood, Settings } from "../lib/types";
 const moods: { id: Mood; label: string; description: string }[] = [
   {
@@ -54,8 +56,12 @@ export function Playground({
 }: {
   settings: Settings;
   onSettings: (s: Settings) => void;
-  onMood: (m: Mood) => void;
+  onMood: (m: Mood, expression?: Expression) => void;
 }) {
+  const [superPreview, setSuperPreview] = useState(false);
+  const [expression, setExpression] = useState<Expression | undefined>(
+    "excited",
+  );
   const [mood, setMood] = useState<Mood>("listening");
   const { enabled: motionOn } = useMotionPreference();
   const reducedMotion = !motionOn;
@@ -66,10 +72,12 @@ export function Playground({
     if (!playing || reducedMotion) return;
     const timer = setInterval(() => {
       if (!document.hidden)
-        setMood(
+        setExpression(
           (current) =>
-            moods[(moods.findIndex((m) => m.id === current) + 1) % moods.length]
-              .id,
+            EXPRESSION_PRESETS[
+              (EXPRESSION_PRESETS.findIndex((p) => p.id === current) + 1) %
+                EXPRESSION_PRESETS.length
+            ].id,
         );
     }, 4000);
     return () => clearInterval(timer);
@@ -82,6 +90,8 @@ export function Playground({
   );
   const [point, setPoint] = useState<{ x: number; y: number } | null>(null);
   const [cursorMood, setCursorMood] = useState<Mood>("listening");
+  const activeMood =
+    EXPRESSION_PRESETS.find((p) => p.id === expression)?.mood || mood;
   return (
     <div className="page-scroll playground">
       <div className="page-heading">
@@ -98,7 +108,11 @@ export function Playground({
             <span className="status-dot green" />
             Meet Bluey<span>LIVE PREVIEW</span>
           </div>
-          <Avatar key={`${mood}-${replay}`} mood={mood} />
+          <Avatar
+            key={`${expression || mood}-${replay}`}
+            mood={activeMood}
+            expression={expression}
+          />
           <MotionControl />
           <div className="expression-controls">
             <button
@@ -128,30 +142,99 @@ export function Playground({
             {reducedMotion
               ? "Motion is off. Choose On above to animate, or select an expression below."
               : playing
-                ? "A silent tour of all seven expressions"
+                ? "A silent tour of 12 new expressions"
                 : "Tour paused · the selected expression stays animated"}
           </p>
           <div className="face-caption">
-            <h2>{moods.find((m) => m.id === mood)?.label}</h2>
-            <p>{moods.find((m) => m.id === mood)?.description}</p>
+            <h2>
+              {EXPRESSION_PRESETS.find((p) => p.id === expression)?.label ||
+                moods.find((m) => m.id === mood)?.label}
+            </h2>
+            <p>
+              {EXPRESSION_PRESETS.find((p) => p.id === expression)
+                ?.description || moods.find((m) => m.id === mood)?.description}
+            </p>
           </div>
-          <div className="mood-buttons">
-            {moods.map((m) => (
-              <button
-                key={m.id}
-                className={mood === m.id ? "active" : ""}
-                aria-pressed={mood === m.id}
-                onClick={() => {
-                  setPlaying(false);
-                  setReplay((value) => value + 1);
-                  setMood(m.id);
-                  onMood(m.id);
-                }}
-              >
-                {m.label}
-              </button>
-            ))}
+          <div className="expression-library">
+            <h3>A whole new range of feelings</h3>
+            <div
+              className="mood-buttons"
+              role="group"
+              aria-label="New expressions"
+            >
+              {EXPRESSION_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  aria-pressed={expression === preset.id}
+                  className={expression === preset.id ? "active" : ""}
+                  onClick={() => {
+                    setPlaying(false);
+                    setReplay((value) => value + 1);
+                    setExpression(preset.id);
+                    setMood(preset.mood);
+                    onMood(preset.mood, preset.id);
+                  }}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
           </div>
+          <div className="expression-view-grid">
+            <figure>
+              <CursorAvatar mood={activeMood} expression={expression} />
+              <figcaption>Windows pointer</figcaption>
+            </figure>
+            <figure>
+              <FaceScreen
+                mood={activeMood}
+                expression={expression}
+                gazeX={0}
+                gazeY={0}
+                talk={0}
+              />
+              <figcaption>Android face</figcaption>
+            </figure>
+          </div>
+          <button
+            className="outline-button"
+            onClick={() => setSuperPreview(!superPreview)}
+          >
+            {superPreview ? "Close Super Bluey preview" : "Preview Super Bluey"}
+          </button>
+          {superPreview && (
+            <div className="app-super-preview">
+              <p>
+                Super Bluey · Paid plan preview · Coming soon. Free to preview;
+                no purchase available.
+              </p>
+              <ExpressionScene
+                key={replay}
+                preset={LAB_PRESETS.find((p) => p.id === "super")!}
+              />
+            </div>
+          )}
+          <details className="classic-expressions">
+            <summary>Classic moods</summary>
+            <div className="mood-buttons">
+              {moods.map((m) => (
+                <button
+                  key={m.id}
+                  className={!expression && mood === m.id ? "active" : ""}
+                  aria-pressed={!expression && mood === m.id}
+                  onClick={() => {
+                    setPlaying(false);
+                    setReplay((value) => value + 1);
+                    setExpression(undefined);
+                    setMood(m.id);
+                    onMood(m.id);
+                  }}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </details>
         </section>
         <section className="pointer-settings">
           <div className="card-icon">
@@ -207,7 +290,7 @@ export function Playground({
                 width: settings.cursorSize + 30,
               }}
             >
-              <CursorAvatar mood={cursorMood} />
+              <CursorAvatar mood={cursorMood} expression={expression} />
               {settings.trail === "comet" && point && (
                 <span className="cursor-comet" />
               )}
@@ -263,16 +346,17 @@ export function Playground({
       <div className="reference-note">
         <Check size={16} />
         <span>
-          Faithful to Bluey’s original seven moods. Face and cursor animate
-          independently.
+          12 new expressions across the desktop companion, Windows pointer, and
+          Android face. Classic moods remain available.
         </span>
         <button
           onClick={() => {
             setPlaying(true);
             setReplay((value) => value + 1);
             if (cursorTimer.current) clearTimeout(cursorTimer.current);
+            setExpression("excited");
             setMood("listening");
-            onMood("listening");
+            onMood("listening", "excited");
             setPoint(null);
             setCursorMood("listening");
           }}

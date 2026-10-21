@@ -43,6 +43,7 @@ try {
   await desktop
     .getByRole("button", { name: "My companion", exact: true })
     .click();
+  await desktop.locator(".classic-expressions summary").click();
   await desktop.getByRole("button", { name: "On it", exact: false }).click();
   await expect(
     desktop.locator(".avatar.mood-pointing .confident-smile").first(),
@@ -129,7 +130,7 @@ try {
         { exact: true },
       ),
     ).toBeVisible();
-    await page.getByRole("link", { name: "Explore Bluey" }).click();
+    await page.getByRole("link", { name: "Try the Expression Lab" }).click();
     await expect(
       page.getByRole("heading", {
         name: "More personality. Less getting in your way.",

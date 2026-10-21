@@ -1,3 +1,4 @@
+import { liveExpression } from "./lib/expressions";
 import { useEffect, useRef, useState } from "react";
 import {
   FlaskConical,
@@ -767,6 +768,7 @@ export default function App() {
                 <span className="little-star star-two">✧</span>
                 <Avatar
                   mood={face.mood}
+                  expression={liveExpression(face.mood, face.expression)}
                   onClick={() => {
                     setFace({ ...initialFace, mood: "happy" });
                     setTimeout(() => setFace(initialFace), 2200);
@@ -1265,10 +1267,10 @@ export default function App() {
           <Playground
             settings={settings}
             onSettings={(s) => setSettings(s)}
-            onMood={(m) => {
-              setFace({ ...initialFace, mood: m });
+            onMood={(m, expression) => {
+              setFace({ ...initialFace, mood: m, expression });
               if (status === "connected")
-                client.send({ type: "mood", mood: m });
+                client.send({ type: "mood", mood: m, expression });
             }}
           />
         ) : page === "gemma" ? (
