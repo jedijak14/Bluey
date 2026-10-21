@@ -62,13 +62,17 @@ function guardianStatus(record, currentSid, now = Date.now() / 1000) {
   ].includes(record.signin_state)
     ? record.signin_state
     : "disabled";
+  const networkState = ["disabled", "starting", "filtered", "blocked", "error"].includes(record.network_state) ? record.network_state : "disabled";
   return {
+    networkState,
+    signOutAtCutoff: record.signout_at_cutoff === true,
     signInState,
     nativeWarning: ["idle", "sent", "failed"].includes(record.native_warning)
       ? record.native_warning
       : "idle",
     state:
       !["starting", "external_policy", "error"].includes(signInState) &&
+      !["starting", "error"].includes(networkState) &&
       Object.keys(browserRules).length > 0 &&
       Object.values(browserRules).every(Boolean) &&
       Number.isInteger(record.applied_version)
