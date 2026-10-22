@@ -1,3 +1,5 @@
+import { useProductivity } from "./hooks/useProductivity";
+import { idleTimer } from "./lib/productivity";
 import { liveExpression } from "./lib/expressions";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -109,6 +111,7 @@ const quickActions = [
 ];
 
 export default function App() {
+  const productivity = useProductivity();
   const [page, setPage] = useState<Page>("chat");
   const [mode, setMode] = useState<"chat" | "code">("chat");
   const [settings, setSettings] = useState<Settings>(() => ({
@@ -1252,6 +1255,27 @@ export default function App() {
             </button>
           </div>
         </div>
+        {productivity.data.timer.status === "finished" && (
+          <div className="kit-reminder" role="status">
+            <span>
+              {productivity.data.timer.phase === "focus"
+                ? "Nice work! Your focus session is complete. Time for a little break."
+                : "Your break is finished. Bluey is ready when you are."}
+            </span>
+            <button className="outline-button" onClick={() => setPage("tools")}>
+              Open workspace
+            </button>
+            <button
+              className="icon-button"
+              aria-label="Dismiss timer reminder"
+              onClick={() =>
+                productivity.setData((s) => ({ ...s, timer: idleTimer() }))
+              }
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
         {page === "chat" ? (
           mode === "chat" ? (
             chat
@@ -1277,6 +1301,7 @@ export default function App() {
           <GemmaPreview />
         ) : page === "tools" ? (
           <DesktopTools
+            productivity={productivity}
             connected={status === "connected"}
             onConnect={() => setSettingsOpen(true)}
           />

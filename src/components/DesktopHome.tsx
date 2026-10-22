@@ -129,7 +129,7 @@ export function DesktopHome({
         </button>
         <button onClick={onTools}>
           <ShieldCheck size={15} />
-          Desktop tools & permissions
+          Focus, checklist & desktop tools
         </button>
         <span>Replies stay quiet. No voice output.</span>
       </div>
