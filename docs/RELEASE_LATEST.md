@@ -1,8 +1,14 @@
-# Bluey-Latest · 0.5.8 Windows / Android preview
+# Bluey-Latest · 0.5.9 Windows / Android preview
 
-This is an experimental build. The release is named **Bluey-Latest**, with immutable source tag `v0.5.8`. The user supplied nine reference frames for the dock and research cards; this is not a claim of full-video parity or universal browser protection.
+This is an experimental build. The release is named **Bluey-Latest**, with immutable source tag `v0.5.9`. The user supplied nine reference frames for the dock and research cards; this is not a claim of full-video parity or universal browser protection.
 
-## New in 0.5.8
+## New in 0.5.9
+- Windows setup is not marked complete until the engine authenticates the chat WebSocket. An Ollama catalog or configuration HTTP response alone is no longer treated as completed setup.
+- Stalled socket upgrades/authentication time out and retry automatically. Saving a model no longer tears down a healthy connection, and stale socket callbacks cannot change the current connection state.
+- After Windows setup completes, model/connection settings are inaccessible, including after restart. The selected model stays visible but read-only. **Privacy & data** and emergency stop remain available. A **Retry saved connection** action reuses native credentials without asking for another Ollama key or altering the saved model.
+- Actual packaged Electron-to-bundled-engine chat and process restart are checked in Windows CI. This uses a deterministic provider fixture alongside the separate real Ollama inference gate, not a claim of testing every user's PC.
+
+## Retained from 0.5.8
 - **Quiet workspace in Desktop tools:** focus sessions (1–180 minutes), pause/resume, a five-minute break timer, and silent in-app completion reminders even after switching back to chat. Uses saved deadlines and catches up after sleep/restart. This is not a system alarm; open Bluey to see reminders. No voice, microphone, or notification permissions.
 - **Saved checklist:** add, complete, remove, and clear completed tasks. Up to 100 tasks, available without the AI engine.
 - **Quick notes and export:** auto-saved local plain text, with notes + checklist export to a `.txt` file. Storage failures show an explicit warning. Notes/tasks are not encrypted or synced; do not store secrets here.
@@ -18,7 +24,7 @@ This is an experimental build. The release is named **Bluey-Latest**, with immut
 - A persistent SQLite + HTTPS self-hosting setup is also included as an optional alternative; it is not deployed automatically.
 
 ## Downloads
-At the user’s request, this update replaces the existing **Bluey-Latest** release in place (same release ID), rather than adding another release. All seven native packages are tested, uploaded with new 0.5.8 filenames, and SHA-256 verified before the release moves to the new source tag and superseded assets are removed. Old source tags remain unchanged. Native tests and real model-inference gates remain required. Download SHA256SUMS.txt or the versioned SHA256SUMS-0.5.8.txt.
+At the user’s request, this update replaces the existing **Bluey-Latest** release in place (same release ID), rather than adding another release. All seven native packages are tested, uploaded with new 0.5.9 filenames, and SHA-256 verified before the release moves to the new source tag and superseded assets are removed. Old source tags remain unchanged. Native tests and real model-inference gates remain required. Download SHA256SUMS.txt or the versioned SHA256SUMS-0.5.9.txt.
 
 - Bluey Windows installer and portable app: dedicated Windows companion dashboard, bottom-center overlay, model catalog, encrypted saved settings, and **bundled Python engine/runtime**. A separate Python installation is no longer needed for the companion engine. Ollama and your chosen model weights are still separate; use **Start local Ollama → Find models → Verify model reply** in Settings.
 - Bluey Android APK: foreground companion with device speech recognition and Wi-Fi pairing; new opt-in Bluetooth SPP transport.

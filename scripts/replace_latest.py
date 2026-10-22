@@ -76,7 +76,7 @@ def replace(directory, version, release_id, old_tag, sha, repo, notes):
                   "Windows-Setup-Instructions.md", "APK-manifest.txt", "APK-verification.txt"}
     for asset in promoted["assets"]:
         name = asset["name"]
-        if name not in staged and (name in stale_docs or (name.startswith("Bluey-") and name.endswith((".exe", ".apk")))):
+        if name not in staged and (name in stale_docs or (name.startswith("SHA256SUMS-") and name.endswith(".txt")) or (name.startswith("Setup-Instructions-") and name.endswith(".md")) or (name.startswith("Bluey-") and name.endswith((".exe", ".apk")))):
             gh("api", f"repos/{repo}/releases/assets/{asset['id']}", "--method", "DELETE")
     canonical = directory / "SHA256SUMS.txt"
     canonical.write_text(checksums)

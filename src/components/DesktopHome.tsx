@@ -16,6 +16,8 @@ import type { FaceState } from "../lib/types";
 export function DesktopHome({
   face,
   connected,
+  connectionStatus,
+  setupComplete,
   model,
   onSettings,
   onDevices,
@@ -26,6 +28,8 @@ export function DesktopHome({
 }: {
   face: FaceState;
   connected: boolean;
+  connectionStatus: "offline" | "connecting" | "connected";
+  setupComplete: boolean;
   model: string;
   onSettings: () => void;
   onDevices: () => void;
@@ -43,7 +47,11 @@ export function DesktopHome({
         </div>
         <span className="desktop-local-chip">
           <span className={`status-dot ${connected ? "green" : ""}`} />
-          {connected ? "Engine connected" : "Engine reconnecting"}
+          {connected
+            ? "Engine connected"
+            : connectionStatus === "connecting"
+              ? "Engine connecting…"
+              : "Engine unavailable"}
         </span>
       </div>
       <div className="desktop-stage">
@@ -123,9 +131,9 @@ export function DesktopHome({
         </button>
       </div>
       <div className="desktop-utility-row">
-        <button onClick={onSettings}>
+        <button onClick={onSettings} disabled={setupComplete}>
           <Settings2 size={15} />
-          {model} · model settings
+          {model} · {setupComplete ? "setup locked" : "model settings"}
         </button>
         <button onClick={onTools}>
           <ShieldCheck size={15} />

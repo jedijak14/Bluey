@@ -27,6 +27,6 @@ if (!process.argv.includes("--sync-only")) {
   fs.mkdirSync("release/family", { recursive: true });
   fs.copyFileSync(
     "android/app/build/outputs/apk/debug/app-debug.apk",
-    `release/family/Bluey-${variant === "home" ? "Home" : "Kids"}-0.5.8-Android.apk`,
+    `release/family/Bluey-${variant === "home" ? "Home" : "Kids"}-0.5.9-Android.apk`,
   );
 }

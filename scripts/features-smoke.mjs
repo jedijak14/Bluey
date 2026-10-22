@@ -171,8 +171,12 @@ try {
   const overlay = await makePage();
   let socket;
   await overlay.routeWebSocket("**/api/ws", (ws) => {
-    socket = ws;
-    ws.onMessage(() => ws.send(JSON.stringify({ type: "ready" })));
+    ws.onMessage((raw) => {
+      if (JSON.parse(raw).type === "auth") {
+        ws.send(JSON.stringify({ type: "ready" }));
+        socket = ws;
+      }
+    });
   });
   await overlay.goto("http://127.0.0.1:5173/#overlay");
   await expect(overlay.locator(".overlay-cursor")).toBeVisible();
