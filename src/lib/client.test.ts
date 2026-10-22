@@ -109,3 +109,85 @@ it("polls without caching and propagates cancellation", async () => {
   controller.abort();
   expect(options.signal.aborted).toBe(true);
 });
+
+it("waits for ready rather than treating HTTP success or an open socket as connected", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal("WebSocket", FakeSocket);
+  const client = new BlueyClient();
+  const done = vi.fn();
+  const pending = client
+    .ensureConnected("http://127.0.0.1:8765", "token")
+    .then(done);
+  FakeSocket.latest.onopen?.();
+  expect(client.connected).toBe(false);
+  expect(() => client.send({ type: "chat" })).toThrow("Connect");
+  expect(done).not.toHaveBeenCalled();
+  FakeSocket.latest.onmessage?.({ data: '{"type":"ready"}' });
+  await pending;
+  expect(client.connected).toBe(true);
+  const healthy = FakeSocket.latest;
+  await client.ensureConnected("http://127.0.0.1:8765/", "token");
+  expect(FakeSocket.latest).toBe(healthy);
+  client.disconnect();
+  expect(vi.getTimerCount()).toBe(0);
+});
+it("recovers from a hung handshake and ignores callbacks from the discarded socket", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal("WebSocket", FakeSocket);
+  const client = new BlueyClient();
+  const pending = client.ensureConnected("http://127.0.0.1:8765", "token");
+  const stale = FakeSocket.latest.onmessage;
+  const first = FakeSocket.latest;
+  await vi.advanceTimersByTimeAsync(9000);
+  expect(FakeSocket.latest).not.toBe(first);
+  stale?.({ data: '{"type":"ready"}' });
+  expect(client.connected).toBe(false);
+  FakeSocket.latest.onmessage?.({ data: '{"type":"ready"}' });
+  await pending;
+  expect(client.connected).toBe(true);
+  client.disconnect();
+});
+it("retries construction failures instead of remaining offline forever", async () => {
+  vi.useFakeTimers();
+  let calls = 0;
+  class BrokenOnce extends FakeSocket {
+    constructor(url: string) {
+      if (++calls === 1) throw new Error("temporarily unavailable");
+      super(url);
+    }
+  }
+  vi.stubGlobal("WebSocket", BrokenOnce);
+  const client = new BlueyClient();
+  const pending = client.ensureConnected("http://127.0.0.1:8765", "token");
+  await vi.advanceTimersByTimeAsync(1000);
+  FakeSocket.latest.onmessage?.({ data: '{"type":"ready"}' });
+  await pending;
+  expect(calls).toBe(2);
+  client.disconnect();
+});
+it("rejects invalid credentials without pretending connection or retrying them", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal("WebSocket", FakeSocket);
+  const client = new BlueyClient();
+  const pending = expect(
+    client.ensureConnected("http://127.0.0.1:8765", "wrong"),
+  ).rejects.toThrow("rejected its credentials");
+  FakeSocket.latest.onclose?.({ code: 4001 });
+  await pending;
+  expect(client.connected).toBe(false);
+  expect(vi.getTimerCount()).toBe(0);
+  client.disconnect();
+});
+it("bounds waiting for an unavailable channel and preserves an actionable error", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal("WebSocket", FakeSocket);
+  const client = new BlueyClient();
+  const pending = expect(
+    client.ensureConnected("http://127.0.0.1:8765", "token", 500),
+  ).rejects.toThrow("chat channel did not answer");
+  await vi.advanceTimersByTimeAsync(500);
+  await pending;
+  expect(client.connected).toBe(false);
+  client.disconnect();
+  expect(vi.getTimerCount()).toBe(0);
+});

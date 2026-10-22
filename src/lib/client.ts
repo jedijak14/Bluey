@@ -6,6 +6,8 @@ export class BlueyClient {
   private token = "";
   private retry?: ReturnType<typeof setTimeout>;
   private stopped = true;
+  private authenticated = false;
+  private handshake?: ReturnType<typeof setTimeout>;
   private bluetoothHeartbeat?: ReturnType<typeof setInterval>;
   private attempts = 0;
   private listeners = new Set<(p: Packet) => void>();
@@ -29,6 +31,7 @@ export class BlueyClient {
     this.onStatus("connecting");
     bluetooth.onPacket = (p) => {
       if (p.type === "ready") {
+        this.authenticated = true;
         this.onStatus("connected");
         clearInterval(this.bluetoothHeartbeat);
         this.bluetoothHeartbeat = setInterval(
@@ -39,55 +42,142 @@ export class BlueyClient {
       this.dispatch(p);
     };
     bluetooth.onClose = () => {
+      this.authenticated = false;
       this.onStatus("offline");
       this.dispatch({ type: "unpaired" });
     };
     void bluetooth.request({ kind: "open", token }).catch((error) => {
+      this.authenticated = false;
       this.onStatus("offline");
       this.dispatch({ type: "error", text: String(error) });
     });
   }
+  get connected() {
+    return (
+      this.authenticated &&
+      !this.stopped &&
+      (this.endpoint === "bluetooth:" ||
+        this.socket?.readyState === WebSocket.OPEN)
+    );
+  }
+  private sameConnection(endpoint: string, token: string) {
+    return (
+      this.endpoint === endpoint.replace(/\/$/, "") && this.token === token
+    );
+  }
   connect(endpoint: string, token: string) {
+    // Saving a model or refreshing native credentials must not tear down a
+    // healthy (or already authenticating) channel to the same engine.
+    if (
+      !this.stopped &&
+      this.sameConnection(endpoint, token) &&
+      (this.connected || this.handshake !== undefined)
+    )
+      return;
     this.disconnect();
     this.endpoint = endpoint.replace(/\/$/, "");
     this.token = token;
     this.stopped = false;
+    this.attempts = 0;
     this.open();
   }
+  async ensureConnected(
+    endpoint: string,
+    token: string,
+    timeout = 25000,
+  ): Promise<void> {
+    this.connect(endpoint, token);
+    if (this.connected) return;
+    return new Promise((resolve, reject) => {
+      const stop = this.subscribe((packet) => {
+        if (
+          packet.type === "ready" &&
+          this.connected &&
+          this.sameConnection(endpoint, token)
+        ) {
+          clearTimeout(timer);
+          stop();
+          resolve();
+        } else if (packet.type === "unpaired") {
+          clearTimeout(timer);
+          stop();
+          reject(
+            new Error(
+              "The engine rejected its credentials. Restart Bluey to refresh the native connection; do not re-enter an Ollama key.",
+            ),
+          );
+        }
+      });
+      const timer = setTimeout(() => {
+        stop();
+        reject(
+          new Error(
+            "The saved model is not the problem: Bluey’s engine chat channel did not answer. Check that the Windows engine is running, then retry the connection. Your model and key are kept.",
+          ),
+        );
+      }, timeout);
+    });
+  }
+  private scheduleRetry() {
+    clearTimeout(this.retry);
+    if (!this.stopped)
+      this.retry = setTimeout(
+        () => this.open(),
+        Math.min(10000, 1000 * 2 ** this.attempts++),
+      );
+  }
   private open() {
+    if (this.stopped) return;
+    this.authenticated = false;
     this.onStatus("connecting");
     try {
       const base = this.endpoint || location.origin;
       const socket = new WebSocket(`${base.replace(/^http/, "ws")}/api/ws`);
       this.socket = socket;
-      socket.onopen = () =>
-        socket.send(JSON.stringify({ type: "auth", token: this.token }));
+      const current = () => this.socket === socket && !this.stopped;
+      const fail = (code = 1006) => {
+        if (!current()) return;
+        clearTimeout(this.handshake);
+        this.handshake = undefined;
+        this.authenticated = false;
+        this.socket = undefined;
+        socket.onclose = null;
+        socket.onerror = null;
+        socket.close();
+        this.onStatus("offline");
+        if (code === 4001) this.dispatch({ type: "unpaired" });
+        else this.scheduleRetry();
+      };
+      // OPEN is not authenticated. Bound both a stalled upgrade and a server
+      // that accepts the socket but never responds to the auth frame.
+      this.handshake = setTimeout(() => fail(), 8000);
+      socket.onopen = () => {
+        if (current())
+          socket.send(JSON.stringify({ type: "auth", token: this.token }));
+      };
       socket.onmessage = (e) => {
+        if (!current()) return;
         try {
           const p = JSON.parse(e.data);
+          if (!p || typeof p.type !== "string") return;
           if (p.type === "ready") {
+            clearTimeout(this.handshake);
+            this.handshake = undefined;
             this.attempts = 0;
+            this.authenticated = true;
             this.onStatus("connected");
           }
-          this.dispatch(p);
+          if (this.authenticated) this.dispatch(p);
         } catch {
           /* Ignore invalid transport data. */
         }
       };
-      socket.onclose = (e) => {
-        if (this.socket !== socket) return;
-        this.onStatus("offline");
-        if (e.code === 4001) this.dispatch({ type: "unpaired" });
-        if (!this.stopped && e.code !== 4001) {
-          this.retry = setTimeout(
-            () => this.open(),
-            Math.min(15000, 1000 * 2 ** this.attempts++),
-          );
-        }
-      };
-      socket.onerror = () => socket.close();
+      socket.onclose = (e) => fail(e.code);
+      socket.onerror = () => fail();
     } catch {
+      this.authenticated = false;
       this.onStatus("offline");
+      this.scheduleRetry();
     }
   }
   send(packet: Packet) {
@@ -98,7 +188,7 @@ export class BlueyClient {
       });
       return;
     }
-    if (this.socket?.readyState !== WebSocket.OPEN)
+    if (!this.connected || this.socket?.readyState !== WebSocket.OPEN)
       throw new Error("Connect to your Windows backend first.");
     this.socket.send(JSON.stringify(packet));
   }
@@ -155,6 +245,9 @@ export class BlueyClient {
     }
   }
   disconnect() {
+    this.authenticated = false;
+    clearTimeout(this.handshake);
+    this.handshake = undefined;
     clearInterval(this.bluetoothHeartbeat);
     this.bluetoothHeartbeat = undefined;
     if (this.endpoint === "bluetooth:") {
@@ -167,6 +260,9 @@ export class BlueyClient {
     clearTimeout(this.retry);
     if (this.socket) {
       this.socket.onclose = null;
+      this.socket.onerror = null;
+      this.socket.onopen = null;
+      this.socket.onmessage = null;
       this.socket.close();
     }
     this.socket = undefined;

@@ -377,3 +377,43 @@ def test_phone_cannot_override_desktop_expression(api):
         authenticate(phone, token)
         phone.send_json({"type": "mood", "mood": "listening", "expression": "excited"})
         assert receive_type(phone, "error")["type"] == "error"
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "::1"])
+def test_packaged_electron_file_origin_authenticates_only_local_desktop(host):
+    from starlette.websockets import WebSocketDisconnect
+    native = TestClient(server.app, client=(host, 50000))
+    with native.websocket_connect("/api/ws", headers={"origin": "file://"}) as ws:
+        assert authenticate(ws) == {"type": "ready", "role": "desktop"}
+        ws.send_json({"type": "ping"})
+        assert ws.receive_json()["type"] == "pong"
+    with native.websocket_connect("/api/ws", headers={"origin": "file://"}) as ws:
+        ws.send_json({"type": "auth", "token": "wrong"})
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_json()
+        assert exc.value.code == 4001
+
+
+def test_packaged_origin_does_not_accept_paired_phone_token(api):
+    from starlette.websockets import WebSocketDisconnect
+    code = server.pairing.create()
+    token, _ = server.pairing.redeem(code, "Android", "ip")
+    native = TestClient(server.app, client=("127.0.0.1", 50000))
+    with native.websocket_connect("/api/ws", headers={"origin": "file://"}) as ws:
+        ws.send_json({"type": "auth", "token": token})
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_json()
+        assert exc.value.code == 4001
+
+
+@pytest.mark.parametrize("host,origin", [
+    ("192.168.1.25", "file://"),
+    ("127.0.0.1", "file://untrusted-host"),
+    ("127.0.0.1", "https://evil.example"),
+])
+def test_native_origin_exception_is_not_a_wildcard(host, origin):
+    from starlette.websockets import WebSocketDisconnect
+    native = TestClient(server.app, client=(host, 50000))
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with native.websocket_connect("/api/ws", headers={"origin": origin}):
+            pass
+    assert exc.value.code == 4003

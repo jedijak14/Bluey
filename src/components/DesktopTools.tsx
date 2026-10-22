@@ -1,3 +1,5 @@
+import { ProductivityTools } from "./ProductivityTools";
+import type { ProductivityStore } from "../hooks/useProductivity";
 import { useEffect, useRef, useState } from "react";
 import {
   AppWindow,
@@ -11,9 +13,11 @@ import { client } from "../lib/client";
 import { uid } from "../lib/storage";
 
 export function DesktopTools({
+  productivity,
   connected,
   onConnect,
 }: {
+  productivity: ProductivityStore;
   connected: boolean;
   onConnect: () => void;
 }) {
@@ -74,10 +78,12 @@ export function DesktopTools({
         <span className="eyebrow-label">A HAND, WHEN YOU ASK</span>
         <h1>Small actions. Less switching.</h1>
         <p>
-          Every action needs approval on Windows. No scripts, hidden clicks, or
-          automatic installs.
+          Focus, plan, and save ideas offline. Computer actions below still need
+          your approval on Windows.
         </p>
       </div>
+      <ProductivityTools store={productivity} />
+      <h2>Windows actions</h2>
       {!connected && (
         <button className="primary-button" onClick={onConnect}>
           Connect Windows engine

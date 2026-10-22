@@ -10,6 +10,9 @@ const browser = await chromium.launch({
   ),
   headless: true,
 });
+const { version } = JSON.parse(
+  await fs.readFile(new URL("../package.json", import.meta.url), "utf8"),
+);
 const base = process.env.BLUEY_PREVIEW_URL || "http://127.0.0.1:5173";
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } }),
   errors = [];
@@ -210,9 +213,12 @@ try {
   for (const href of await downloads.evaluateAll((nodes) =>
     nodes.map((node) => node.href),
   )) {
-    expect(href).toMatch(
-      /^https:\/\/github\.com\/jedijak14\/Bluey\/releases\/download\/v0\.5\.7\//,
-    );
+    expect(
+      href.startsWith(
+        `https://github.com/jedijak14/Bluey/releases/download/v${version}/`,
+      ),
+    ).toBe(true);
+    expect(new URL(href).pathname.split("/").at(-1)).toContain(`-${version}-`);
   }
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });

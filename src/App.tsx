@@ -1,3 +1,5 @@
+import { useProductivity } from "./hooks/useProductivity";
+import { idleTimer } from "./lib/productivity";
 import { liveExpression } from "./lib/expressions";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -109,6 +111,7 @@ const quickActions = [
 ];
 
 export default function App() {
+  const productivity = useProductivity();
   const [page, setPage] = useState<Page>("chat");
   const [mode, setMode] = useState<"chat" | "code">("chat");
   const [settings, setSettings] = useState<Settings>(() => ({
@@ -122,11 +125,14 @@ export default function App() {
   const [setupComplete, setSetupComplete] = useState(() =>
     load("bluey.setup-complete.v1", false),
   );
+  const setupLocked = setupComplete && Boolean(window.bluey);
   const rememberSetup = () => {
     save("bluey.setup-complete.v1", true);
     setSetupComplete(true);
   };
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [repairing, setRepairing] = useState(false);
+  const repairPending = useRef(false);
   const [researchMode, setResearchMode] = useState(false);
   const [report, setReport] = useState<CompanionResponse | null>(null);
   const micAction = useRef<() => void>(() => {});
@@ -208,6 +214,7 @@ export default function App() {
     }
   }, [notice]);
   useEffect(() => {
+    let alive = true;
     const playNext = () => {
       const next = audioQueue.current.shift();
       if (!next) {
@@ -376,11 +383,21 @@ export default function App() {
         }
       }
     });
-    window.bluey?.connection().then((c) => {
-      setSettings((s) => ({ ...s, ...c }));
-      client.connect(c.endpoint, c.token);
-    });
+    window.bluey
+      ?.connection()
+      .then((c) => {
+        if (!alive) return;
+        setSettings((s) => ({ ...s, ...c }));
+        client.connect(c.endpoint, c.token);
+      })
+      .catch(() => {
+        if (alive)
+          setNotice(
+            "Could not read the native engine connection. Restart Bluey; your saved model is kept.",
+          );
+      });
     return () => {
+      alive = false;
       offCommand?.();
       client.disconnect();
       audio.current?.pause();
@@ -427,13 +444,14 @@ export default function App() {
   };
   function send(text = draft) {
     if (!text.trim() || busy) return;
-    if (status !== "connected") {
-      notify(
-        setupComplete
-          ? "Bluey is reconnecting automatically. Your draft is kept; try again when the engine is ready."
-          : "Connect your local engine in Settings to start chatting. Nothing has been sent.",
-      );
-      if (!setupComplete) setSettingsOpen(true);
+    if (!client.connected) {
+      if (setupComplete) void repairConnection();
+      else {
+        notify(
+          "Connect your local engine in Settings to start chatting. Nothing has been sent.",
+        );
+        setSettingsOpen(true);
+      }
       return;
     }
     const id = active ?? uid(),
@@ -535,7 +553,42 @@ export default function App() {
     }
   }, [quiet.active]);
   micAction.current = () => void toggleMic();
+  async function repairConnection() {
+    if (repairPending.current) return;
+    repairPending.current = true;
+    setRepairing(true);
+    notify(
+      "Restoring the saved engine connection. Your draft and model are kept.",
+    );
+    try {
+      const connection = (await window.bluey?.connection()) ?? settings;
+      const endpoint = connectionEndpoint(
+        connection.endpoint,
+        location,
+        Boolean(window.bluey),
+        import.meta.env.DEV,
+      );
+      await client.ensureConnected(endpoint, connection.token);
+      setSettings((previous) => ({
+        ...previous,
+        endpoint,
+        token: connection.token,
+      }));
+      notify(
+        "Engine connected. Your draft is ready to send; model settings remain locked.",
+      );
+    } catch (error) {
+      notify(error instanceof Error ? error.message : String(error));
+    } finally {
+      repairPending.current = false;
+      setRepairing(false);
+    }
+  }
   async function connect(s: Settings, key: string) {
+    if (setupLocked)
+      throw new Error(
+        "Model setup is locked. Bluey uses your saved connection automatically.",
+      );
     configuring.current = true;
     modelSyncEpoch.current++;
     try {
@@ -561,19 +614,16 @@ export default function App() {
         undefined,
         { endpoint, token },
       );
-      if (
-        status !== "connected" ||
-        endpoint !== settings.endpoint ||
-        token !== settings.token
-      )
-        client.connect(endpoint, token);
+      // A successful Ollama/config HTTP request is NOT a usable chat channel.
+      // Do not finish setup or lock it until the engine authenticates WebSocket.
+      await client.ensureConnected(endpoint, token);
       setModelInfo(info);
       rememberSetup();
       setSettings({ ...s, endpoint, token });
       notify(
         info.key_configured && info.key_storage !== "windows_encrypted"
           ? "Settings saved. This engine keeps keys in memory or environment only; they are not written to disk."
-          : "Setup complete. Bluey will reconnect automatically.",
+          : "Engine connected. Setup is complete and model settings are now locked.",
       );
       setSettingsOpen(false);
     } catch (e) {
@@ -585,6 +635,7 @@ export default function App() {
     }
   }
   async function findModels(s: Settings, key: string, signal: AbortSignal) {
+    if (setupLocked) throw new Error("Model setup is locked.");
     const native = await window.bluey?.connection();
     const endpoint = connectionEndpoint(
       native?.endpoint ?? s.endpoint,
@@ -692,6 +743,10 @@ export default function App() {
             <span className="tool-divider" />
             <button
               className="model-picker"
+              disabled={setupLocked}
+              title={
+                setupLocked ? "Saved model · setup locked" : "Choose a model"
+              }
               onClick={() => setSettingsOpen(true)}
             >
               <span className="model-dot" />
@@ -740,6 +795,8 @@ export default function App() {
           <DesktopHome
             face={face}
             connected={status === "connected"}
+            connectionStatus={status}
+            setupComplete={setupComplete}
             model={settings.model}
             onSettings={() => setSettingsOpen(true)}
             onDevices={() => setPage("devices")}
@@ -1082,7 +1139,7 @@ export default function App() {
             onClick={() => setSettingsOpen(true)}
           >
             <Settings2 size={17} />
-            Settings & preferences
+            {setupLocked ? "Privacy & data" : "Settings & preferences"}
             <ChevronRight size={14} />
           </button>
           <div className="sidebar-footer">
@@ -1252,6 +1309,44 @@ export default function App() {
             </button>
           </div>
         </div>
+        {setupLocked && status !== "connected" && (
+          <div className="kit-reminder" role="status">
+            <span>
+              {status === "connecting"
+                ? "Connecting to your saved engine…"
+                : "Engine unavailable. Your saved model and key are kept."}{" "}
+              Model setup is locked.
+            </span>
+            <button
+              className="outline-button"
+              disabled={repairing}
+              onClick={() => void repairConnection()}
+            >
+              {repairing ? "Checking connection…" : "Retry saved connection"}
+            </button>
+          </div>
+        )}
+        {productivity.data.timer.status === "finished" && (
+          <div className="kit-reminder" role="status">
+            <span>
+              {productivity.data.timer.phase === "focus"
+                ? "Nice work! Your focus session is complete. Time for a little break."
+                : "Your break is finished. Bluey is ready when you are."}
+            </span>
+            <button className="outline-button" onClick={() => setPage("tools")}>
+              Open workspace
+            </button>
+            <button
+              className="icon-button"
+              aria-label="Dismiss timer reminder"
+              onClick={() =>
+                productivity.setData((s) => ({ ...s, timer: idleTimer() }))
+              }
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
         {page === "chat" ? (
           mode === "chat" ? (
             chat
@@ -1277,14 +1372,19 @@ export default function App() {
           <GemmaPreview />
         ) : page === "tools" ? (
           <DesktopTools
+            productivity={productivity}
             connected={status === "connected"}
-            onConnect={() => setSettingsOpen(true)}
+            onConnect={() =>
+              setupComplete ? void repairConnection() : setSettingsOpen(true)
+            }
           />
         ) : (
           <ConnectedDevices
             status={status}
             endpoint={settings.endpoint}
-            onConnect={() => setSettingsOpen(true)}
+            onConnect={() =>
+              setupComplete ? void repairConnection() : setSettingsOpen(true)
+            }
           />
         )}
         <footer className="statusbar">
@@ -1321,6 +1421,7 @@ export default function App() {
       )}
       {settingsOpen && (
         <SettingsDialog
+          locked={setupLocked}
           privacy={screenContext}
           settings={settings}
           modelInfo={modelInfo}
@@ -1397,7 +1498,8 @@ export default function App() {
                 setSettingsOpen(true);
               }}
             >
-              Set up my engine <ArrowRight size={16} />
+              {setupLocked ? "Privacy & data" : "Set up my engine"}{" "}
+              <ArrowRight size={16} />
             </button>
           </section>
         </div>
@@ -1447,6 +1549,7 @@ export default function App() {
 }
 
 function SettingsDialog({
+  locked,
   privacy,
   settings,
   modelInfo,
@@ -1457,6 +1560,7 @@ function SettingsDialog({
   onFindModels,
   onClear,
 }: {
+  locked: boolean;
   privacy: ScreenContext;
   settings: Settings;
   modelInfo: ModelInfo | null;
@@ -1491,7 +1595,7 @@ function SettingsDialog({
   const hasSavedKey = sameCredential && modelInfo?.key_configured;
 
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState("engine");
+  const [tab, setTab] = useState(locked ? "privacy" : "engine");
   const [models, setModels] = useState<string[] | null>(null);
   const [finding, setFinding] = useState(false);
   const [modelError, setModelError] = useState("");
@@ -1539,16 +1643,22 @@ function SettingsDialog({
           <X size={19} />
         </button>
         <span className="eyebrow-label">MAKE IT YOURS</span>
-        <h2>Settings & preferences</h2>
-        <p>A familiar face. An engine of your choosing.</p>
+        <h2>{locked ? "Privacy & data" : "Settings & preferences"}</h2>
+        <p>
+          {locked
+            ? "Your saved model is locked in. Privacy and emergency stop stay in your control."
+            : "A familiar face. An engine of your choosing."}
+        </p>
         <div className="settings-tabs">
-          <button
-            className={tab === "engine" ? "active" : ""}
-            onClick={() => setTab("engine")}
-          >
-            <Zap size={15} />
-            Model settings
-          </button>
+          {!locked && (
+            <button
+              className={tab === "engine" ? "active" : ""}
+              onClick={() => setTab("engine")}
+            >
+              <Zap size={15} />
+              Model settings
+            </button>
+          )}
           <button
             className={tab === "privacy" ? "active" : ""}
             onClick={() => setTab("privacy")}
@@ -1557,7 +1667,7 @@ function SettingsDialog({
             Privacy
           </button>
         </div>
-        {tab === "engine" ? (
+        {!locked && tab === "engine" ? (
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -1882,7 +1992,7 @@ function SettingsDialog({
                 className="primary-button"
                 disabled={busy || finding || !s.model}
               >
-                {busy ? "Saving…" : "Save model"}
+                {busy ? "Connecting…" : "Save model"}
                 <ArrowRight size={16} />
               </button>
             </div>

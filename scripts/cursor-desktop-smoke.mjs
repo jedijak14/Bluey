@@ -57,6 +57,39 @@ try {
     .toBe(true);
   socket.send(JSON.stringify({ type: "home" }));
   await expect.poll(position).toEqual(home);
+  const main = app.windows().find((p) => !p.url().includes("#overlay"));
+  if (!main) throw new Error("Packaged main window did not open");
+  await main
+    .getByRole("button", { name: "Desktop tools", exact: true })
+    .click();
+  await main
+    .getByRole("textbox", { name: "Quick notes" })
+    .fill("Packaged offline note");
+  await main
+    .getByRole("textbox", { name: "New task" })
+    .fill("Check packaged workspace");
+  await main.getByRole("button", { name: "Add task", exact: true }).click();
+  await main
+    .getByRole("checkbox", { name: "Check packaged workspace" })
+    .check();
+  await main.getByRole("button", { name: "Start focus", exact: true }).click();
+  await main.reload();
+  await main
+    .getByRole("button", { name: "Desktop tools", exact: true })
+    .click();
+  await expect(main.getByRole("textbox", { name: "Quick notes" })).toHaveValue(
+    "Packaged offline note",
+  );
+  await expect(
+    main.getByRole("checkbox", { name: "Check packaged workspace" }),
+  ).toBeChecked();
+  await expect(
+    main.getByRole("button", { name: "Pause timer", exact: true }),
+  ).toBeVisible();
+  await main.getByRole("button", { name: "Reset timer", exact: true }).click();
+  console.log(
+    "Packaged Windows workspace: offline notes/checklist and running timer survive reload.",
+  );
   console.log(
     "Packaged Windows overlay: native work-area dock, explicit engine movement and sticky home passed. No desktop action executed.",
   );

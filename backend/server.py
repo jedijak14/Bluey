@@ -731,7 +731,11 @@ async def stop_http():
 @app.websocket("/api/ws")
 async def websocket(ws: WebSocket):
     origin = ws.headers.get("origin")
-    if origin and origin not in ORIGINS:
+    # Packaged Electron serializes its WebSocket origin as file:// (unlike a
+    # regular Chromium file page's opaque "null" origin). Only the loopback
+    # desktop channel may use it, and it still needs the desktop token below.
+    native_file = origin == "file://" and ws.client is not None and ws.client.host in {"127.0.0.1", "::1"}
+    if origin and origin not in ORIGINS and not native_file:
         await ws.close(code=4003)
         return
     await ws.accept()
@@ -751,7 +755,7 @@ async def websocket(ws: WebSocket):
             if credential in pairing.devices
             else ""
         )
-        if not role:
+        if not role or (native_file and role != "desktop"):
             await ws.close(code=4001)
             return
         peers[ws] = (role, credential)
