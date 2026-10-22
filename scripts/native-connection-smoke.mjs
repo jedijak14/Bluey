@@ -58,6 +58,20 @@ try {
     app.process().stderr?.on("data", (chunk) => {
       logs = (logs + chunk).slice(-12000);
     });
+    await app.evaluate(({ session }) => {
+      session.defaultSession.webRequest.onBeforeSendHeaders(
+        { urls: ["ws://127.0.0.1:8765/api/ws"] },
+        (details, callback) => {
+          console.log(
+            "Native WebSocket origin: " +
+              JSON.stringify(
+                details.requestHeaders.Origin ?? details.requestHeaders.origin,
+              ),
+          );
+          callback({ requestHeaders: details.requestHeaders });
+        },
+      );
+    });
     await expect
       .poll(() =>
         app

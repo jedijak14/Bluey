@@ -3,6 +3,7 @@
 This is an experimental build. The release is named **Bluey-Latest**, with immutable source tag `v0.5.9`. The user supplied nine reference frames for the dock and research cards; this is not a claim of full-video parity or universal browser protection.
 
 ## New in 0.5.9
+- Fix the packaged Windows `file://` WebSocket origin being rejected with HTTP 403 while HTTP model discovery worked. This origin is accepted only from loopback and only with the desktop token; phone tokens, foreign origins and remote file-origin connections remain rejected.
 - Windows setup is not marked complete until the engine authenticates the chat WebSocket. An Ollama catalog or configuration HTTP response alone is no longer treated as completed setup.
 - Stalled socket upgrades/authentication time out and retry automatically. Saving a model no longer tears down a healthy connection, and stale socket callbacks cannot change the current connection state.
 - After Windows setup completes, model/connection settings are inaccessible, including after restart. The selected model stays visible but read-only. **Privacy & data** and emergency stop remain available. A **Retry saved connection** action reuses native credentials without asking for another Ollama key or altering the saved model.
